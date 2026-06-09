@@ -1,0 +1,244 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Dashboard SRG Tecnologia</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #f5f5f7; color: #1d1d1f; min-height: 100vh; }
+  .container { max-width: 1100px; margin: 0 auto; padding: 2rem 1.5rem; }
+  header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 2rem; }
+  header h1 { font-size: 22px; font-weight: 600; color: #1d1d1f; }
+  header p { font-size: 13px; color: #6e6e73; margin-top: 2px; }
+  .btn { background: #fff; border: 1px solid #d2d2d7; border-radius: 8px; padding: 8px 16px; font-size: 13px; cursor: pointer; display: flex; align-items: center; gap: 6px; color: #1d1d1f; transition: background 0.15s; }
+  .btn:hover { background: #f5f5f7; }
+  .metric-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 12px; margin-bottom: 1.5rem; }
+  .metric-card { background: #fff; border-radius: 12px; padding: 1.25rem; border: 1px solid #e5e5ea; }
+  .metric-label { font-size: 11px; color: #6e6e73; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 6px; }
+  .metric-value { font-size: 32px; font-weight: 600; line-height: 1; }
+  .charts-row { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 1rem; }
+  .chart-card { background: #fff; border-radius: 12px; padding: 1.25rem; border: 1px solid #e5e5ea; }
+  .chart-card.full { grid-column: 1 / -1; }
+  .chart-title { font-size: 13px; font-weight: 500; color: #6e6e73; margin-bottom: 1rem; }
+  .legend { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 12px; }
+  .legend-item { display: flex; align-items: center; gap: 5px; font-size: 12px; color: #3a3a3c; }
+  .legend-dot { width: 10px; height: 10px; border-radius: 2px; flex-shrink: 0; }
+  .status-bar { font-size: 12px; color: #6e6e73; text-align: center; padding: 1rem 0; }
+  .error { background: #fff2f2; border: 1px solid #ffb3b3; border-radius: 8px; padding: 1rem; font-size: 13px; color: #c00; margin-bottom: 1rem; display: none; }
+  .loading { text-align: center; padding: 3rem; color: #6e6e73; font-size: 14px; }
+  @media (max-width: 700px) {
+    .metric-grid { grid-template-columns: repeat(2, 1fr); }
+    .charts-row { grid-template-columns: 1fr; }
+    .chart-card.full { grid-column: 1; }
+  }
+</style>
+</head>
+<body>
+<div class="container">
+  <header>
+    <div>
+      <h1>Dashboard SRG Tecnologia</h1>
+      <p id="subtitle">Chamados Meta — carregando...</p>
+    </div>
+    <button class="btn" onclick="loadData()">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M23 4v6h-6"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
+      Atualizar
+    </button>
+  </header>
+
+  <div class="error" id="err"></div>
+
+  <div class="metric-grid">
+    <div class="metric-card"><div class="metric-label">Total ativos</div><div class="metric-value" id="m0" style="color:#1d1d1f">—</div></div>
+    <div class="metric-card"><div class="metric-label">Aguardando Meta</div><div class="metric-value" id="m1" style="color:#E24B4A">—</div></div>
+    <div class="metric-card"><div class="metric-label">Em andamento</div><div class="metric-value" id="m2" style="color:#BA7517">—</div></div>
+    <div class="metric-card"><div class="metric-label">Pendente SRG</div><div class="metric-value" id="m3" style="color:#185FA5">—</div></div>
+    <div class="metric-card"><div class="metric-label">Resolvidos</div><div class="metric-value" id="m4" style="color:#3B6D11">—</div></div>
+  </div>
+
+  <div class="charts-row">
+    <div class="chart-card">
+      <div class="chart-title">Por status</div>
+      <div class="legend" id="leg-status"></div>
+      <div style="position:relative;height:200px;"><canvas id="cStatus" role="img" aria-label="Chamados por status"></canvas></div>
+    </div>
+    <div class="chart-card">
+      <div class="chart-title">Por atendente</div>
+      <div class="legend" id="leg-atendente"></div>
+      <div style="position:relative;height:200px;"><canvas id="cAtendente" role="img" aria-label="Chamados por atendente"></canvas></div>
+    </div>
+  </div>
+
+  <div class="charts-row">
+    <div class="chart-card full">
+      <div class="chart-title">Por setor</div>
+      <div style="position:relative;height:180px;"><canvas id="cSetor" role="img" aria-label="Chamados por setor"></canvas></div>
+    </div>
+  </div>
+
+  <div class="charts-row">
+    <div class="chart-card full">
+      <div class="chart-title">Por urgência</div>
+      <div style="position:relative;height:100px;"><canvas id="cUrgencia" role="img" aria-label="Chamados por urgência"></canvas></div>
+    </div>
+  </div>
+
+  <p class="status-bar" id="sbar">Carregando dados do Notion...</p>
+</div>
+
+<script>
+const TOKEN = 'ntn_T52436870781ltxQK2ce4y7rxHNPBk9JKtmdZt5yOhugXg';
+const DB    = '3761388c50a68096bf2edd5a97daffe1';
+const CHARTS = {};
+
+const STATUS_COLORS = {
+  'Aguardando Meta': '#E24B4A',
+  'Em Andamento':    '#EF9F27',
+  'Pendente SRG':    '#378ADD',
+};
+const AT_COLORS  = ['#534AB7','#0F6E56','#D85A30','#185FA5','#BA7517'];
+const ST_COLORS  = ['#534AB7','#0F6E56','#D85A30','#185FA5','#BA7517','#3B6D11','#993C1D','#888780'];
+const URG_COLORS = { 'Urgente':'#E24B4A', 'Normal':'#378ADD', 'Baixa':'#888780' };
+
+function gp(page, prop, tipo) {
+  const p = page.properties?.[prop];
+  if (!p) return '';
+  if (tipo === 'select')     return p.select?.name || '';
+  if (tipo === 'title')      return p.title?.[0]?.text?.content || '';
+  if (tipo === 'rich_text')  return p.rich_text?.[0]?.text?.content || '';
+  return '';
+}
+
+function makeLegend(id, labels, colors) {
+  document.getElementById(id).innerHTML = labels.map((l, i) =>
+    `<div class="legend-item"><span class="legend-dot" style="background:${colors[i % colors.length]}"></span>${l}</div>`
+  ).join('');
+}
+
+function makeChart(id, type, labels, data, colors, extraOpts = {}) {
+  if (CHARTS[id]) CHARTS[id].destroy();
+  CHARTS[id] = new Chart(document.getElementById(id), {
+    type,
+    data: {
+      labels,
+      datasets: [{ data, backgroundColor: colors, borderWidth: 0, borderRadius: type === 'bar' ? 4 : 0 }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: { legend: { display: false } },
+      ...extraOpts
+    }
+  });
+}
+
+async function loadData() {
+  document.getElementById('sbar').textContent = 'Atualizando...';
+  document.getElementById('err').style.display = 'none';
+
+  try {
+    let pages = [], cursor = null, hasMore = true;
+    while (hasMore) {
+      const body = {
+        page_size: 100,
+        filter: { property: 'Cliente', title: { does_not_equal: '⚙️ Última Sincronização' } }
+      };
+      if (cursor) body.start_cursor = cursor;
+
+      const r = await fetch(`https://api.notion.com/v1/databases/${DB}/query`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${TOKEN}`,
+          'Content-Type': 'application/json',
+          'Notion-Version': '2022-06-28'
+        },
+        body: JSON.stringify(body)
+      });
+      const d = await r.json();
+      if (!r.ok) throw new Error(d.message || 'Erro Notion API');
+      pages = pages.concat(d.results || []);
+      hasMore = d.has_more;
+      cursor  = d.next_cursor;
+    }
+
+    const sc = {}, ac = {}, stc = {}, uc = {};
+    let total = 0, resolvidos = 0;
+
+    for (const p of pages) {
+      const status = gp(p, 'Status', 'select');
+      const sol    = gp(p, 'Solicitante', 'rich_text').trim();
+      const setor  = gp(p, 'Setor Suporte', 'select');
+      const urg    = gp(p, 'Urgência', 'select') || gp(p, 'Urgência', 'rich_text');
+
+      if (status === 'Resolvido') { resolvidos++; continue; }
+      if (!status) continue;
+
+      total++;
+      sc[status] = (sc[status] || 0) + 1;
+
+      const at = sol.charAt(0).toUpperCase() + sol.slice(1).toLowerCase();
+      if (['Sergio','Felipe','Junior','Vitoria','Maycon'].includes(at))
+        ac[at] = (ac[at] || 0) + 1;
+
+      if (setor) stc[setor] = (stc[setor] || 0) + 1;
+      if (urg)   uc[urg]   = (uc[urg]   || 0) + 1;
+    }
+
+    document.getElementById('m0').textContent = total;
+    document.getElementById('m1').textContent = sc['Aguardando Meta'] || 0;
+    document.getElementById('m2').textContent = sc['Em Andamento']    || 0;
+    document.getElementById('m3').textContent = sc['Pendente SRG']    || 0;
+    document.getElementById('m4').textContent = resolvidos;
+    document.getElementById('subtitle').textContent = `Chamados Meta — ${new Date().toLocaleString('pt-BR')}`;
+
+    // Status donut
+    const sL = Object.keys(sc), sD = Object.values(sc);
+    const sCols = sL.map(l => STATUS_COLORS[l] || '#888780');
+    makeLegend('leg-status', sL.map((l,i) => `${l} (${sD[i]})`), sCols);
+    makeChart('cStatus', 'doughnut', sL, sD, sCols);
+
+    // Atendente donut
+    const aL = Object.keys(ac).sort((a,b) => ac[b]-ac[a]);
+    const aD = aL.map(l => ac[l]);
+    makeLegend('leg-atendente', aL.map((l,i) => `${l} (${aD[i]})`), AT_COLORS);
+    makeChart('cAtendente', 'doughnut', aL, aD, AT_COLORS);
+
+    // Setor bar horizontal
+    const stL = Object.keys(stc).sort((a,b) => stc[b]-stc[a]);
+    const stD = stL.map(l => stc[l]);
+    makeChart('cSetor', 'bar', stL, stD, ST_COLORS, {
+      indexAxis: 'y',
+      scales: {
+        x: { ticks: { stepSize: 1 }, grid: { color: 'rgba(0,0,0,0.05)' } },
+        y: { grid: { display: false } }
+      }
+    });
+
+    // Urgência bar
+    const uL = Object.keys(uc).sort((a,b) => uc[b]-uc[a]);
+    const uD = uL.map(l => uc[l]);
+    const uC = uL.map(l => URG_COLORS[l] || '#888780');
+    makeChart('cUrgencia', 'bar', uL, uD, uC, {
+      scales: {
+        x: { grid: { display: false } },
+        y: { ticks: { stepSize: 1 }, grid: { color: 'rgba(0,0,0,0.05)' } }
+      }
+    });
+
+    document.getElementById('sbar').textContent =
+      `Última atualização: ${new Date().toLocaleString('pt-BR')} — ${pages.length} chamados no banco`;
+
+  } catch (e) {
+    const el = document.getElementById('err');
+    el.textContent = 'Erro ao carregar dados: ' + e.message;
+    el.style.display = 'block';
+    document.getElementById('sbar').textContent = 'Falha na atualização.';
+  }
+}
+
+loadData();
+</script>
+</body>
+</html>
