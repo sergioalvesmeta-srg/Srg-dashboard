@@ -6,44 +6,102 @@
 <title>Dashboard SRG Tecnologia</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
 <style>
-  * { margin: 0; padding: 0; box-sizing: border-box; }
-  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #f5f5f7; color: #1d1d1f; min-height: 100vh; }
-  .container { max-width: 1100px; margin: 0 auto; padding: 2rem 1.5rem; }
-  header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 2rem; }
-  header h1 { font-size: 22px; font-weight: 600; color: #1d1d1f; }
-  header p { font-size: 13px; color: #6e6e73; margin-top: 2px; }
-  .btn { background: #fff; border: 1px solid #d2d2d7; border-radius: 8px; padding: 8px 16px; font-size: 13px; cursor: pointer; display: flex; align-items: center; gap: 6px; color: #1d1d1f; transition: background 0.15s; }
-  .btn:hover { background: #f5f5f7; }
-  .metric-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 12px; margin-bottom: 1.5rem; }
-  .metric-card { background: #fff; border-radius: 12px; padding: 1.25rem; border: 1px solid #e5e5ea; }
-  .metric-label { font-size: 11px; color: #6e6e73; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 6px; }
-  .metric-value { font-size: 32px; font-weight: 600; line-height: 1; }
-  .charts-row { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 1rem; }
-  .chart-card { background: #fff; border-radius: 12px; padding: 1.25rem; border: 1px solid #e5e5ea; }
-  .chart-card.full { grid-column: 1 / -1; }
-  .chart-title { font-size: 13px; font-weight: 500; color: #6e6e73; margin-bottom: 1rem; }
-  .legend { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 12px; }
-  .legend-item { display: flex; align-items: center; gap: 5px; font-size: 12px; color: #3a3a3c; }
-  .legend-dot { width: 10px; height: 10px; border-radius: 2px; flex-shrink: 0; }
-  .status-bar { font-size: 12px; color: #6e6e73; text-align: center; padding: 1rem 0; }
-  .error { background: #fff2f2; border: 1px solid #ffb3b3; border-radius: 8px; padding: 1rem; font-size: 13px; color: #c00; margin-bottom: 1rem; display: none; }
-  .loading { text-align: center; padding: 3rem; color: #6e6e73; font-size: 14px; }
-  @media (max-width: 700px) {
-    .metric-grid { grid-template-columns: repeat(2, 1fr); }
-    .charts-row { grid-template-columns: 1fr; }
-    .chart-card.full { grid-column: 1; }
+  :root {
+    --bg: #0a0e1a;
+    --bg2: #0f1628;
+    --bg3: #141d35;
+    --border: rgba(99,179,237,0.15);
+    --text: #e2e8f0;
+    --muted: #718096;
+    --blue: #63b3ed;
+    --red: #fc8181;
+    --orange: #f6ad55;
+    --green: #68d391;
+    --purple: #b794f4;
+    --cyan: #76e4f7;
+    --glow-blue: 0 0 20px rgba(99,179,237,0.3);
+    --glow-red: 0 0 20px rgba(252,129,129,0.3);
+    --glow-orange: 0 0 20px rgba(246,173,85,0.3);
+    --glow-green: 0 0 20px rgba(104,211,145,0.3);
+  }
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body { background:var(--bg); color:var(--text); font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif; min-height:100vh; }
+  .container { max-width:1200px; margin:0 auto; padding:1.5rem; }
+
+  /* Header */
+  header { display:flex; align-items:center; justify-content:space-between; margin-bottom:2rem; padding-bottom:1rem; border-bottom:1px solid var(--border); }
+  .logo { display:flex; align-items:center; gap:12px; }
+  .logo-icon { width:36px; height:36px; background:linear-gradient(135deg,var(--blue),var(--purple)); border-radius:8px; display:flex; align-items:center; justify-content:center; font-size:18px; box-shadow:var(--glow-blue); }
+  h1 { font-size:18px; font-weight:600; color:var(--text); }
+  .subtitle { font-size:12px; color:var(--muted); margin-top:2px; }
+  .btn-refresh { background:transparent; border:1px solid var(--border); border-radius:8px; padding:8px 16px; font-size:13px; color:var(--blue); cursor:pointer; display:flex; align-items:center; gap:6px; transition:all 0.2s; }
+  .btn-refresh:hover { background:rgba(99,179,237,0.1); box-shadow:var(--glow-blue); }
+  .spin { animation: spin 1s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* Metric cards */
+  .metric-grid { display:grid; grid-template-columns:repeat(5,1fr); gap:12px; margin-bottom:1.5rem; }
+  .metric-card { background:var(--bg2); border:1px solid var(--border); border-radius:12px; padding:1.25rem; cursor:pointer; transition:all 0.25s; position:relative; overflow:hidden; }
+  .metric-card::before { content:''; position:absolute; top:0; left:0; right:0; height:2px; background:linear-gradient(90deg,transparent,var(--accent,var(--blue)),transparent); }
+  .metric-card:hover { transform:translateY(-2px); border-color:var(--accent,var(--blue)); box-shadow:0 8px 24px rgba(0,0,0,0.4); }
+  .metric-card.active { border-color:var(--accent,var(--blue)); box-shadow:0 0 0 1px var(--accent,var(--blue)), var(--glow-blue); }
+  .metric-label { font-size:11px; color:var(--muted); text-transform:uppercase; letter-spacing:0.8px; margin-bottom:8px; }
+  .metric-value { font-size:34px; font-weight:700; line-height:1; }
+  .metric-badge { font-size:11px; color:var(--muted); margin-top:4px; }
+
+  /* Drawer */
+  .drawer { background:var(--bg3); border:1px solid var(--border); border-radius:12px; margin-bottom:1.5rem; overflow:hidden; max-height:0; transition:max-height 0.4s ease; }
+  .drawer.open { max-height:600px; }
+  .drawer-header { padding:1rem 1.25rem; display:flex; align-items:center; justify-content:space-between; border-bottom:1px solid var(--border); }
+  .drawer-title { font-size:14px; font-weight:500; }
+  .drawer-close { background:none; border:none; color:var(--muted); cursor:pointer; font-size:18px; }
+  .drawer-list { padding:0.75rem; max-height:500px; overflow-y:auto; }
+  .drawer-item { display:grid; grid-template-columns:1fr auto auto; gap:1rem; align-items:center; padding:0.75rem 0.75rem; border-radius:8px; border-bottom:1px solid rgba(255,255,255,0.04); }
+  .drawer-item:last-child { border-bottom:none; }
+  .drawer-item:hover { background:rgba(255,255,255,0.03); }
+  .drawer-item-name { font-size:13px; color:var(--text); }
+  .drawer-item-sub { font-size:11px; color:var(--muted); margin-top:2px; }
+  .drawer-item-badge { font-size:11px; padding:2px 8px; border-radius:20px; white-space:nowrap; }
+  .drawer-item-sol { font-size:11px; color:var(--muted); text-align:right; max-width:200px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+
+  /* Charts */
+  .charts-row { display:grid; grid-template-columns:1fr 1fr; gap:1rem; margin-bottom:1rem; }
+  .chart-card { background:var(--bg2); border:1px solid var(--border); border-radius:12px; padding:1.25rem; }
+  .chart-card.full { grid-column:1/-1; }
+  .chart-title { font-size:12px; font-weight:500; color:var(--muted); text-transform:uppercase; letter-spacing:0.8px; margin-bottom:1rem; }
+  .legend { display:flex; flex-wrap:wrap; gap:10px; margin-bottom:12px; }
+  .legend-item { display:flex; align-items:center; gap:5px; font-size:12px; color:var(--muted); }
+  .legend-dot { width:8px; height:8px; border-radius:2px; flex-shrink:0; }
+
+  /* Status bar */
+  .status-bar { font-size:11px; color:var(--muted); text-align:center; padding:1rem 0 0; display:flex; align-items:center; justify-content:center; gap:6px; }
+  .status-dot { width:6px; height:6px; border-radius:50%; background:var(--green); animation:pulse 2s infinite; }
+  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.4} }
+
+  .error { background:rgba(252,129,129,0.1); border:1px solid rgba(252,129,129,0.3); border-radius:8px; padding:1rem; font-size:13px; color:var(--red); margin-bottom:1rem; display:none; }
+
+  /* Scrollbar */
+  ::-webkit-scrollbar { width:4px; } ::-webkit-scrollbar-track { background:transparent; } ::-webkit-scrollbar-thumb { background:var(--border); border-radius:2px; }
+
+  @media (max-width:700px) {
+    .metric-grid { grid-template-columns:repeat(2,1fr); }
+    .charts-row { grid-template-columns:1fr; }
+    .chart-card.full { grid-column:1; }
   }
 </style>
 </head>
 <body>
 <div class="container">
   <header>
-    <div>
-      <h1>Dashboard SRG Tecnologia</h1>
-      <p id="subtitle">Chamados Meta — carregando...</p>
+    <div class="logo">
+      <div class="logo-icon">⚡</div>
+      <div>
+        <h1>SRG Tecnologia</h1>
+        <div class="subtitle" id="subtitle">Chamados Meta — carregando...</div>
+      </div>
     </div>
-    <button class="btn" onclick="loadData()">
-      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M23 4v6h-6"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
+    <button class="btn-refresh" onclick="loadData()" id="btn-refresh">
+      <svg id="refresh-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M23 4v6h-6"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
       Atualizar
     </button>
   </header>
@@ -51,11 +109,39 @@
   <div class="error" id="err"></div>
 
   <div class="metric-grid">
-    <div class="metric-card"><div class="metric-label">Total ativos</div><div class="metric-value" id="m0" style="color:#1d1d1f">—</div></div>
-    <div class="metric-card"><div class="metric-label">Aguardando Meta</div><div class="metric-value" id="m1" style="color:#E24B4A">—</div></div>
-    <div class="metric-card"><div class="metric-label">Em andamento</div><div class="metric-value" id="m2" style="color:#BA7517">—</div></div>
-    <div class="metric-card"><div class="metric-label">Pendente SRG</div><div class="metric-value" id="m3" style="color:#185FA5">—</div></div>
-    <div class="metric-card"><div class="metric-label">Resolvidos</div><div class="metric-value" id="m4" style="color:#3B6D11">—</div></div>
+    <div class="metric-card" style="--accent:var(--blue)" onclick="toggleDrawer('all')">
+      <div class="metric-label">Total ativos</div>
+      <div class="metric-value" id="m0" style="color:var(--blue)">—</div>
+      <div class="metric-badge">clique para ver</div>
+    </div>
+    <div class="metric-card" style="--accent:var(--red)" onclick="toggleDrawer('aguardando')">
+      <div class="metric-label">Aguardando Meta</div>
+      <div class="metric-value" id="m1" style="color:var(--red)">—</div>
+      <div class="metric-badge">clique para ver</div>
+    </div>
+    <div class="metric-card" style="--accent:var(--orange)" onclick="toggleDrawer('andamento')">
+      <div class="metric-label">Em andamento</div>
+      <div class="metric-value" id="m2" style="color:var(--orange)">—</div>
+      <div class="metric-badge">clique para ver</div>
+    </div>
+    <div class="metric-card" style="--accent:var(--blue)" onclick="toggleDrawer('pendente')">
+      <div class="metric-label">Pendente SRG</div>
+      <div class="metric-value" id="m3" style="color:var(--blue)">—</div>
+      <div class="metric-badge">clique para ver</div>
+    </div>
+    <div class="metric-card" style="--accent:var(--green)" onclick="toggleDrawer('resolvidos')">
+      <div class="metric-label">Resolvidos</div>
+      <div class="metric-value" id="m4" style="color:var(--green)">—</div>
+      <div class="metric-badge">clique para ver</div>
+    </div>
+  </div>
+
+  <div class="drawer" id="drawer">
+    <div class="drawer-header">
+      <span class="drawer-title" id="drawer-title">Chamados</span>
+      <button class="drawer-close" onclick="closeDrawer()">×</button>
+    </div>
+    <div class="drawer-list" id="drawer-list"></div>
   </div>
 
   <div class="charts-row">
@@ -81,160 +167,189 @@
   <div class="charts-row">
     <div class="chart-card full">
       <div class="chart-title">Por urgência</div>
-      <div style="position:relative;height:100px;"><canvas id="cUrgencia" role="img" aria-label="Chamados por urgência"></canvas></div>
+      <div style="position:relative;height:90px;"><canvas id="cUrgencia" role="img" aria-label="Chamados por urgência"></canvas></div>
     </div>
   </div>
 
-  <p class="status-bar" id="sbar">Carregando dados do Notion...</p>
+  <div class="status-bar"><div class="status-dot"></div><span id="sbar">Carregando...</span></div>
 </div>
 
 <script>
-const TOKEN = 'ntn_T52436870781ltxQK2ce4y7rxHNPBk9JKtmdZt5yOhugXg';
+const PROXY = 'https://srgdashboard.sergioalvesmeta.workers.dev';
 const DB    = '3761388c50a68096bf2edd5a97daffe1';
 const CHARTS = {};
+let ALL_PAGES = [];
+let currentDrawer = null;
 
-const STATUS_COLORS = {
-  'Aguardando Meta': '#E24B4A',
-  'Em Andamento':    '#EF9F27',
-  'Pendente SRG':    '#378ADD',
-};
-const AT_COLORS  = ['#534AB7','#0F6E56','#D85A30','#185FA5','#BA7517'];
-const ST_COLORS  = ['#534AB7','#0F6E56','#D85A30','#185FA5','#BA7517','#3B6D11','#993C1D','#888780'];
-const URG_COLORS = { 'Urgente':'#E24B4A', 'Normal':'#378ADD', 'Baixa':'#888780' };
+const STATUS_COLORS = { 'Aguardando Meta':'#fc8181','Em Andamento':'#f6ad55','Pendente SRG':'#63b3ed' };
+const AT_COLORS  = ['#b794f4','#68d391','#f6ad55','#63b3ed','#fc8181'];
+const ST_COLORS  = ['#b794f4','#68d391','#f6ad55','#63b3ed','#fc8181','#76e4f7','#fbb6ce','#a0aec0'];
 
 function gp(page, prop, tipo) {
   const p = page.properties?.[prop];
   if (!p) return '';
-  if (tipo === 'select')     return p.select?.name || '';
-  if (tipo === 'title')      return p.title?.[0]?.text?.content || '';
-  if (tipo === 'rich_text')  return p.rich_text?.[0]?.text?.content || '';
+  if (tipo==='select') return p.select?.name||'';
+  if (tipo==='title') return p.title?.[0]?.text?.content||'';
+  if (tipo==='rich_text') return p.rich_text?.[0]?.text?.content||'';
   return '';
 }
 
 function makeLegend(id, labels, colors) {
-  document.getElementById(id).innerHTML = labels.map((l, i) =>
-    `<div class="legend-item"><span class="legend-dot" style="background:${colors[i % colors.length]}"></span>${l}</div>`
+  document.getElementById(id).innerHTML = labels.map((l,i)=>
+    `<div class="legend-item"><span class="legend-dot" style="background:${colors[i%colors.length]}"></span>${l}</div>`
   ).join('');
 }
 
-function makeChart(id, type, labels, data, colors, extraOpts = {}) {
+function makeChart(id, type, labels, data, colors, extraOpts={}) {
   if (CHARTS[id]) CHARTS[id].destroy();
+  const gridColor = 'rgba(255,255,255,0.05)';
   CHARTS[id] = new Chart(document.getElementById(id), {
     type,
-    data: {
-      labels,
-      datasets: [{ data, backgroundColor: colors, borderWidth: 0, borderRadius: type === 'bar' ? 4 : 0 }]
-    },
+    data: { labels, datasets:[{ data, backgroundColor:colors, borderWidth:0, borderRadius:type==='bar'?4:0 }] },
     options: {
-      responsive: true,
-      maintainAspectRatio: false,
-      plugins: { legend: { display: false } },
+      responsive:true, maintainAspectRatio:false,
+      plugins:{ legend:{ display:false } },
+      scales: type==='bar' ? {
+        x:{ ticks:{ color:'#718096', stepSize:1 }, grid:{ color:gridColor } },
+        y:{ ticks:{ color:'#718096' }, grid:{ color:gridColor } }
+      } : undefined,
       ...extraOpts
     }
   });
 }
 
+function statusColor(s) {
+  if (s==='Aguardando Meta') return '#fc8181';
+  if (s==='Em Andamento') return '#f6ad55';
+  if (s==='Pendente SRG') return '#63b3ed';
+  if (s==='Resolvido') return '#68d391';
+  return '#718096';
+}
+
+function toggleDrawer(type) {
+  const drawer = document.getElementById('drawer');
+  const title  = document.getElementById('drawer-title');
+  const list   = document.getElementById('drawer-list');
+
+  if (currentDrawer === type) { closeDrawer(); return; }
+  currentDrawer = type;
+
+  document.querySelectorAll('.metric-card').forEach(c => c.classList.remove('active'));
+  const idx = ['all','aguardando','andamento','pendente','resolvidos'].indexOf(type);
+  if (idx>=0) document.querySelectorAll('.metric-card')[idx].classList.add('active');
+
+  let filtered, titleText;
+  if (type==='all') { filtered=ALL_PAGES.filter(p=>gp(p,'Status','select')!=='Resolvido'&&gp(p,'Status','select')); titleText='Todos os chamados ativos'; }
+  else if (type==='aguardando') { filtered=ALL_PAGES.filter(p=>gp(p,'Status','select')==='Aguardando Meta'); titleText='Aguardando Meta'; }
+  else if (type==='andamento') { filtered=ALL_PAGES.filter(p=>gp(p,'Status','select')==='Em Andamento'); titleText='Em Andamento'; }
+  else if (type==='pendente') { filtered=ALL_PAGES.filter(p=>gp(p,'Status','select')==='Pendente SRG'); titleText='Pendente SRG'; }
+  else { filtered=ALL_PAGES.filter(p=>gp(p,'Status','select')==='Resolvido'); titleText='Resolvidos'; }
+
+  title.textContent = `${titleText} (${filtered.length})`;
+
+  list.innerHTML = filtered.length === 0
+    ? '<div style="padding:1rem;color:#718096;font-size:13px;text-align:center">Nenhum chamado</div>'
+    : filtered.map(p => {
+        const nome     = gp(p,'Cliente','title');
+        const sol      = gp(p,'Solicitante','rich_text');
+        const setor    = gp(p,'Setor Suporte','select');
+        const status   = gp(p,'Status','select');
+        const proto    = gp(p,'Protocolo Digisac','rich_text');
+        const solucao  = gp(p,'Solução','rich_text');
+        const color    = statusColor(status);
+        return `<div class="drawer-item">
+          <div>
+            <div class="drawer-item-name">${nome}</div>
+            <div class="drawer-item-sub">${sol ? sol+' · ' : ''}${setor||''}${proto ? ' · '+proto : ''}</div>
+          </div>
+          <span class="drawer-item-badge" style="background:${color}22;color:${color}">${status}</span>
+          <div class="drawer-item-sol" title="${solucao}">${solucao||'—'}</div>
+        </div>`;
+      }).join('');
+
+  drawer.classList.add('open');
+}
+
+function closeDrawer() {
+  document.getElementById('drawer').classList.remove('open');
+  document.querySelectorAll('.metric-card').forEach(c=>c.classList.remove('active'));
+  currentDrawer = null;
+}
+
 async function loadData() {
+  const icon = document.getElementById('refresh-icon');
+  icon.classList.add('spin');
   document.getElementById('sbar').textContent = 'Atualizando...';
   document.getElementById('err').style.display = 'none';
 
   try {
-    let pages = [], cursor = null, hasMore = true;
+    let pages=[], cursor=null, hasMore=true;
     while (hasMore) {
-      const body = {
-        page_size: 100,
-        filter: { property: 'Cliente', title: { does_not_equal: '⚙️ Última Sincronização' } }
-      };
+      const body = { page_size:100, filter:{ property:'Cliente', title:{ does_not_equal:'⚙️ Última Sincronização' } } };
       if (cursor) body.start_cursor = cursor;
-
-      const r = await fetch(`https://srgdashboard.sergioalvesmeta.workers.dev/v1/databases/${DB}/query`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${TOKEN}`,
-          'Content-Type': 'application/json',
-          'Notion-Version': '2022-06-28'
-        },
+      const r = await fetch(`${PROXY}/v1/databases/${DB}/query`, {
+        method:'POST',
+        headers:{ 'Content-Type':'application/json' },
         body: JSON.stringify(body)
       });
       const d = await r.json();
-      if (!r.ok) throw new Error(d.message || 'Erro Notion API');
-      pages = pages.concat(d.results || []);
-      hasMore = d.has_more;
-      cursor  = d.next_cursor;
+      if (!r.ok) throw new Error(d.message||'Erro Notion API');
+      pages = pages.concat(d.results||[]);
+      hasMore = d.has_more; cursor = d.next_cursor;
     }
 
-    const sc = {}, ac = {}, stc = {}, uc = {};
-    let total = 0, resolvidos = 0;
+    ALL_PAGES = pages;
+    if (currentDrawer) toggleDrawer(currentDrawer);
+
+    const sc={}, ac={}, stc={}, uc={};
+    let total=0, resolvidos=0;
 
     for (const p of pages) {
-      const status = gp(p, 'Status', 'select');
-      const sol    = gp(p, 'Solicitante', 'rich_text').trim();
-      const setor  = gp(p, 'Setor Suporte', 'select');
-      const urg    = gp(p, 'Urgência', 'select') || gp(p, 'Urgência', 'rich_text');
+      const status = gp(p,'Status','select');
+      const sol    = gp(p,'Solicitante','rich_text').trim();
+      const setor  = gp(p,'Setor Suporte','select');
+      const urg    = gp(p,'Urgência','select')||gp(p,'Urgência','rich_text');
 
-      if (status === 'Resolvido') { resolvidos++; continue; }
+      if (status==='Resolvido') { resolvidos++; continue; }
       if (!status) continue;
-
       total++;
-      sc[status] = (sc[status] || 0) + 1;
-
-      const at = sol.charAt(0).toUpperCase() + sol.slice(1).toLowerCase();
-      if (['Sergio','Felipe','Junior','Vitoria','Maycon'].includes(at))
-        ac[at] = (ac[at] || 0) + 1;
-
-      if (setor) stc[setor] = (stc[setor] || 0) + 1;
-      if (urg)   uc[urg]   = (uc[urg]   || 0) + 1;
+      sc[status]=(sc[status]||0)+1;
+      const at = sol.charAt(0).toUpperCase()+sol.slice(1).toLowerCase();
+      if (['Sergio','Felipe','Junior','Vitoria','Maycon'].includes(at)) ac[at]=(ac[at]||0)+1;
+      if (setor) stc[setor]=(stc[setor]||0)+1;
+      if (urg) uc[urg]=(uc[urg]||0)+1;
     }
 
     document.getElementById('m0').textContent = total;
-    document.getElementById('m1').textContent = sc['Aguardando Meta'] || 0;
-    document.getElementById('m2').textContent = sc['Em Andamento']    || 0;
-    document.getElementById('m3').textContent = sc['Pendente SRG']    || 0;
+    document.getElementById('m1').textContent = sc['Aguardando Meta']||0;
+    document.getElementById('m2').textContent = sc['Em Andamento']||0;
+    document.getElementById('m3').textContent = sc['Pendente SRG']||0;
     document.getElementById('m4').textContent = resolvidos;
     document.getElementById('subtitle').textContent = `Chamados Meta — ${new Date().toLocaleString('pt-BR')}`;
 
-    // Status donut
-    const sL = Object.keys(sc), sD = Object.values(sc);
-    const sCols = sL.map(l => STATUS_COLORS[l] || '#888780');
-    makeLegend('leg-status', sL.map((l,i) => `${l} (${sD[i]})`), sCols);
-    makeChart('cStatus', 'doughnut', sL, sD, sCols);
+    const sL=Object.keys(sc), sD=Object.values(sc), sCols=sL.map(l=>STATUS_COLORS[l]||'#718096');
+    makeLegend('leg-status', sL.map((l,i)=>`${l} (${sD[i]})`), sCols);
+    makeChart('cStatus','doughnut',sL,sD,sCols);
 
-    // Atendente donut
-    const aL = Object.keys(ac).sort((a,b) => ac[b]-ac[a]);
-    const aD = aL.map(l => ac[l]);
-    makeLegend('leg-atendente', aL.map((l,i) => `${l} (${aD[i]})`), AT_COLORS);
-    makeChart('cAtendente', 'doughnut', aL, aD, AT_COLORS);
+    const aL=Object.keys(ac).sort((a,b)=>ac[b]-ac[a]), aD=aL.map(l=>ac[l]);
+    makeLegend('leg-atendente', aL.map((l,i)=>`${l} (${aD[i]})`), AT_COLORS);
+    makeChart('cAtendente','doughnut',aL,aD,AT_COLORS);
 
-    // Setor bar horizontal
-    const stL = Object.keys(stc).sort((a,b) => stc[b]-stc[a]);
-    const stD = stL.map(l => stc[l]);
-    makeChart('cSetor', 'bar', stL, stD, ST_COLORS, {
-      indexAxis: 'y',
-      scales: {
-        x: { ticks: { stepSize: 1 }, grid: { color: 'rgba(0,0,0,0.05)' } },
-        y: { grid: { display: false } }
-      }
-    });
+    const stL=Object.keys(stc).sort((a,b)=>stc[b]-stc[a]), stD=stL.map(l=>stc[l]);
+    makeChart('cSetor','bar',stL,stD,ST_COLORS,{ indexAxis:'y', scales:{ x:{ ticks:{ color:'#718096', stepSize:1 }, grid:{ color:'rgba(255,255,255,0.05)' } }, y:{ ticks:{ color:'#718096' }, grid:{ display:false } } } });
 
-    // Urgência bar
-    const uL = Object.keys(uc).sort((a,b) => uc[b]-uc[a]);
-    const uD = uL.map(l => uc[l]);
-    const uC = uL.map(l => URG_COLORS[l] || '#888780');
-    makeChart('cUrgencia', 'bar', uL, uD, uC, {
-      scales: {
-        x: { grid: { display: false } },
-        y: { ticks: { stepSize: 1 }, grid: { color: 'rgba(0,0,0,0.05)' } }
-      }
-    });
+    const uL=Object.keys(uc).sort((a,b)=>uc[b]-uc[a]), uD=uL.map(l=>uc[l]);
+    const uC=uL.map(l=>l==='Urgente'?'#fc8181':l==='Normal'?'#63b3ed':'#718096');
+    makeChart('cUrgencia','bar',uL,uD,uC,{ scales:{ x:{ ticks:{ color:'#718096' }, grid:{ display:false } }, y:{ ticks:{ color:'#718096', stepSize:1 }, grid:{ color:'rgba(255,255,255,0.05)' } } } });
 
-    document.getElementById('sbar').textContent =
-      `Última atualização: ${new Date().toLocaleString('pt-BR')} — ${pages.length} chamados no banco`;
-
-  } catch (e) {
-    const el = document.getElementById('err');
-    el.textContent = 'Erro ao carregar dados: ' + e.message;
-    el.style.display = 'block';
-    document.getElementById('sbar').textContent = 'Falha na atualização.';
+    document.getElementById('sbar').textContent = `${pages.length} chamados · última atualização ${new Date().toLocaleTimeString('pt-BR')}`;
+  } catch(e) {
+    const el=document.getElementById('err');
+    el.textContent='Erro ao carregar: '+e.message;
+    el.style.display='block';
+    document.getElementById('sbar').textContent='Falha na atualização.';
+  } finally {
+    icon.classList.remove('spin');
   }
 }
 
