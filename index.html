@@ -147,7 +147,7 @@ async function loadData() {
       };
       if (cursor) body.start_cursor = cursor;
 
-      const r = await fetch(`https://api.notion.com/v1/databases/${DB}/query`, {
+      const r = await fetch(`https://srgdashboard.sergioalvesmeta.workers.dev/v1/databases/${DB}/query`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${TOKEN}`,
