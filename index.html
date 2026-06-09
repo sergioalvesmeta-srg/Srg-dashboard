@@ -91,6 +91,18 @@
 </style>
 </head>
 <body>
+<div id="login-screen" style="position:fixed;top:0;left:0;width:100%;height:100%;background:#0a0e1a;display:flex;align-items:center;justify-content:center;z-index:9999;">
+  <div style="background:#0f1628;border:1px solid rgba(99,179,237,0.25);border-radius:16px;padding:2.5rem;width:340px;text-align:center;box-shadow:0 0 40px rgba(99,179,237,0.1);">
+    <div style="font-size:40px;margin-bottom:1rem;">⚡</div>
+    <h2 style="font-size:18px;font-weight:600;color:#e2e8f0;margin-bottom:0.5rem;">SRG Tecnologia</h2>
+    <p style="font-size:13px;color:#718096;margin-bottom:1.5rem;">Dashboard de Chamados Meta</p>
+    <input id="pwd-input" type="password" placeholder="Senha de acesso"
+      style="width:100%;background:#141d35;border:1px solid rgba(99,179,237,0.2);border-radius:8px;padding:10px 14px;font-size:14px;color:#e2e8f0;outline:none;margin-bottom:0.75rem;"
+      onkeydown="if(event.key==='Enter')checkLogin()"/>
+    <div id="login-error" style="font-size:12px;color:#fc8181;margin-bottom:0.75rem;display:none;">Senha incorreta. Tente novamente.</div>
+    <button onclick="checkLogin()" style="width:100%;background:linear-gradient(135deg,#63b3ed,#b794f4);border:none;border-radius:8px;padding:10px;font-size:14px;font-weight:600;color:#0a0e1a;cursor:pointer;">Entrar</button>
+  </div>
+</div>
 <div class="container">
   <header>
     <div class="logo">
@@ -354,6 +366,25 @@ async function loadData() {
 }
 
 loadData();
+</script>
+<script>
+const DASH_PASSWORD = 'srg@2026';
+function checkLogin() {
+  const pwd = document.getElementById('pwd-input').value;
+  if (pwd === DASH_PASSWORD) {
+    document.getElementById('login-screen').style.display = 'none';
+    sessionStorage.setItem('srg_auth', '1');
+  } else {
+    document.getElementById('login-error').style.display = 'block';
+    document.getElementById('pwd-input').value = '';
+    document.getElementById('pwd-input').focus();
+  }
+}
+if (sessionStorage.getItem('srg_auth') === '1') {
+  document.addEventListener('DOMContentLoaded', () => {
+    document.getElementById('login-screen').style.display = 'none';
+  });
+}
 </script>
 </body>
 </html>
