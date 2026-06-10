@@ -1,0 +1,268 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Portal do Cliente — SRG Tecnologia</title>
+<style>
+:root {
+  --bg:#0a0e1a; --bg2:#0f1628; --bg3:#141d35;
+  --border:rgba(99,179,237,0.15); --text:#e2e8f0; --muted:#718096;
+  --blue:#63b3ed; --red:#fc8181; --orange:#f6ad55; --green:#68d391;
+  --purple:#b794f4; --cyan:#76e4f7;
+}
+*{margin:0;padding:0;box-sizing:border-box;}
+body{background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;min-height:100vh;display:flex;flex-direction:column;}
+
+/* Header */
+header{background:var(--bg2);border-bottom:1px solid var(--border);padding:1rem 1.5rem;display:flex;align-items:center;gap:12px;}
+.logo{width:36px;height:36px;background:linear-gradient(135deg,var(--blue),var(--purple));border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:18px;box-shadow:0 0 20px rgba(99,179,237,0.3);}
+.header-title{font-size:16px;font-weight:600;}
+.header-sub{font-size:12px;color:var(--muted);}
+
+/* Main */
+main{flex:1;display:flex;align-items:center;justify-content:center;padding:2rem 1rem;}
+.card{background:var(--bg2);border:1px solid var(--border);border-radius:16px;padding:2rem;width:100%;max-width:560px;box-shadow:0 0 40px rgba(0,0,0,0.4);}
+.card-title{font-size:20px;font-weight:600;margin-bottom:6px;}
+.card-sub{font-size:13px;color:var(--muted);margin-bottom:1.5rem;}
+
+/* Search */
+.search-wrap{display:flex;gap:10px;margin-bottom:1.5rem;}
+.search-input{flex:1;background:var(--bg3);border:1px solid var(--border);border-radius:10px;padding:12px 16px;font-size:14px;color:var(--text);outline:none;transition:border .2s;}
+.search-input:focus{border-color:var(--blue);}
+.search-input::placeholder{color:var(--muted);}
+.search-btn{background:linear-gradient(135deg,var(--blue),var(--purple));border:none;border-radius:10px;padding:12px 20px;font-size:14px;font-weight:600;color:#0a0e1a;cursor:pointer;transition:opacity .2s;white-space:nowrap;}
+.search-btn:hover{opacity:.9;}
+.search-btn:disabled{opacity:.5;cursor:not-allowed;}
+
+/* Result */
+#result{display:none;}
+.result-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:1.25rem;padding-bottom:1rem;border-bottom:1px solid var(--border);}
+.result-title{font-size:16px;font-weight:600;}
+.status-badge{font-size:12px;padding:4px 12px;border-radius:20px;}
+
+.fields{display:grid;grid-template-columns:1fr 1fr;gap:.75rem;}
+.field{background:var(--bg3);border-radius:8px;padding:.85rem;}
+.field.full{grid-column:1/-1;}
+.field-label{font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.7px;margin-bottom:4px;}
+.field-value{font-size:13px;color:var(--text);line-height:1.5;}
+
+/* Timeline */
+.timeline{margin-top:1.25rem;padding-top:1rem;border-top:1px solid var(--border);}
+.timeline-title{font-size:12px;color:var(--muted);text-transform:uppercase;letter-spacing:.7px;margin-bottom:.75rem;}
+.timeline-item{display:flex;gap:.75rem;margin-bottom:.75rem;}
+.timeline-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0;margin-top:4px;}
+.timeline-content{font-size:12px;color:var(--muted);}
+.timeline-content strong{color:var(--text);}
+
+/* Error / Empty */
+.msg-box{text-align:center;padding:1.5rem;border-radius:10px;}
+.msg-box.error{background:rgba(252,129,129,0.1);border:1px solid rgba(252,129,129,0.2);}
+.msg-box.info{background:rgba(99,179,237,0.1);border:1px solid rgba(99,179,237,0.2);}
+.msg-icon{font-size:32px;margin-bottom:.75rem;}
+.msg-text{font-size:13px;color:var(--muted);}
+
+/* Loading */
+.loading{text-align:center;padding:2rem;}
+.spinner{width:32px;height:32px;border:3px solid var(--border);border-top-color:var(--blue);border-radius:50%;animation:spin 1s linear infinite;margin:0 auto 1rem;}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+/* Footer */
+footer{background:var(--bg2);border-top:1px solid var(--border);padding:.75rem 1.5rem;text-align:center;font-size:11px;color:var(--muted);}
+
+@media(max-width:480px){
+  .fields{grid-template-columns:1fr;}
+  .field.full{grid-column:1;}
+  .search-wrap{flex-direction:column;}
+}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">⚡</div>
+  <div>
+    <div class="header-title">SRG Tecnologia</div>
+    <div class="header-sub">Portal de Acompanhamento de Chamados</div>
+  </div>
+</header>
+
+<main>
+  <div class="card">
+    <div class="card-title">Consultar Chamado</div>
+    <div class="card-sub">Digite o número do protocolo para acompanhar o status do seu chamado em tempo real.</div>
+
+    <div class="search-wrap">
+      <input class="search-input" id="proto-input" type="text" placeholder="Ex: 2026060511573"
+        onkeydown="if(event.key==='Enter')buscar()" maxlength="20"/>
+      <button class="search-btn" id="search-btn" onclick="buscar()">🔍 Consultar</button>
+    </div>
+
+    <div id="result"></div>
+  </div>
+</main>
+
+<footer>SRG Tecnologia &copy; 2026 — Suporte técnico para postos de combustível e lojas de conveniência</footer>
+
+<script>
+const PROXY = 'https://srgdashboard.sergioalvesmeta.workers.dev';
+const DB    = '3761388c50a68096bf2edd5a97daffe1';
+
+function statusInfo(s) {
+  if (!s) return {label:'Sem status', bg:'rgba(113,128,150,0.15)', fg:'#718096'};
+  if (s==='Aguardando Meta')  return {label:'Em análise pela equipe técnica', bg:'rgba(252,129,129,0.15)', fg:'#fc8181'};
+  if (s==='Em Andamento')     return {label:'Em andamento', bg:'rgba(246,173,85,0.15)', fg:'#f6ad55'};
+  if (s==='Pendente SRG')     return {label:'Aguardando ação SRG', bg:'rgba(118,228,247,0.15)', fg:'#76e4f7'};
+  if (s==='Pendente PO')      return {label:'Pendente aprovação PO', bg:'rgba(183,148,244,0.15)', fg:'#b794f4'};
+  if (s==='Resolvido')        return {label:'Resolvido ✓', bg:'rgba(104,211,145,0.15)', fg:'#68d391'};
+  return {label:s, bg:'rgba(113,128,150,0.15)', fg:'#718096'};
+}
+
+function gp(page, prop, tipo) {
+  const p = page.properties?.[prop];
+  if (!p) return '';
+  if (tipo==='select')     return p.select?.name||'';
+  if (tipo==='title')      return p.title?.[0]?.text?.content||'';
+  if (tipo==='rich_text')  return p.rich_text?.[0]?.text?.content||'';
+  if (tipo==='date')       return p.date?.start||'';
+  return '';
+}
+
+function fmtDate(d) {
+  if (!d) return '—';
+  try { return new Date(d+'T00:00:00').toLocaleDateString('pt-BR'); } catch { return d; }
+}
+
+function fmtDateTime(d) {
+  if (!d) return '—';
+  try {
+    return new Date(d).toLocaleString('pt-BR', {day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'});
+  } catch { return d; }
+}
+
+async function buscar() {
+  const proto = document.getElementById('proto-input').value.trim();
+  if (!proto) return;
+
+  const btn = document.getElementById('search-btn');
+  const div = document.getElementById('result');
+  btn.disabled = true;
+  btn.textContent = 'Buscando...';
+  div.style.display = 'block';
+  div.innerHTML = '<div class="loading"><div class="spinner"></div><div style="font-size:13px;color:var(--muted)">Buscando chamado...</div></div>';
+
+  try {
+    let pages=[], cursor=null, hasMore=true;
+    while (hasMore) {
+      const body={page_size:100,filter:{property:'Protocolo Digisac',rich_text:{contains:proto}}};
+      if (cursor) body.start_cursor=cursor;
+      const r = await fetch(`${PROXY}/v1/databases/${DB}/query`,{
+        method:'POST',
+        headers:{'Content-Type':'application/json'},
+        body:JSON.stringify(body)
+      });
+      const d = await r.json();
+      if (!r.ok) throw new Error(d.message||'Erro ao buscar');
+      pages=pages.concat(d.results||[]);
+      hasMore=d.has_more; cursor=d.next_cursor;
+    }
+
+    // Filtra exato
+    const encontrados = pages.filter(p => gp(p,'Protocolo Digisac','rich_text') === proto);
+
+    if (!encontrados.length) {
+      div.innerHTML = `
+        <div class="msg-box error">
+          <div class="msg-icon">🔍</div>
+          <div style="font-size:14px;color:var(--text);margin-bottom:6px;">Protocolo não encontrado</div>
+          <div class="msg-text">Verifique o número informado ou entre em contato com o suporte.</div>
+        </div>`;
+      return;
+    }
+
+    // Usa o mais recente
+    const page = encontrados.sort((a,b) => new Date(b.last_edited_time)-new Date(a.last_edited_time))[0];
+
+    const nome     = gp(page,'Cliente','title');
+    const status   = gp(page,'Status','select');
+    const setor    = gp(page,'Setor Suporte','select');
+    const solucao  = gp(page,'Solução','rich_text');
+    const abertura = gp(page,'Data Abertura','date');
+    const conclusao= gp(page,'Conclusão','date');
+    const urgencia = gp(page,'Urgência','select')||gp(page,'Urgência','rich_text');
+    const ticket   = gp(page,'Ticket Meta','rich_text');
+    const editado  = page.last_edited_time;
+    const {label,bg,fg} = statusInfo(status);
+
+    div.innerHTML = `
+      <div class="result-header">
+        <div class="result-title">${nome}</div>
+        <span class="status-badge" style="background:${bg};color:${fg}">${label}</span>
+      </div>
+
+      <div class="fields">
+        <div class="field">
+          <div class="field-label">Protocolo</div>
+          <div class="field-value">${proto}</div>
+        </div>
+        <div class="field">
+          <div class="field-label">Setor responsável</div>
+          <div class="field-value">${setor||'Em análise'}</div>
+        </div>
+        <div class="field">
+          <div class="field-label">Data de abertura</div>
+          <div class="field-value">${fmtDate(abertura)}</div>
+        </div>
+        <div class="field">
+          <div class="field-label">Última atualização</div>
+          <div class="field-value">${fmtDateTime(editado)}</div>
+        </div>
+        ${urgencia ? `<div class="field"><div class="field-label">Prioridade</div><div class="field-value">${urgencia}</div></div>` : ''}
+        ${conclusao ? `<div class="field"><div class="field-label">Data de conclusão</div><div class="field-value">${fmtDate(conclusao)}</div></div>` : ''}
+        ${solucao ? `<div class="field full"><div class="field-label">Solução aplicada</div><div class="field-value" style="white-space:pre-wrap">${solucao}</div></div>` : ''}
+      </div>
+
+      ${status !== 'Resolvido' ? `
+      <div class="timeline">
+        <div class="timeline-title">Status do chamado</div>
+        <div class="timeline-item">
+          <div class="timeline-dot" style="background:var(--green)"></div>
+          <div class="timeline-content"><strong>Chamado aberto</strong> em ${fmtDate(abertura)}</div>
+        </div>
+        <div class="timeline-item">
+          <div class="timeline-dot" style="background:${fg}"></div>
+          <div class="timeline-content"><strong>${label}</strong> — última atualização ${fmtDateTime(editado)}</div>
+        </div>
+      </div>` : `
+      <div class="timeline">
+        <div class="timeline-title">Histórico</div>
+        <div class="timeline-item">
+          <div class="timeline-dot" style="background:var(--green)"></div>
+          <div class="timeline-content"><strong>Chamado aberto</strong> em ${fmtDate(abertura)}</div>
+        </div>
+        <div class="timeline-item">
+          <div class="timeline-dot" style="background:var(--green)"></div>
+          <div class="timeline-content"><strong>Chamado resolvido</strong>${conclusao ? ' em '+fmtDate(conclusao) : ''} ✓</div>
+        </div>
+      </div>`}
+
+      <div class="msg-box info" style="margin-top:1rem;">
+        <div class="msg-text">Dúvidas? Entre em contato pelo WhatsApp ou acesse <strong>srgtecnologia.digisac.co</strong></div>
+      </div>
+    `;
+
+  } catch(e) {
+    div.innerHTML = `
+      <div class="msg-box error">
+        <div class="msg-icon">⚠️</div>
+        <div style="font-size:14px;color:var(--text);margin-bottom:6px;">Erro ao consultar</div>
+        <div class="msg-text">${e.message}</div>
+      </div>`;
+  } finally {
+    btn.disabled=false;
+    btn.textContent='🔍 Consultar';
+  }
+}
+</script>
+</body>
+</html>
