@@ -61,6 +61,9 @@ main{flex:1;padding:1.75rem 1rem;max-width:900px;margin:0 auto;width:100%;}
 .search-btn:hover{background:var(--dark2);}
 .search-btn:disabled{opacity:.5;cursor:not-allowed;}
 .search-hint{font-size:11px;color:#94a3b8;margin-top:.6rem;}
+.periodo-btn{background:#f1f5f9;border:1.5px solid #e2e8f0;border-radius:6px;padding:4px 12px;font-size:12px;cursor:pointer;color:#64748b;transition:all .2s;}
+.periodo-btn:hover{border-color:var(--blue);color:var(--blue);}
+.periodo-btn.active{background:var(--dark);border-color:var(--dark);color:#fff;}
 .search-hint span{margin-right:1rem;}
 
 /* ── RESULT CARD ── */
@@ -220,6 +223,13 @@ footer{background:var(--dark);padding:1.25rem 1.5rem;display:grid;grid-template-
         <span>Ticket: 123456</span>
         <span>SO: 659612</span>
       </div>
+      <div style="margin-top:.75rem;display:flex;align-items:center;gap:.5rem;flex-wrap:wrap;">
+        <span style="font-size:12px;color:#64748b;">Período:</span>
+        <button class="periodo-btn active" onclick="setPeriodo(30, this)">30 dias</button>
+        <button class="periodo-btn" onclick="setPeriodo(60, this)">60 dias</button>
+        <button class="periodo-btn" onclick="setPeriodo(90, this)">90 dias</button>
+        <button class="periodo-btn" onclick="setPeriodo(0, this)">Todos</button>
+      </div>
     </div>
 
     <!-- Result -->
@@ -341,6 +351,13 @@ function removeUser(login) {
 
 
 let currentUser = null;
+let currentPeriodo = 30; // dias, 0 = todos
+
+function setPeriodo(dias, btn) {
+  currentPeriodo = dias;
+  document.querySelectorAll('.periodo-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+}
 let currentProto = '';
 
 // ── AUTH ──
@@ -525,6 +542,12 @@ async function buscar() {
           const titulo = gp(p, 'Cliente', 'title').toLowerCase();
           return titulo.includes(currentUser.filter.toLowerCase());
         });
+      }
+      // Filtro por periodo
+      if (currentPeriodo > 0) {
+        const limite = new Date();
+        limite.setDate(limite.getDate() - currentPeriodo);
+        exato = exato.filter(p => new Date(p.created_time) >= limite);
       }
       if (exato.length) found = exato.sort((a,b)=>new Date(b.last_edited_time)-new Date(a.last_edited_time))[0];
     }
