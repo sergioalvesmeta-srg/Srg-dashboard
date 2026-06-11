@@ -194,6 +194,7 @@ footer{background:var(--dark);padding:1.25rem 1.5rem;display:grid;grid-template-
         <div class="header-greeting" id="header-greeting">Olá!</div>
         <div class="header-sub">Seja bem-vindo ao Portal de Atendimento</div>
       </div>
+      <button id="admin-btn" onclick="openAdmin()" style="display:none;background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.1);border-radius:8px;padding:6px 12px;font-size:12px;color:rgba(255,255,255,0.7);cursor:pointer;margin-right:6px;">👥 Usuários</button>
       <button class="logout-btn" onclick="doLogout()">Sair →</button>
     </div>
   </header>
@@ -271,29 +272,28 @@ const PROXY = 'https://srgdashboard.sergioalvesmeta.workers.dev';
 const DB    = '3761388c50a68096bf2edd5a97daffe1';
 const WA_NUMBER = '5586989038851';
 
-// Usuários (em produção usar autenticação real)
-const USERS = {
-  'sergio': { pass: 'srg@2026', name: 'Sergio Alves' },
-};
+// Usuarios gerenciados via localStorage
 
 let currentUser = null;
 let currentProto = '';
 
 // ── AUTH ──
 function doLogin() {
-  const user = document.getElementById('login-user').value.trim().toLowerCase();
-  const pass = document.getElementById('login-pass').value;
-  const err  = document.getElementById('login-error');
-  const u    = USERS[user];
+  const login = document.getElementById('login-user').value.trim().toLowerCase();
+  const pass  = document.getElementById('login-pass').value;
+  const err   = document.getElementById('login-error');
+  const users = loadUsers();
+  const u     = users[login];
   if (u && u.pass === pass) {
-    currentUser = u;
+    currentUser = { ...u, login };
     err.style.display = 'none';
     document.getElementById('login-screen').style.display = 'none';
     document.getElementById('portal').style.display = 'flex';
     document.getElementById('portal').style.flexDirection = 'column';
     document.getElementById('portal').style.minHeight = '100vh';
     document.getElementById('header-greeting').textContent = `Olá, ${u.name}! 👋`;
-    sessionStorage.setItem('srg_user', JSON.stringify(u));
+    sessionStorage.setItem('srg_user', JSON.stringify({ ...u, login }));
+    if (login === ADMIN_LOGIN) document.getElementById('admin-btn').style.display = 'inline-block';
   } else {
     err.style.display = 'block';
     document.getElementById('login-pass').value = '';
@@ -315,6 +315,7 @@ if (saved) {
   document.getElementById('portal').style.flexDirection = 'column';
   document.getElementById('portal').style.minHeight = '100vh';
   document.getElementById('header-greeting').textContent = `Olá, ${currentUser.name}! 👋`;
+  if (currentUser.login === ADMIN_LOGIN) document.getElementById('admin-btn').style.display = 'inline-block';
 }
 
 // ── HELPERS ──
@@ -469,6 +470,7 @@ async function buscar() {
     const proto    = gp(found,'Protocolo Digisac','rich_text');
     const solicit  = gp(found,'Solicitante','rich_text');
     const atendente = gp(found,'Atendente','rich_text');
+    const dtDigisac = gp(found,'Data Digisac','date');
     const editado  = found.last_edited_time;
     const {label,bg,fg,dot} = statusInfo(status);
     currentProto = proto || q;
@@ -510,13 +512,15 @@ async function buscar() {
           <div>
             <div class="meta-label">Responsável Meta</div>
             <div class="meta-value">${atendente||'—'}</div>
+            <div class="meta-sub">${setor||''}</div>
           </div>
         </div>
         <div class="meta-item">
           <div class="meta-icon">📅</div>
           <div>
             <div class="meta-label">Data de abertura</div>
-            <div class="meta-value">${fmtDate(abertura)}</div>
+            <div class="meta-value">${dtDigisac ? fmtDate(dtDigisac) : fmtDate(abertura)}</div>
+            ${dtDigisac && abertura ? '<div class="meta-sub">Registro Meta: '+fmtDate(abertura)+'</div>' : ''}
           </div>
         </div>
         <div class="meta-item">
@@ -583,5 +587,29 @@ async function buscar() {
   }
 }
 </script>
+
+<!-- ADMIN MODAL -->
+<div id="admin-overlay" style="position:fixed;inset:0;background:rgba(0,0,0,0.6);z-index:8888;display:none;align-items:center;justify-content:center;backdrop-filter:blur(4px);" onclick="if(event.target===this)closeAdmin()">
+  <div style="background:#fff;border-radius:16px;width:90%;max-width:520px;max-height:85vh;overflow-y:auto;padding:1.75rem;position:relative;">
+    <button onclick="closeAdmin()" style="position:absolute;top:1rem;right:1rem;background:none;border:none;font-size:22px;cursor:pointer;color:#94a3b8;">×</button>
+    <div style="font-size:17px;font-weight:700;margin-bottom:4px;">👥 Gerenciar Usuários</div>
+    <div style="font-size:12px;color:#64748b;margin-bottom:1.25rem;">Usuários salvos neste navegador.</div>
+
+    <div style="background:#f8fafc;border-radius:10px;padding:1rem;margin-bottom:1rem;">
+      <div style="font-size:13px;font-weight:600;margin-bottom:.75rem;">Novo usuário</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:.5rem;margin-bottom:.5rem;">
+        <input id="new-login" type="text" placeholder="Login (ex: cac27)" style="background:#fff;border:1.5px solid #e2e8f0;border-radius:8px;padding:9px 12px;font-size:13px;outline:none;"/>
+        <input id="new-name" type="text" placeholder="Nome (ex: Cacique 27)" style="background:#fff;border:1.5px solid #e2e8f0;border-radius:8px;padding:9px 12px;font-size:13px;outline:none;"/>
+      </div>
+      <input id="new-pass" type="text" placeholder="Senha" style="width:100%;background:#fff;border:1.5px solid #e2e8f0;border-radius:8px;padding:9px 12px;font-size:13px;outline:none;margin-bottom:.5rem;"/>
+      <button onclick="addUser()" style="width:100%;background:#0d1b2e;color:#fff;border:none;border-radius:8px;padding:9px;font-size:13px;font-weight:600;cursor:pointer;">+ Adicionar</button>
+      <div id="admin-msg" style="font-size:12px;margin-top:.5rem;display:none;"></div>
+    </div>
+
+    <div style="font-size:13px;font-weight:600;margin-bottom:.75rem;">Usuários cadastrados</div>
+    <div id="users-list"></div>
+  </div>
+</div>
+
 </body>
 </html>
