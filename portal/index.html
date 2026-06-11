@@ -274,6 +274,69 @@ const WA_NUMBER = '5586989038851';
 
 // Usuarios gerenciados via localStorage
 
+// ── ADMIN USERS ──
+const ADMIN_LOGIN = 'sergio';
+const DEFAULT_USERS = { 'sergio': { pass: 'srg@2026', name: 'Sergio Alves' } };
+
+function loadUsers() {
+  try {
+    const saved = localStorage.getItem('srg_portal_users');
+    const users = saved ? JSON.parse(saved) : {};
+    if (!users['sergio']) users['sergio'] = DEFAULT_USERS['sergio'];
+    return users;
+  } catch { return { ...DEFAULT_USERS }; }
+}
+function saveUsers(users) {
+  localStorage.setItem('srg_portal_users', JSON.stringify(users));
+}
+function openAdmin() {
+  if (!currentUser || currentUser.login !== ADMIN_LOGIN) return;
+  renderUsersList();
+  document.getElementById('admin-overlay').style.display = 'flex';
+}
+function closeAdmin() {
+  document.getElementById('admin-overlay').style.display = 'none';
+}
+function renderUsersList() {
+  const users = loadUsers();
+  const el = document.getElementById('users-list');
+  const entries = Object.entries(users);
+  el.innerHTML = entries.map(([login, u]) => `
+    <div style="display:flex;align-items:center;justify-content:space-between;padding:.6rem .75rem;border-radius:8px;background:#f8fafc;margin-bottom:.4rem;">
+      <div>
+        <div style="font-size:13px;font-weight:600;">${u.name}</div>
+        <div style="font-size:11px;color:#64748b;">Login: ${login} · Senha: ${u.pass}</div>
+      </div>
+      ${login !== 'sergio' ? `<button onclick="removeUser('${login}')" style="background:#fff1f2;border:1px solid #fecdd3;border-radius:6px;padding:4px 10px;font-size:11px;color:#ef4444;cursor:pointer;">Remover</button>` : '<span style="font-size:11px;color:#94a3b8;">admin</span>'}
+    </div>
+  `).join('');
+}
+function addUser() {
+  const login = document.getElementById('new-login').value.trim().toLowerCase();
+  const name  = document.getElementById('new-name').value.trim();
+  const pass  = document.getElementById('new-pass').value.trim();
+  const msg   = document.getElementById('admin-msg');
+  if (!login || !name || !pass) { msg.style.display='block'; msg.style.color='#ef4444'; msg.textContent='Preencha todos os campos.'; return; }
+  const users = loadUsers();
+  if (users[login] && login !== 'sergio') { msg.style.display='block'; msg.style.color='#ef4444'; msg.textContent='Login já existe.'; return; }
+  users[login] = { pass, name };
+  saveUsers(users);
+  document.getElementById('new-login').value = '';
+  document.getElementById('new-name').value = '';
+  document.getElementById('new-pass').value = '';
+  msg.style.display='block'; msg.style.color='#16a34a'; msg.textContent='Usuário adicionado!';
+  setTimeout(()=>msg.style.display='none', 2000);
+  renderUsersList();
+}
+function removeUser(login) {
+  if (!confirm('Remover usuário ' + login + '?')) return;
+  const users = loadUsers();
+  delete users[login];
+  saveUsers(users);
+  renderUsersList();
+}
+
+
 let currentUser = null;
 let currentProto = '';
 
