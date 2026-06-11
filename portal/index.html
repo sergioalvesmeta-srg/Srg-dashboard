@@ -392,8 +392,12 @@ function gp(page, prop, tipo) {
   return '';
 }
 function fmtDate(d) {
-  if (!d) return '—';
-  try { return new Date(d+'T12:00:00').toLocaleDateString('pt-BR'); } catch { return d; }
+  if (!d || d === 'Invalid Date') return '—';
+  try {
+    const dt = new Date(d.includes('T') ? d : d+'T12:00:00');
+    if (isNaN(dt.getTime())) return '—';
+    return dt.toLocaleDateString('pt-BR');
+  } catch { return '—'; }
 }
 function fmtDateTime(d) {
   if (!d) return '—';
@@ -582,7 +586,7 @@ async function buscar() {
           <div class="meta-icon">📅</div>
           <div>
             <div class="meta-label">Data de abertura</div>
-            <div class="meta-value">${dtDigisac ? fmtDate(dtDigisac) : fmtDate(abertura)}</div>
+            <div class="meta-value">${dtDigisac ? fmtDate(dtDigisac) : (abertura ? fmtDate(abertura) : '—')}</div>
             ${dtDigisac && abertura ? '<div class="meta-sub">Registro Meta: '+fmtDate(abertura)+'</div>' : ''}
           </div>
         </div>
