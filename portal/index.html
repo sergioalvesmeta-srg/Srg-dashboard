@@ -212,6 +212,7 @@ footer{background:var(--dark);padding:1.25rem 1.5rem;display:grid;grid-template-
         <input class="search-input" id="proto-input" type="text" placeholder="Digite o Protocolo, Ticket ou SO"
           onkeydown="if(event.key==='Enter')buscar()"/>
         <button class="search-btn" id="search-btn" onclick="buscar()">🔍 Consultar</button>
+        <button class="search-btn" style="background:#64748b" onclick="limpar()">✕ Limpar</button>
       </div>
       <div class="search-hint">
         <span>Protocolo: 2026060511573</span>
@@ -268,7 +269,7 @@ footer{background:var(--dark);padding:1.25rem 1.5rem;display:grid;grid-template-
 <script>
 const PROXY = 'https://srgdashboard.sergioalvesmeta.workers.dev';
 const DB    = '3761388c50a68096bf2edd5a97daffe1';
-const WA_NUMBER = '5586994513720';
+const WA_NUMBER = '5586989038851';
 
 // Usuários (em produção usar autenticação real)
 const USERS = {
@@ -407,6 +408,14 @@ function toggleDetail(i) {
 }
 
 // ── BUSCAR ──
+function limpar() {
+  document.getElementById('proto-input').value = '';
+  document.getElementById('result-section').style.display = 'none';
+  document.getElementById('search-result').innerHTML = '';
+  currentProto = '';
+  document.getElementById('proto-input').focus();
+}
+
 async function buscar() {
   const q = document.getElementById('proto-input').value.trim();
   if (!q) return;
@@ -459,6 +468,7 @@ async function buscar() {
     const ticket   = gp(found,'Ticket Meta','rich_text');
     const proto    = gp(found,'Protocolo Digisac','rich_text');
     const solicit  = gp(found,'Solicitante','rich_text');
+    const atendente = gp(found,'Atendente','rich_text');
     const editado  = found.last_edited_time;
     const {label,bg,fg,dot} = statusInfo(status);
     currentProto = proto || q;
@@ -490,9 +500,16 @@ async function buscar() {
         <div class="meta-item">
           <div class="meta-icon">👤</div>
           <div>
-            <div class="meta-label">Responsável atual</div>
+            <div class="meta-label">Responsável SRG</div>
             <div class="meta-value">${solicit||'SRG Tecnologia'}</div>
             <div class="meta-sub">${setor||''}</div>
+          </div>
+        </div>
+        <div class="meta-item">
+          <div class="meta-icon">👤</div>
+          <div>
+            <div class="meta-label">Responsável Meta</div>
+            <div class="meta-value">${atendente||'—'}</div>
           </div>
         </div>
         <div class="meta-item">
