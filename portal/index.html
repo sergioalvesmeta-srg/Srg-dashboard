@@ -276,7 +276,8 @@ const WA_NUMBER = '5586989038851';
 
 // ── ADMIN USERS ──
 const ADMIN_LOGIN = 'sergio';
-const DEFAULT_USERS = { 'sergio': { pass: 'srg@2026', name: 'Sergio Alves' } };
+const DEFAULT_USERS = { 'sergio': { pass: 'srg@2026', name: 'Sergio Alves', filter: null } };
+// filter: null = ve tudo | filter: 'CAC 27' = ve so chamados do CAC 27
 
 function loadUsers() {
   try {
@@ -305,7 +306,7 @@ function renderUsersList() {
     <div style="display:flex;align-items:center;justify-content:space-between;padding:.6rem .75rem;border-radius:8px;background:#f8fafc;margin-bottom:.4rem;">
       <div>
         <div style="font-size:13px;font-weight:600;">${u.name}</div>
-        <div style="font-size:11px;color:#64748b;">Login: ${login} · Senha: ${u.pass}</div>
+        <div style="font-size:11px;color:#64748b;">Login: ${login} · Senha: ${u.pass}${u.filter ? ' · Unidade: '+u.filter : ' · Acesso total'}</div>
       </div>
       ${login !== 'sergio' ? `<button onclick="removeUser('${login}')" style="background:#fff1f2;border:1px solid #fecdd3;border-radius:6px;padding:4px 10px;font-size:11px;color:#ef4444;cursor:pointer;">Remover</button>` : '<span style="font-size:11px;color:#94a3b8;">admin</span>'}
     </div>
@@ -317,13 +318,15 @@ function addUser() {
   const pass  = document.getElementById('new-pass').value.trim();
   const msg   = document.getElementById('admin-msg');
   if (!login || !name || !pass) { msg.style.display='block'; msg.style.color='#ef4444'; msg.textContent='Preencha todos os campos.'; return; }
+  const filterVal = document.getElementById('new-filter').value.trim() || null;
   const users = loadUsers();
   if (users[login] && login !== 'sergio') { msg.style.display='block'; msg.style.color='#ef4444'; msg.textContent='Login já existe.'; return; }
-  users[login] = { pass, name };
+  users[login] = { pass, name, filter: filterVal };
   saveUsers(users);
   document.getElementById('new-login').value = '';
   document.getElementById('new-name').value = '';
   document.getElementById('new-pass').value = '';
+  document.getElementById('new-filter').value = '';
   msg.style.display='block'; msg.style.color='#16a34a'; msg.textContent='Usuário adicionado!';
   setTimeout(()=>msg.style.display='none', 2000);
   renderUsersList();
@@ -512,11 +515,24 @@ async function buscar() {
       });
       const d = await r.json();
       if (!r.ok) throw new Error(d.message||'Erro');
-      const exato = (d.results||[]).filter(p => {
+      let exato = (d.results||[]).filter(p => {
         const val = gp(p, s.property, 'rich_text');
         return val === q || val.includes(q);
       });
+      // Filtro por unidade se usuario tiver restricao
+      if (currentUser && currentUser.filter) {
+        exato = exato.filter(p => {
+          const titulo = gp(p, 'Cliente', 'title').toLowerCase();
+          return titulo.includes(currentUser.filter.toLowerCase());
+        });
+      }
       if (exato.length) found = exato.sort((a,b)=>new Date(b.last_edited_time)-new Date(a.last_edited_time))[0];
+    }
+
+    // Se nao encontrou e tem filtro, mostra mensagem adequada
+    if (!found && currentUser && currentUser.filter) {
+      res.innerHTML = '<div class="msg-box error"><div class="msg-icon">🔒</div><div style="font-size:14px;font-weight:600;margin-bottom:4px">Chamado não encontrado</div><div style="font-size:12px;color:var(--muted)">Este chamado não pertence à sua unidade ou não existe.</div></div>';
+      return;
     }
 
     res.innerHTML = '';
@@ -681,6 +697,7 @@ async function buscar() {
         <input id="new-name" type="text" placeholder="Nome (ex: Cacique 27)" style="background:#fff;border:1.5px solid #e2e8f0;border-radius:8px;padding:9px 12px;font-size:13px;outline:none;"/>
       </div>
       <input id="new-pass" type="text" placeholder="Senha" style="width:100%;background:#fff;border:1.5px solid #e2e8f0;border-radius:8px;padding:9px 12px;font-size:13px;outline:none;margin-bottom:.5rem;"/>
+      <input id="new-filter" type="text" placeholder="Filtro por unidade (ex: CAC 27) — deixe vazio para ver tudo" style="width:100%;background:#fff;border:1.5px solid #e2e8f0;border-radius:8px;padding:9px 12px;font-size:13px;outline:none;margin-bottom:.5rem;"/>
       <button onclick="addUser()" style="width:100%;background:#0d1b2e;color:#fff;border:none;border-radius:8px;padding:9px;font-size:13px;font-weight:600;cursor:pointer;">+ Adicionar</button>
       <div id="admin-msg" style="font-size:12px;margin-top:.5rem;display:none;"></div>
     </div>
