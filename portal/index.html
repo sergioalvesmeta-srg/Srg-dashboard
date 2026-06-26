@@ -429,7 +429,7 @@ function fmtDateTime(d) {
 function statusInfo(s) {
   if (!s) return {label:'Sem status',bg:'#f1f5f9',fg:'#64748b',dot:'⚪'};
   if (s==='Aguardando Meta')  return {label:'Em análise técnica',bg:'#fff7ed',fg:'#c2410c',dot:'🟠'};
-  if (s==='Em Andamento')     return {label:'Aguardando ação SRG',bg:'#fefce8',fg:'#a16207',dot:'🟡'};
+  if (s==='Em Andamento')     return {label:'Em andamento',bg:'#eff6ff',fg:'#1d4ed8',dot:'🔵'};
   if (s==='Pendente SRG')     return {label:'Aguardando ação SRG',bg:'#fefce8',fg:'#a16207',dot:'🟡'};
   if (s==='Pendente PO')      return {label:'Aguardando aprovação',bg:'#f5f3ff',fg:'#7c3aed',dot:'🟣'};
   if (s==='Resolvido')        return {label:'Resolvido',bg:'#f0fdf4',fg:'#15803d',dot:'✅'};
