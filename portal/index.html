@@ -13,12 +13,10 @@
 }
 *{margin:0;padding:0;box-sizing:border-box;}
 body{background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;min-height:100vh;display:flex;flex-direction:column;}
-
 /* ── LOGO SVG ── */
 .srg-logo{display:flex;align-items:center;gap:8px;}
 .srg-logo svg{width:48px;height:auto;}
 .srg-logo-text{font-size:10px;color:var(--blue2);letter-spacing:2px;font-weight:600;line-height:1;}
-
 /* ── LOGIN SCREEN ── */
 #login-screen{position:fixed;inset:0;background:var(--dark);display:flex;align-items:center;justify-content:center;z-index:9999;padding:1rem;}
 .login-box{background:var(--dark2);border:1px solid rgba(255,255,255,0.08);border-radius:20px;padding:2.5rem;width:100%;max-width:420px;box-shadow:0 24px 60px rgba(0,0,0,0.5);}
@@ -34,7 +32,6 @@ body{background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSy
 .login-forgot{text-align:center;margin-top:1rem;font-size:12px;color:rgba(255,255,255,0.4);cursor:pointer;transition:color .2s;}
 .login-forgot:hover{color:var(--blue2);}
 .login-error{font-size:12px;color:#fc8181;margin-bottom:.75rem;display:none;text-align:center;}
-
 /* ── HEADER ── */
 header{background:var(--dark);padding:.9rem 1.5rem;display:flex;align-items:center;justify-content:space-between;box-shadow:0 2px 12px rgba(0,0,0,0.3);}
 .header-user{display:flex;flex-direction:column;align-items:flex-end;}
@@ -43,10 +40,8 @@ header{background:var(--dark);padding:.9rem 1.5rem;display:flex;align-items:cent
 .logout-btn{display:flex;align-items:center;gap:6px;background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.1);border-radius:8px;padding:6px 12px;font-size:12px;color:rgba(255,255,255,0.7);cursor:pointer;transition:all .2s;margin-left:1rem;}
 .logout-btn:hover{background:rgba(255,255,255,0.14);color:#fff;}
 .header-right{display:flex;align-items:center;gap:.5rem;}
-
 /* ── MAIN ── */
 main{flex:1;padding:1.75rem 1rem;max-width:900px;margin:0 auto;width:100%;}
-
 /* ── SEARCH CARD ── */
 .search-card{background:var(--white);border-radius:16px;padding:1.5rem;margin-bottom:1.25rem;box-shadow:0 1px 4px rgba(0,0,0,0.06);}
 .search-card-header{display:flex;align-items:center;gap:.75rem;margin-bottom:1rem;}
@@ -65,7 +60,6 @@ main{flex:1;padding:1.75rem 1rem;max-width:900px;margin:0 auto;width:100%;}
 .periodo-btn:hover{border-color:var(--blue);color:var(--blue);}
 .periodo-btn.active{background:var(--dark);border-color:var(--dark);color:#fff;}
 .search-hint span{margin-right:1rem;}
-
 /* ── RESULT CARD ── */
 .result-card{background:var(--white);border-radius:16px;padding:1.5rem;margin-bottom:1.25rem;box-shadow:0 1px 4px rgba(0,0,0,0.06);}
 .result-header{display:flex;align-items:flex-start;justify-content:space-between;gap:1rem;margin-bottom:1.25rem;}
@@ -74,22 +68,18 @@ main{flex:1;padding:1.75rem 1rem;max-width:900px;margin:0 auto;width:100%;}
 .result-title{font-size:17px;font-weight:700;line-height:1.35;}
 .result-sub{font-size:12px;color:var(--muted);margin-top:3px;}
 .status-badge{display:inline-flex;align-items:center;gap:5px;font-size:12px;font-weight:600;padding:5px 12px;border-radius:20px;white-space:nowrap;flex-shrink:0;}
-
 .meta-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:.75rem;margin-bottom:1rem;}
 .meta-item{display:flex;align-items:flex-start;gap:.6rem;}
 .meta-icon{font-size:16px;margin-top:1px;flex-shrink:0;}
 .meta-label{font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:2px;}
 .meta-value{font-size:13px;font-weight:600;}
 .meta-sub{font-size:11px;color:var(--muted);}
-
 .next-step{background:var(--light);border-radius:10px;padding:.85rem 1rem;display:flex;align-items:flex-start;gap:.75rem;}
 .next-step-icon{font-size:18px;flex-shrink:0;}
 .next-step-label{font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:3px;}
 .next-step-text{font-size:13px;line-height:1.5;}
-
 /* ── BOTTOM GRID ── */
 .bottom-grid{display:grid;grid-template-columns:1fr 320px;gap:1.25rem;margin-bottom:1.25rem;}
-
 /* ── TIMELINE ── */
 .timeline-card{background:var(--white);border-radius:16px;padding:1.5rem;box-shadow:0 1px 4px rgba(0,0,0,0.06);}
 .section-title{font-size:15px;font-weight:700;margin-bottom:1.25rem;}
@@ -109,7 +99,6 @@ main{flex:1;padding:1.75rem 1rem;max-width:900px;margin:0 auto;width:100%;}
 .tl-details.open{display:block;}
 .tl-details-text{font-size:12px;color:var(--text);line-height:1.6;margin-bottom:.6rem;}
 .tl-details-meta{display:flex;gap:1rem;font-size:11px;color:var(--muted);}
-
 /* ── DETAILS CARD ── */
 .details-card{background:var(--white);border-radius:16px;padding:1.5rem;box-shadow:0 1px 4px rgba(0,0,0,0.06);}
 .detail-row{margin-bottom:1rem;}
@@ -120,7 +109,6 @@ main{flex:1;padding:1.75rem 1rem;max-width:900px;margin:0 auto;width:100%;}
 .copy-btn:hover{color:var(--blue);}
 .priority-badge{display:inline-flex;align-items:center;gap:4px;font-size:12px;font-weight:600;}
 .divider{height:1px;background:var(--border);margin:.75rem 0;}
-
 /* ── WHATSAPP ── */
 .wa-card{background:var(--white);border-radius:16px;padding:1.25rem 1.5rem;margin-bottom:1.25rem;box-shadow:0 1px 4px rgba(0,0,0,0.06);display:flex;align-items:center;justify-content:space-between;gap:1rem;}
 .wa-left{display:flex;align-items:center;gap:.85rem;}
@@ -129,7 +117,6 @@ main{flex:1;padding:1.75rem 1rem;max-width:900px;margin:0 auto;width:100%;}
 .wa-sub{font-size:12px;color:var(--muted);}
 .wa-btn{background:var(--dark);color:#fff;border:none;border-radius:10px;padding:10px 18px;font-size:13px;font-weight:600;cursor:pointer;display:flex;align-items:center;gap:7px;white-space:nowrap;transition:background .2s;flex-shrink:0;}
 .wa-btn:hover{background:var(--dark2);}
-
 /* ── LOADING / MSGS ── */
 .loading{text-align:center;padding:2rem;}
 .spinner{width:28px;height:28px;border:3px solid var(--border);border-top-color:var(--blue);border-radius:50%;animation:spin 1s linear infinite;margin:0 auto .75rem;}
@@ -138,16 +125,13 @@ main{flex:1;padding:1.75rem 1rem;max-width:900px;margin:0 auto;width:100%;}
 .msg-box.error{background:#fff1f2;border:1px solid #fecdd3;}
 .msg-box.info{background:#f0f9ff;border:1px solid #bae6fd;}
 .msg-icon{font-size:28px;margin-bottom:.5rem;}
-
 /* ── FOOTER ── */
 footer{background:var(--dark);padding:1.25rem 1.5rem;display:grid;grid-template-columns:auto 1fr auto;align-items:center;gap:1rem;}
 .footer-center{text-align:center;font-size:11px;color:rgba(255,255,255,0.3);}
 .footer-secure{display:flex;align-items:center;gap:5px;font-size:11px;color:rgba(255,255,255,0.3);}
-
 /* ── HIDDEN ── */
 #portal{display:none;}
 #result-section{display:none;}
-
 @media(max-width:680px){
   .meta-grid{grid-template-columns:1fr 1fr;}
   .bottom-grid{grid-template-columns:1fr;}
@@ -159,7 +143,6 @@ footer{background:var(--dark);padding:1.25rem 1.5rem;display:grid;grid-template-
 </style>
 </head>
 <body>
-
 <!-- LOGIN -->
 <div id="login-screen">
   <div class="login-box">
@@ -178,11 +161,10 @@ footer{background:var(--dark);padding:1.25rem 1.5rem;display:grid;grid-template-
     <input class="login-input" id="login-user" type="text" placeholder="seu@email.com" onkeydown="if(event.key==='Enter')doLogin()"/>
     <label class="login-label">Senha</label>
     <input class="login-input" id="login-pass" type="password" placeholder="••••••••" onkeydown="if(event.key==='Enter')doLogin()"/>
-    <button class="login-btn" onclick="doLogin()">Entrar</button>
+    <button class="login-btn" id="login-btn" onclick="doLogin()">Entrar</button>
     <div class="login-forgot" onclick="alert('Entre em contato com a SRG Tecnologia para recuperar seu acesso.')">Esqueci minha senha</div>
   </div>
 </div>
-
 <!-- PORTAL -->
 <div id="portal">
   <header>
@@ -201,7 +183,6 @@ footer{background:var(--dark);padding:1.25rem 1.5rem;display:grid;grid-template-
       <button class="logout-btn" onclick="doLogout()">Sair →</button>
     </div>
   </header>
-
   <main>
     <!-- Search -->
     <div class="search-card">
@@ -231,12 +212,10 @@ footer{background:var(--dark);padding:1.25rem 1.5rem;display:grid;grid-template-
         <button class="periodo-btn" onclick="setPeriodo(0, this)">Todos</button>
       </div>
     </div>
-
     <!-- Result -->
     <div id="result-section">
       <!-- Main result card -->
       <div class="result-card" id="result-card"></div>
-
       <!-- Bottom grid -->
       <div class="bottom-grid">
         <div class="timeline-card">
@@ -248,7 +227,6 @@ footer{background:var(--dark);padding:1.25rem 1.5rem;display:grid;grid-template-
           <div id="details-body"></div>
         </div>
       </div>
-
       <!-- WhatsApp -->
       <div class="wa-card">
         <div class="wa-left">
@@ -261,10 +239,8 @@ footer{background:var(--dark);padding:1.25rem 1.5rem;display:grid;grid-template-
         <button class="wa-btn" id="wa-btn">💬 Falar sobre este chamado</button>
       </div>
     </div>
-
     <div id="search-result"></div>
   </main>
-
   <footer>
     <div class="srg-logo">
       <svg viewBox="0 0 80 40" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -276,63 +252,86 @@ footer{background:var(--dark);padding:1.25rem 1.5rem;display:grid;grid-template-
     <div class="footer-secure">🔒 Portal seguro</div>
   </footer>
 </div>
-
 <script>
 const PROXY = 'https://srgdashboard.sergioalvesmeta.workers.dev';
 const DB    = '3761388c50a68096bf2edd5a97daffe1';
 const WA_NUMBER = '5586989038851';
 
-// Usuarios gerenciados via localStorage
+// ══════════════════════════════════════════════════════════
+// AUTENTICAÇÃO — agora via Worker + Cloudflare KV (antes era localStorage)
+// O token de sessão fica no sessionStorage (isso é normal, é por navegador).
+// A LISTA de usuários agora vive centralizada no KV, acessível de qualquer PC.
+// ══════════════════════════════════════════════════════════
 
-// ── ADMIN USERS ──
-const ADMIN_LOGIN = 'sergio';
-const DEFAULT_USERS = { 'sergio': { pass: 'srg@2026', name: 'Sergio Alves', filter: null } };
-// filter: null = ve tudo | filter: 'CAC 27' = ve so chamados do CAC 27
+async function apiLogin(username, password) {
+  const r = await fetch(`${PROXY}/auth/login`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ username, password })
+  });
+  return r.json();
+}
+async function apiLogout(token) {
+  return fetch(`${PROXY}/auth/logout`, {
+    method: 'POST',
+    headers: { 'Authorization': `Bearer ${token}` }
+  }).catch(()=>{});
+}
+async function apiListUsers(token) {
+  const r = await fetch(`${PROXY}/auth/users`, {
+    headers: { 'Authorization': `Bearer ${token}` }
+  });
+  return r.json();
+}
+async function apiCreateUser(token, username, password, unidades, role) {
+  const r = await fetch(`${PROXY}/auth/users`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+    body: JSON.stringify({ username, password, unidades, role })
+  });
+  return r.json();
+}
+async function apiDeleteUser(token, username) {
+  const r = await fetch(`${PROXY}/auth/users/${encodeURIComponent(username)}`, {
+    method: 'DELETE',
+    headers: { 'Authorization': `Bearer ${token}` }
+  });
+  return r.json();
+}
 
-function loadUsers() {
-  try {
-    const saved = localStorage.getItem('srg_portal_users');
-    const users = saved ? JSON.parse(saved) : {};
-    if (!users['sergio']) users['sergio'] = DEFAULT_USERS['sergio'];
-    return users;
-  } catch { return { ...DEFAULT_USERS }; }
-}
-function saveUsers(users) {
-  localStorage.setItem('srg_portal_users', JSON.stringify(users));
-}
 function openAdmin() {
-  if (!currentUser || currentUser.login !== ADMIN_LOGIN) return;
+  if (!currentUser || currentUser.role !== 'admin') return;
   renderUsersList();
   document.getElementById('admin-overlay').style.display = 'flex';
 }
 function closeAdmin() {
   document.getElementById('admin-overlay').style.display = 'none';
 }
-function renderUsersList() {
-  const users = loadUsers();
+async function renderUsersList() {
   const el = document.getElementById('users-list');
-  const entries = Object.entries(users);
-  el.innerHTML = entries.map(([login, u]) => `
+  el.innerHTML = '<div style="font-size:12px;color:#94a3b8;">Carregando...</div>';
+  const data = await apiListUsers(currentUser.token);
+  if (!data.ok) { el.innerHTML = '<div style="font-size:12px;color:#ef4444;">Erro ao carregar usuários.</div>'; return; }
+  el.innerHTML = data.users.map(u => `
     <div style="display:flex;align-items:center;justify-content:space-between;padding:.6rem .75rem;border-radius:8px;background:#f8fafc;margin-bottom:.4rem;">
       <div>
-        <div style="font-size:13px;font-weight:600;">${u.name}</div>
-        <div style="font-size:11px;color:#64748b;">Login: ${login} · Senha: ${u.pass}${u.filter ? ' · Unidade: '+u.filter : ' · Acesso total'}</div>
+        <div style="font-size:13px;font-weight:600;">${u.username}</div>
+        <div style="font-size:11px;color:#64748b;">${u.role==='admin'?'Administrador':(u.unidades&&u.unidades.length?'Unidade: '+u.unidades.join(', '):'Acesso total')}</div>
       </div>
-      ${login !== 'sergio' ? `<button onclick="removeUser('${login}')" style="background:#fff1f2;border:1px solid #fecdd3;border-radius:6px;padding:4px 10px;font-size:11px;color:#ef4444;cursor:pointer;">Remover</button>` : '<span style="font-size:11px;color:#94a3b8;">admin</span>'}
+      ${u.role !== 'admin' ? `<button onclick="removeUser('${u.username}')" style="background:#fff1f2;border:1px solid #fecdd3;border-radius:6px;padding:4px 10px;font-size:11px;color:#ef4444;cursor:pointer;">Remover</button>` : '<span style="font-size:11px;color:#94a3b8;">admin</span>'}
     </div>
   `).join('');
 }
-function addUser() {
+async function addUser() {
   const login = document.getElementById('new-login').value.trim().toLowerCase();
-  const name  = document.getElementById('new-name').value.trim();
+  const name  = document.getElementById('new-name').value.trim(); // mantido por compat. visual, não é mais usado pela API
   const pass  = document.getElementById('new-pass').value.trim();
   const msg   = document.getElementById('admin-msg');
-  if (!login || !name || !pass) { msg.style.display='block'; msg.style.color='#ef4444'; msg.textContent='Preencha todos os campos.'; return; }
-  const filterVal = document.getElementById('new-filter').value.trim() || null;
-  const users = loadUsers();
-  if (users[login] && login !== 'sergio') { msg.style.display='block'; msg.style.color='#ef4444'; msg.textContent='Login já existe.'; return; }
-  users[login] = { pass, name, filter: filterVal };
-  saveUsers(users);
+  if (!login || !pass) { msg.style.display='block'; msg.style.color='#ef4444'; msg.textContent='Preencha usuário e senha.'; return; }
+  const filterVal = document.getElementById('new-filter').value.trim();
+  const unidades = filterVal ? filterVal.split(',').map(s=>s.trim()).filter(Boolean) : [];
+  const data = await apiCreateUser(currentUser.token, login, pass, unidades, 'cliente');
+  if (!data.ok) { msg.style.display='block'; msg.style.color='#ef4444'; msg.textContent=data.error||'Erro ao criar usuário.'; return; }
   document.getElementById('new-login').value = '';
   document.getElementById('new-name').value = '';
   document.getElementById('new-pass').value = '';
@@ -341,18 +340,14 @@ function addUser() {
   setTimeout(()=>msg.style.display='none', 2000);
   renderUsersList();
 }
-function removeUser(login) {
-  if (!confirm('Remover usuário ' + login + '?')) return;
-  const users = loadUsers();
-  delete users[login];
-  saveUsers(users);
+async function removeUser(username) {
+  if (!confirm('Remover usuário ' + username + '?')) return;
+  await apiDeleteUser(currentUser.token, username);
   renderUsersList();
 }
 
-
 let currentUser = null;
 let currentPeriodo = 30; // dias, 0 = todos
-
 function setPeriodo(dias, btn) {
   currentPeriodo = dias;
   document.querySelectorAll('.periodo-btn').forEach(b => b.classList.remove('active'));
@@ -361,28 +356,34 @@ function setPeriodo(dias, btn) {
 let currentProto = '';
 
 // ── AUTH ──
-function doLogin() {
+async function doLogin() {
   const login = document.getElementById('login-user').value.trim().toLowerCase();
   const pass  = document.getElementById('login-pass').value;
   const err   = document.getElementById('login-error');
-  const users = loadUsers();
-  const u     = users[login];
-  if (u && u.pass === pass) {
-    currentUser = { ...u, login };
+  const btn   = document.getElementById('login-btn');
+  if (!login || !pass) return;
+  btn.disabled = true; btn.textContent = 'Entrando...';
+  const data = await apiLogin(login, pass);
+  btn.disabled = false; btn.textContent = 'Entrar';
+  if (data.ok) {
+    currentUser = { username: data.username, role: data.role, unidades: data.unidades || [], token: data.token };
     err.style.display = 'none';
     document.getElementById('login-screen').style.display = 'none';
     document.getElementById('portal').style.display = 'flex';
     document.getElementById('portal').style.flexDirection = 'column';
     document.getElementById('portal').style.minHeight = '100vh';
-    document.getElementById('header-greeting').textContent = `Olá, ${u.name}! 👋`;
-    sessionStorage.setItem('srg_user', JSON.stringify({ ...u, login }));
-    if (login === ADMIN_LOGIN) document.getElementById('admin-btn').style.display = 'inline-block';
+    document.getElementById('header-greeting').textContent = `Olá, ${data.username}! 👋`;
+    sessionStorage.setItem('srg_user', JSON.stringify(currentUser));
+    if (currentUser.role === 'admin') document.getElementById('admin-btn').style.display = 'inline-block';
   } else {
+    err.textContent = data.error || 'Usuário ou senha inválidos.';
     err.style.display = 'block';
     document.getElementById('login-pass').value = '';
   }
 }
-function doLogout() {
+async function doLogout() {
+  if (currentUser && currentUser.token) await apiLogout(currentUser.token);
+  currentUser = null;
   sessionStorage.removeItem('srg_user');
   document.getElementById('login-screen').style.display = 'flex';
   document.getElementById('portal').style.display = 'none';
@@ -390,6 +391,7 @@ function doLogout() {
   document.getElementById('login-pass').value = '';
   document.getElementById('result-section').style.display = 'none';
 }
+// Restaura sessão salva neste navegador (token expira em 12h no servidor)
 const saved = sessionStorage.getItem('srg_user');
 if (saved) {
   currentUser = JSON.parse(saved);
@@ -397,8 +399,8 @@ if (saved) {
   document.getElementById('portal').style.display = 'flex';
   document.getElementById('portal').style.flexDirection = 'column';
   document.getElementById('portal').style.minHeight = '100vh';
-  document.getElementById('header-greeting').textContent = `Olá, ${currentUser.name}! 👋`;
-  if (currentUser.login === ADMIN_LOGIN) document.getElementById('admin-btn').style.display = 'inline-block';
+  document.getElementById('header-greeting').textContent = `Olá, ${currentUser.username}! 👋`;
+  if (currentUser.role === 'admin') document.getElementById('admin-btn').style.display = 'inline-block';
 }
 
 // ── HELPERS ──
@@ -441,7 +443,6 @@ function copy(text, btn) {
     setTimeout(()=>btn.textContent='📋',1500);
   });
 }
-
 // ── TIMELINE ──
 function buildTimeline(page) {
   const status   = gp(page,'Status','select');
@@ -450,7 +451,6 @@ function buildTimeline(page) {
   const solucao  = gp(page,'Solução','rich_text');
   const editado  = page.last_edited_time;
   const {label}  = statusInfo(status);
-
   const etapas = [];
   if (abertura) etapas.push({done:true, titulo:'Chamado aberto', data:fmtDate(abertura), desc:'Chamado registrado no portal do cliente.', detail:null});
   if (setor)    etapas.push({done:true, titulo:`Encaminhado para ${setor}`, data:fmtDate(abertura), desc:`Chamado encaminhado para análise da equipe ${setor}.`, detail:null});
@@ -463,7 +463,6 @@ function buildTimeline(page) {
     detail: solucao || null,
     setor, responsavel: gp(page,'Solicitante','rich_text')
   });
-
   return etapas.map((e,i)=>`
     <div class="tl-item">
       <div class="tl-dot ${e.done?'done':e.active?'active':'pending'}">${e.done?'✓':e.active?'⏱':'○'}</div>
@@ -489,12 +488,10 @@ function buildTimeline(page) {
     </div>
   `).join('');
 }
-
 function toggleDetail(i) {
   const el = document.getElementById(`tl-detail-${i}`);
   if (el) el.classList.toggle('open');
 }
-
 // ── BUSCAR ──
 function limpar() {
   document.getElementById('proto-input').value = '';
@@ -503,26 +500,21 @@ function limpar() {
   currentProto = '';
   document.getElementById('proto-input').focus();
 }
-
 async function buscar() {
   const q = document.getElementById('proto-input').value.trim();
   if (!q) return;
-
   const btn = document.getElementById('search-btn');
   btn.disabled = true;
   btn.textContent = 'Buscando...';
-
   const res = document.getElementById('search-result');
   res.innerHTML = '<div class="loading"><div class="spinner"></div><div style="font-size:13px;color:var(--muted)">Buscando chamado...</div></div>';
   document.getElementById('result-section').style.display = 'none';
-
   try {
     // Busca por protocolo, ticket e SO
     const searches = [
       {property:'Protocolo Digisac', type:'rich_text'},
       {property:'Ticket Meta', type:'rich_text'},
     ];
-
     let found = null;
     for (const s of searches) {
       if (found) break;
@@ -537,10 +529,10 @@ async function buscar() {
         return val === q || val.includes(q);
       });
       // Filtro por unidade se usuario tiver restricao
-      if (currentUser && currentUser.filter) {
+      if (currentUser && currentUser.unidades && currentUser.unidades.length) {
         exato = exato.filter(p => {
           const titulo = gp(p, 'Cliente', 'title').toLowerCase();
-          return titulo.includes(currentUser.filter.toLowerCase());
+          return currentUser.unidades.some(u => titulo.includes(u.toLowerCase()));
         });
       }
       // Filtro por periodo
@@ -551,20 +543,16 @@ async function buscar() {
       }
       if (exato.length) found = exato.sort((a,b)=>new Date(b.last_edited_time)-new Date(a.last_edited_time))[0];
     }
-
     // Se nao encontrou e tem filtro, mostra mensagem adequada
-    if (!found && currentUser && currentUser.filter) {
+    if (!found && currentUser && currentUser.unidades && currentUser.unidades.length) {
       res.innerHTML = '<div class="msg-box error"><div class="msg-icon">🔒</div><div style="font-size:14px;font-weight:600;margin-bottom:4px">Chamado não encontrado</div><div style="font-size:12px;color:var(--muted)">Este chamado não pertence à sua unidade ou não existe.</div></div>';
       return;
     }
-
     res.innerHTML = '';
-
     if (!found) {
       res.innerHTML = `<div class="msg-box error"><div class="msg-icon">🔍</div><div style="font-size:14px;font-weight:600;margin-bottom:4px">Chamado não encontrado</div><div style="font-size:12px;color:var(--muted)">Verifique o número informado ou entre em contato com o suporte.</div></div>`;
       return;
     }
-
     const nome     = gp(found,'Cliente','title');
     const status   = gp(found,'Status','select');
     const setor    = gp(found,'Setor Suporte','select');
@@ -580,14 +568,12 @@ async function buscar() {
     const editado  = found.last_edited_time;
     const {label,bg,fg,dot} = statusInfo(status);
     currentProto = proto || q;
-
     // Próximo passo
     let proximoPasso = '—';
     if (status==='Resolvido') proximoPasso = 'Chamado encerrado. Entre em contato caso o problema persista.';
     else if (status==='Aguardando Meta') proximoPasso = 'A equipe técnica da Meta está analisando o chamado. Aguardando retorno.';
     else if (status==='Em Andamento' || status==='Pendente SRG') proximoPasso = 'A equipe SRG está trabalhando no chamado. Em breve teremos novidades.';
     else if (solucao) proximoPasso = solucao.substring(0,120) + (solucao.length>120?'...':'');
-
     // Result card
     document.getElementById('result-card').innerHTML = `
       <div class="result-header">
@@ -603,7 +589,6 @@ async function buscar() {
           <span class="status-badge" style="background:${bg};color:${fg}">${dot} ${label}</span>
         </div>
       </div>
-
       <div class="meta-grid">
         <div class="meta-item">
           <div class="meta-icon">👤</div>
@@ -649,7 +634,6 @@ async function buscar() {
           </div>
         </div>
       </div>
-
       <div class="next-step">
         <div class="next-step-icon">▶️</div>
         <div>
@@ -658,10 +642,8 @@ async function buscar() {
         </div>
       </div>
     `;
-
     // Timeline
     document.getElementById('timeline-body').innerHTML = buildTimeline(found);
-
     // Details
     document.getElementById('details-body').innerHTML = `
       ${proto ? `<div class="detail-row">
@@ -690,13 +672,10 @@ async function buscar() {
         <div class="detail-value" style="font-size:13px">🎧 Portal do Cliente</div>
       </div>
     `;
-
     // WhatsApp
     const waMsgEnc = encodeURIComponent(`Olá, gostaria de informações sobre o chamado ${currentProto||q}.`);
     document.getElementById('wa-btn').onclick = ()=> window.open(`https://wa.me/${WA_NUMBER}?text=${waMsgEnc}`,'_blank');
-
     document.getElementById('result-section').style.display = 'block';
-
   } catch(e) {
     res.innerHTML = `<div class="msg-box error"><div class="msg-icon">⚠️</div><div style="font-size:14px;font-weight:600;margin-bottom:4px">Erro ao consultar</div><div style="font-size:12px;color:var(--muted)">${e.message}</div></div>`;
   } finally {
@@ -705,30 +684,26 @@ async function buscar() {
   }
 }
 </script>
-
 <!-- ADMIN MODAL -->
 <div id="admin-overlay" style="position:fixed;inset:0;background:rgba(0,0,0,0.6);z-index:8888;display:none;align-items:center;justify-content:center;backdrop-filter:blur(4px);" onclick="if(event.target===this)closeAdmin()">
   <div style="background:#fff;border-radius:16px;width:90%;max-width:520px;max-height:85vh;overflow-y:auto;padding:1.75rem;position:relative;">
     <button onclick="closeAdmin()" style="position:absolute;top:1rem;right:1rem;background:none;border:none;font-size:22px;cursor:pointer;color:#94a3b8;">×</button>
     <div style="font-size:17px;font-weight:700;margin-bottom:4px;">👥 Gerenciar Usuários</div>
-    <div style="font-size:12px;color:#64748b;margin-bottom:1.25rem;">Usuários salvos neste navegador.</div>
-
+    <div style="font-size:12px;color:#64748b;margin-bottom:1.25rem;">Usuários centralizados (Cloudflare KV) — funcionam em qualquer computador.</div>
     <div style="background:#f8fafc;border-radius:10px;padding:1rem;margin-bottom:1rem;">
       <div style="font-size:13px;font-weight:600;margin-bottom:.75rem;">Novo usuário</div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:.5rem;margin-bottom:.5rem;">
         <input id="new-login" type="text" placeholder="Login (ex: cac27)" style="background:#fff;border:1.5px solid #e2e8f0;border-radius:8px;padding:9px 12px;font-size:13px;outline:none;"/>
-        <input id="new-name" type="text" placeholder="Nome (ex: Cacique 27)" style="background:#fff;border:1.5px solid #e2e8f0;border-radius:8px;padding:9px 12px;font-size:13px;outline:none;"/>
+        <input id="new-name" type="text" placeholder="Nome (apenas referência)" style="background:#fff;border:1.5px solid #e2e8f0;border-radius:8px;padding:9px 12px;font-size:13px;outline:none;"/>
       </div>
       <input id="new-pass" type="text" placeholder="Senha" style="width:100%;background:#fff;border:1.5px solid #e2e8f0;border-radius:8px;padding:9px 12px;font-size:13px;outline:none;margin-bottom:.5rem;"/>
-      <input id="new-filter" type="text" placeholder="Filtro por unidade (ex: CAC 27) — deixe vazio para ver tudo" style="width:100%;background:#fff;border:1.5px solid #e2e8f0;border-radius:8px;padding:9px 12px;font-size:13px;outline:none;margin-bottom:.5rem;"/>
+      <input id="new-filter" type="text" placeholder="Filtro por unidade (ex: CAC 27) — separe por vírgula, deixe vazio para ver tudo" style="width:100%;background:#fff;border:1.5px solid #e2e8f0;border-radius:8px;padding:9px 12px;font-size:13px;outline:none;margin-bottom:.5rem;"/>
       <button onclick="addUser()" style="width:100%;background:#0d1b2e;color:#fff;border:none;border-radius:8px;padding:9px;font-size:13px;font-weight:600;cursor:pointer;">+ Adicionar</button>
       <div id="admin-msg" style="font-size:12px;margin-top:.5rem;display:none;"></div>
     </div>
-
     <div style="font-size:13px;font-weight:600;margin-bottom:.75rem;">Usuários cadastrados</div>
     <div id="users-list"></div>
   </div>
 </div>
-
 </body>
 </html>
