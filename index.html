@@ -3,387 +3,853 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Dashboard SRG Tecnologia</title>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<title>Portal de Atendimento — SRG Tecnologia</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700&family=Manrope:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@500;600&display=swap" rel="stylesheet">
 <style>
-  :root {
-    --bg: #0a0e1a;
-    --bg2: #0f1628;
-    --bg3: #141d35;
-    --border: rgba(99,179,237,0.15);
-    --text: #e2e8f0;
-    --muted: #718096;
-    --blue: #63b3ed;
-    --red: #fc8181;
-    --orange: #f6ad55;
-    --green: #68d391;
-    --purple: #b794f4;
-    --cyan: #76e4f7;
-    --glow-blue: 0 0 20px rgba(99,179,237,0.3);
-    --glow-red: 0 0 20px rgba(252,129,129,0.3);
-    --glow-orange: 0 0 20px rgba(246,173,85,0.3);
-    --glow-green: 0 0 20px rgba(104,211,145,0.3);
-  }
-  * { margin:0; padding:0; box-sizing:border-box; }
-  body { background:var(--bg); color:var(--text); font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif; min-height:100vh; }
-  .container { max-width:1200px; margin:0 auto; padding:1.5rem; }
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:#070c1f;font-family:Manrope,sans-serif;color:#dbe6fb;overflow-x:hidden}
+a{color:#5db4e6;text-decoration:none}
+a:hover{color:#8fd0f5}
+input::placeholder,textarea::placeholder{color:#93a6c4}
+input:focus,textarea:focus{outline:none;border-color:rgba(115,200,245,0.9)!important;box-shadow:0 0 0 4px rgba(70,160,220,0.38)}
+textarea{resize:vertical;font-family:Manrope,sans-serif}
+button{font-family:inherit}
+::-webkit-scrollbar{width:9px;height:9px}
+::-webkit-scrollbar-track{background:transparent}
+::-webkit-scrollbar-thumb{background:rgba(120,150,200,0.25);border-radius:10px}
+@keyframes floatA{0%,100%{transform:translate(0,0)}50%{transform:translate(30px,-40px)}}
+@keyframes floatB{0%,100%{transform:translate(0,0)}50%{transform:translate(-40px,30px)}}
+@keyframes pulseDot{0%,100%{opacity:1;box-shadow:0 0 0 0 rgba(90,191,160,.5)}50%{opacity:.7;box-shadow:0 0 0 8px rgba(90,191,160,0)}}
+@keyframes riseIn{from{opacity:0;transform:translateY(18px)}to{opacity:1;transform:translateY(0)}}
+@keyframes spin{to{transform:rotate(360deg)}}
 
-  /* Header */
-  header { display:flex; align-items:center; justify-content:space-between; margin-bottom:2rem; padding-bottom:1rem; border-bottom:1px solid var(--border); }
-  .logo { display:flex; align-items:center; gap:12px; }
-  .logo-icon { width:36px; height:36px; background:linear-gradient(135deg,var(--blue),var(--purple)); border-radius:8px; display:flex; align-items:center; justify-content:center; font-size:18px; box-shadow:var(--glow-blue); }
-  h1 { font-size:18px; font-weight:600; color:var(--text); }
-  .subtitle { font-size:12px; color:var(--muted); margin-top:2px; }
-  .btn-refresh { background:transparent; border:1px solid var(--border); border-radius:8px; padding:8px 16px; font-size:13px; color:var(--blue); cursor:pointer; display:flex; align-items:center; gap:6px; transition:all 0.2s; }
-  .btn-refresh:hover { background:rgba(99,179,237,0.1); box-shadow:var(--glow-blue); }
-  .spin { animation: spin 1s linear infinite; }
-  @keyframes spin { to { transform: rotate(360deg); } }
+.bg-fixed{position:fixed;inset:0;z-index:0;pointer-events:none}
+.bg-gradient{background:radial-gradient(900px 600px at 15% 10%,rgba(47,95,176,.28),transparent 60%),radial-gradient(800px 700px at 88% 85%,rgba(63,160,140,.22),transparent 60%),radial-gradient(700px 500px at 50% 50%,rgba(26,42,110,.35),transparent 70%),linear-gradient(160deg,#070c1f,#0b1230 55%,#0a1428)}
+.bg-grid{opacity:.5;background-image:linear-gradient(rgba(140,170,220,.05) 1px,transparent 1px),linear-gradient(90deg,rgba(140,170,220,.05) 1px,transparent 1px);background-size:64px 64px;-webkit-mask-image:radial-gradient(ellipse 80% 70% at 50% 40%,#000 40%,transparent 100%);mask-image:radial-gradient(ellipse 80% 70% at 50% 40%,#000 40%,transparent 100%)}
+.orb-a{top:-120px;left:8%;width:340px;height:340px;border-radius:50%;background:radial-gradient(circle,rgba(63,120,220,.35),transparent 70%);filter:blur(30px);animation:floatA 18s ease-in-out infinite}
+.orb-b{bottom:-140px;right:6%;width:380px;height:380px;border-radius:50%;background:radial-gradient(circle,rgba(63,180,150,.3),transparent 70%);filter:blur(34px);animation:floatB 22s ease-in-out infinite}
 
-  /* Metric cards */
-  .metric-grid { display:grid; grid-template-columns:repeat(5,1fr); gap:12px; margin-bottom:1.5rem; }
-  .metric-card { background:var(--bg2); border:1px solid var(--border); border-radius:12px; padding:1.25rem; cursor:pointer; transition:all 0.25s; position:relative; overflow:hidden; }
-  .metric-card::before { content:''; position:absolute; top:0; left:0; right:0; height:2px; background:linear-gradient(90deg,transparent,var(--accent,var(--blue)),transparent); }
-  .metric-card:hover { transform:translateY(-2px); border-color:var(--accent,var(--blue)); box-shadow:0 8px 24px rgba(0,0,0,0.4); }
-  .metric-card.active { border-color:var(--accent,var(--blue)); box-shadow:0 0 0 1px var(--accent,var(--blue)), var(--glow-blue); }
-  .metric-label { font-size:11px; color:var(--muted); text-transform:uppercase; letter-spacing:0.8px; margin-bottom:8px; }
-  .metric-value { font-size:34px; font-weight:700; line-height:1; }
-  .metric-badge { font-size:11px; color:var(--muted); margin-top:4px; }
+.glass{background:rgba(255,255,255,.05);backdrop-filter:blur(22px);-webkit-backdrop-filter:blur(22px);border:1px solid rgba(255,255,255,.22);border-radius:22px;box-shadow:0 24px 60px -24px rgba(0,0,0,.5),inset 0 1px 0 rgba(255,255,255,.1)}
+.field{display:flex;align-items:center;gap:12px;height:54px;padding:0 16px;border-radius:14px;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.22)}
+.field input{flex:1;background:transparent;border:none;color:#eaf1ff;font:500 15px Manrope}
+.btn-primary{height:54px;padding:0 26px;border:none;border-radius:14px;cursor:pointer;font:600 14.5px Outfit,sans-serif;color:#fff;background:linear-gradient(135deg,#2f5fb0,#3fa08c);box-shadow:0 12px 30px -10px rgba(47,120,180,.6);display:inline-flex;align-items:center;justify-content:center;gap:9px;transition:transform .18s,filter .18s}
+.btn-primary:hover{transform:translateY(-2px);filter:brightness(1.08)}
+.btn-primary:disabled{opacity:.6;cursor:not-allowed;transform:none;filter:none}
+.btn-ghost{height:54px;padding:0 22px;border-radius:14px;cursor:pointer;font:600 14.5px Manrope;color:#bcccea;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.12);transition:background .18s}
+.btn-ghost:hover{background:rgba(255,255,255,.1)}
+.chip{padding:9px 17px;border-radius:999px;font:600 13px Manrope;cursor:pointer;transition:all .2s;border:1px solid rgba(255,255,255,.12);background:rgba(255,255,255,.04);color:#bcccea}
+.chip.active{border:1px solid rgba(90,180,230,.55);background:linear-gradient(135deg,rgba(47,95,176,.4),rgba(63,160,140,.4));color:#eaf1ff;box-shadow:0 0 16px rgba(63,140,200,.28)}
+.icon-btn{width:42px;height:42px;border-radius:12px;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:transform .18s,background .18s}
+.error-msg{font-size:12px;color:#fc8181;margin-bottom:.75rem;display:none;text-align:center}
+.spinner{width:26px;height:26px;border:3px solid rgba(255,255,255,.15);border-top-color:#5db4e6;border-radius:50%;animation:spin .9s linear infinite;margin:0 auto}
 
-  /* Drawer */
-  .drawer { background:var(--bg3); border:1px solid var(--border); border-radius:12px; margin-bottom:1.5rem; overflow:hidden; max-height:0; transition:max-height 0.4s ease; }
-  .drawer.open { max-height:600px; }
-  .drawer-header { padding:1rem 1.25rem; display:flex; align-items:center; justify-content:space-between; border-bottom:1px solid var(--border); }
-  .drawer-title { font-size:14px; font-weight:500; }
-  .drawer-close { background:none; border:none; color:var(--muted); cursor:pointer; font-size:18px; }
-  .drawer-list { padding:0.75rem; max-height:500px; overflow-y:auto; }
-  .drawer-item { display:grid; grid-template-columns:1fr auto auto; gap:1rem; align-items:center; padding:0.75rem 0.75rem; border-radius:8px; border-bottom:1px solid rgba(255,255,255,0.04); }
-  .drawer-item:last-child { border-bottom:none; }
-  .drawer-item:hover { background:rgba(255,255,255,0.03); }
-  .drawer-item-name { font-size:13px; color:var(--text); }
-  .drawer-item-sub { font-size:11px; color:var(--muted); margin-top:2px; }
-  .drawer-item-badge { font-size:11px; padding:2px 8px; border-radius:20px; white-space:nowrap; }
-  .drawer-item-sol { font-size:11px; color:var(--muted); text-align:right; max-width:200px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+#screen-login,#screen-forgot{position:fixed;inset:0;z-index:5;display:none;align-items:center;justify-content:center;padding:40px 20px;overflow-y:auto}
+#screen-app{display:none;position:relative;z-index:1;min-height:100vh;flex-direction:column}
 
-  /* Charts */
-  .charts-row { display:grid; grid-template-columns:1fr 1fr; gap:1rem; margin-bottom:1rem; }
-  .chart-card { background:var(--bg2); border:1px solid var(--border); border-radius:12px; padding:1.25rem; }
-  .chart-card.full { grid-column:1/-1; }
-  .chart-title { font-size:12px; font-weight:500; color:var(--muted); text-transform:uppercase; letter-spacing:0.8px; margin-bottom:1rem; }
-  .legend { display:flex; flex-wrap:wrap; gap:10px; margin-bottom:12px; }
-  .legend-item { display:flex; align-items:center; gap:5px; font-size:12px; color:var(--muted); }
-  .legend-dot { width:8px; height:8px; border-radius:2px; flex-shrink:0; }
+header.navbar{position:sticky;top:0;z-index:20;display:flex;align-items:center;justify-content:space-between;gap:16px;padding:13px 30px;background:rgba(10,16,36,.6);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);border-bottom:1px solid rgba(255,255,255,.08)}
+main.shell{flex:1;width:100%;max-width:1180px;margin:0 auto;padding:38px 30px 60px}
+footer.foot{border-top:1px solid rgba(255,255,255,.07);background:rgba(10,16,36,.4);backdrop-filter:blur(14px)}
 
-  /* Status bar */
-  .status-bar { font-size:11px; color:var(--muted); text-align:center; padding:1rem 0 0; display:flex; align-items:center; justify-content:center; gap:6px; }
-  .status-dot { width:6px; height:6px; border-radius:50%; background:var(--green); animation:pulse 2s infinite; }
-  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.4} }
-
-  .error { background:rgba(252,129,129,0.1); border:1px solid rgba(252,129,129,0.3); border-radius:8px; padding:1rem; font-size:13px; color:var(--red); margin-bottom:1rem; display:none; }
-
-  /* Scrollbar */
-  ::-webkit-scrollbar { width:4px; } ::-webkit-scrollbar-track { background:transparent; } ::-webkit-scrollbar-thumb { background:var(--border); border-radius:2px; }
-
-  @media (max-width:700px) {
-    .metric-grid { grid-template-columns:repeat(2,1fr); }
-    .charts-row { grid-template-columns:1fr; }
-    .chart-card.full { grid-column:1; }
-  }
+@media(max-width:900px){
+  .grid-2{grid-template-columns:1fr!important}
+  .grid-profile{grid-template-columns:1fr!important}
+}
+@media(max-width:680px){
+  header.navbar{padding:12px 16px;flex-wrap:wrap}
+  main.shell{padding:24px 16px 40px}
+  .search-row{flex-direction:column}
+  .search-row .btn-primary,.search-row .btn-ghost{width:100%}
+}
 </style>
 </head>
 <body>
-<div id="login-screen" style="position:fixed;top:0;left:0;width:100%;height:100%;background:#0a0e1a;display:flex;align-items:center;justify-content:center;z-index:9999;">
-  <div style="background:#0f1628;border:1px solid rgba(99,179,237,0.25);border-radius:16px;padding:2.5rem;width:340px;text-align:center;box-shadow:0 0 40px rgba(99,179,237,0.1);">
-    <div style="font-size:40px;margin-bottom:1rem;">⚡</div>
-    <h2 style="font-size:18px;font-weight:600;color:#e2e8f0;margin-bottom:0.5rem;">SRG Tecnologia</h2>
-    <p style="font-size:13px;color:#718096;margin-bottom:1.5rem;">Dashboard de Chamados Meta</p>
-    <input id="pwd-input" type="password" placeholder="Senha de acesso"
-      style="width:100%;background:#141d35;border:1px solid rgba(99,179,237,0.2);border-radius:8px;padding:10px 14px;font-size:14px;color:#e2e8f0;outline:none;margin-bottom:0.75rem;"
-      onkeydown="if(event.key==='Enter')checkLogin()"/>
-    <div id="login-error" style="font-size:12px;color:#fc8181;margin-bottom:0.75rem;display:none;">Senha incorreta. Tente novamente.</div>
-    <button onclick="checkLogin()" style="width:100%;background:linear-gradient(135deg,#63b3ed,#b794f4);border:none;border-radius:8px;padding:10px;font-size:14px;font-weight:600;color:#0a0e1a;cursor:pointer;">Entrar</button>
+
+<div class="bg-fixed bg-gradient"></div>
+<div class="bg-fixed bg-grid"></div>
+<div class="bg-fixed orb-a"></div>
+<div class="bg-fixed orb-b"></div>
+
+<!-- ============ LOGIN ============ -->
+<div id="screen-login">
+  <div style="width:100%;max-width:430px;animation:riseIn .6s ease both">
+    <div style="text-align:center;margin-bottom:26px">
+      <img src="assets/srg-logo-light.png" alt="SRG Tecnologia" style="height:82px;width:auto;filter:drop-shadow(0 6px 22px rgba(60,140,200,.35))">
+    </div>
+    <div class="glass" style="padding:38px 34px;box-shadow:0 30px 80px -20px rgba(0,0,0,.55),inset 0 1px 0 rgba(255,255,255,.12)">
+      <div style="display:flex;align-items:center;gap:9px;margin-bottom:6px">
+        <span style="width:9px;height:9px;border-radius:50%;background:#5abfa0;box-shadow:0 0 12px #5abfa0;animation:pulseDot 2.4s infinite"></span>
+        <span style="font:600 12px Manrope;letter-spacing:.14em;text-transform:uppercase;color:#7fd4c0">Portal de Atendimento</span>
+      </div>
+      <h1 style="font:700 26px Outfit,sans-serif;color:#f2f7ff">Acesse sua conta</h1>
+      <p style="font:400 14.5px Manrope;color:#bcccea;margin-top:7px;margin-bottom:22px">Entre com suas credenciais para continuar.</p>
+
+      <div class="error-msg" id="login-error">Usuário ou senha inválidos.</div>
+
+      <label style="display:block;font:600 12.5px Manrope;color:#bcccea;margin-bottom:8px">Usuário / E-mail</label>
+      <div class="field" style="margin-bottom:18px">
+        <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="#8399be" stroke-width="1.8" stroke-linecap="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+        <input type="text" id="login-user" placeholder="seu.usuario@srgtec.com.br" onkeydown="if(event.key==='Enter')doLogin()">
+      </div>
+
+      <label style="display:block;font:600 12.5px Manrope;color:#bcccea;margin-bottom:8px">Senha</label>
+      <div class="field" style="margin-bottom:14px">
+        <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="#8399be" stroke-width="1.8" stroke-linecap="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+        <input type="password" id="login-pass" placeholder="••••••••" style="letter-spacing:.1em" onkeydown="if(event.key==='Enter')doLogin()">
+        <svg id="toggle-pass" width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="#8399be" stroke-width="1.8" stroke-linecap="round" style="cursor:pointer;flex-shrink:0" onclick="togglePass()"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg>
+      </div>
+
+      <div style="text-align:right;margin-bottom:24px"><span onclick="showForgot()" style="font:600 13px Manrope;cursor:pointer;color:#5db4e6">Esqueci minha senha</span></div>
+
+      <button class="btn-primary" style="width:100%" id="login-btn" onclick="doLogin()">
+        <span id="login-btn-text">Entrar</span>
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
+      </button>
+    </div>
+    <div style="display:flex;align-items:center;justify-content:center;gap:8px;margin-top:22px;color:#7186ab;font:500 12.5px Manrope">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#5abfa0" stroke-width="1.9"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+      Conexão segura • SRG Tecnologia © 2026
+    </div>
   </div>
 </div>
-<div class="container">
-  <header>
-    <div class="logo">
-      <div class="logo-icon">⚡</div>
-      <div>
-        <h1>SRG Tecnologia</h1>
-        <div class="subtitle" id="subtitle">Chamados Meta — carregando...</div>
+
+<!-- ============ RECUPERAR SENHA ============ -->
+<div id="screen-forgot">
+  <div style="width:100%;max-width:430px;animation:riseIn .5s ease both">
+    <div style="text-align:center;margin-bottom:26px">
+      <img src="assets/srg-logo-light.png" alt="SRG Tecnologia" style="height:74px;width:auto;filter:drop-shadow(0 6px 22px rgba(60,140,200,.35))">
+    </div>
+    <div class="glass" style="padding:38px 34px;box-shadow:0 30px 80px -20px rgba(0,0,0,.55),inset 0 1px 0 rgba(255,255,255,.12)">
+      <div id="forgot-form">
+        <div style="width:52px;height:52px;border-radius:15px;display:flex;align-items:center;justify-content:center;margin-bottom:18px;background:linear-gradient(135deg,rgba(47,95,176,.4),rgba(63,160,140,.4));border:1px solid rgba(255,255,255,.14)">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#bfe0ff" stroke-width="1.8" stroke-linecap="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/><circle cx="12" cy="16" r="1"/></svg>
+        </div>
+        <h1 style="font:700 24px Outfit,sans-serif;color:#f2f7ff">Recuperar acesso</h1>
+        <p style="font:400 14.5px Manrope;color:#bcccea;margin-top:8px;margin-bottom:22px;line-height:1.55">Sua senha é gerenciada pela equipe SRG Tecnologia. Envie sua solicitação que entraremos em contato pelo WhatsApp.</p>
+        <label style="display:block;font:600 12.5px Manrope;color:#bcccea;margin-bottom:8px">Usuário cadastrado</label>
+        <div class="field" style="margin-bottom:22px">
+          <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="#8399be" stroke-width="1.8" stroke-linecap="round"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="m2 7 10 6 10-6"/></svg>
+          <input type="text" id="forgot-user" placeholder="seu.usuario@srgtec.com.br">
+        </div>
+        <button class="btn-primary" style="width:100%" onclick="sendReset()">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m22 2-7 20-4-9-9-4Z"/><path d="M22 2 11 13"/></svg>
+          Enviar solicitação
+        </button>
+      </div>
+      <div id="forgot-success" style="display:none;text-align:center;padding:6px 0;animation:riseIn .4s ease both">
+        <div style="width:64px;height:64px;border-radius:18px;display:flex;align-items:center;justify-content:center;margin:0 auto 20px;background:linear-gradient(135deg,#1faa55,#25d366);box-shadow:0 14px 32px -10px rgba(37,211,102,.6)">
+          <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
+        </div>
+        <h1 style="font:700 22px Outfit,sans-serif;color:#f2f7ff">Solicitação enviada!</h1>
+        <p style="font:400 14.5px Manrope;color:#bcccea;margin-top:10px;line-height:1.6">Fale agora mesmo com a equipe SRG pelo WhatsApp para concluir a recuperação do seu acesso.</p>
+      </div>
+      <div style="text-align:center;margin-top:22px">
+        <span onclick="showLogin()" style="display:inline-flex;align-items:center;gap:7px;font:600 13.5px Manrope;cursor:pointer;color:#5db4e6">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5M11 18l-6-6 6-6"/></svg>
+          Voltar ao login
+        </span>
       </div>
     </div>
-    <button class="btn-refresh" onclick="loadData()" id="btn-refresh">
-      <svg id="refresh-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M23 4v6h-6"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
-      Atualizar
-    </button>
+  </div>
+</div>
+
+<!-- ============ APP AUTENTICADO ============ -->
+<div id="screen-app">
+  <header class="navbar">
+    <img onclick="goHome()" src="assets/srg-logo-light.png" alt="SRG Tecnologia" style="height:36px;width:auto;cursor:pointer">
+    <div style="display:flex;align-items:center;gap:10px">
+      <button onclick="goNew()" class="btn-primary" style="height:42px;padding:0 17px;font-size:13.5px">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.1" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
+        Novo chamado
+      </button>
+      <button id="admin-btn" onclick="openUsers()" style="display:none;align-items:center;gap:9px;height:42px;padding:0 16px;border-radius:12px;cursor:pointer;font:600 13.5px Manrope;color:#dbe6fb;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.12)">
+        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#7fd4c0" stroke-width="1.8" stroke-linecap="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+        Usuários
+      </button>
+      <button onclick="goProfile()" title="Meu perfil" class="icon-btn" id="avatar-btn" style="font:700 14px Outfit,sans-serif;color:#fff;background:linear-gradient(135deg,#2f5fb0,#3fa08c);border:1px solid rgba(255,255,255,.18)">SA</button>
+      <button onclick="doLogout()" title="Sair" class="icon-btn" style="color:#ffb4b4;background:rgba(220,80,80,.1);border:1px solid rgba(220,90,90,.28)">
+        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#ffb4b4" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9"/></svg>
+      </button>
+    </div>
   </header>
 
-  <div class="error" id="err"></div>
+  <main class="shell">
 
-  <div class="metric-grid">
-    <div class="metric-card" style="--accent:var(--blue)" onclick="toggleDrawer('all')">
-      <div class="metric-label">Total ativos</div>
-      <div class="metric-value" id="m0" style="color:var(--blue)">—</div>
-      <div class="metric-badge">clique para ver</div>
+    <!-- ---- DASHBOARD ---- -->
+    <div id="view-dashboard">
+      <span style="font:600 12px Manrope;letter-spacing:.14em;text-transform:uppercase;color:#7fd4c0">Bem-vindo</span>
+      <h1 id="dash-greeting" style="font:700 32px Outfit,sans-serif;color:#f4f8ff;margin-top:6px">Olá! 👋</h1>
+      <p style="font:400 15.5px Manrope;color:#bcccea;margin-top:6px;margin-bottom:30px">Acompanhe o status dos seus chamados em tempo real.</p>
+
+      <div class="glass" style="padding:30px">
+        <div style="display:flex;align-items:center;gap:13px">
+          <div style="width:44px;height:44px;border-radius:13px;display:flex;align-items:center;justify-content:center;background:linear-gradient(135deg,rgba(47,95,176,.4),rgba(63,160,140,.4));border:1px solid rgba(255,255,255,.14)">
+            <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="#bfe0ff" stroke-width="1.9" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
+          </div>
+          <div>
+            <h2 style="font:700 19px Outfit,sans-serif;color:#f2f7ff">Consultar chamado</h2>
+            <p style="font:400 13px Manrope;color:#b3c4e0;margin-top:2px">Digite o número do Protocolo, Ticket ou SO.</p>
+          </div>
+        </div>
+        <div class="search-row" style="display:flex;gap:12px;flex-wrap:wrap;margin-top:22px">
+          <div class="field" style="flex:1;min-width:240px">
+            <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="#8399be" stroke-width="1.8" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
+            <input type="text" id="proto-input" placeholder="Ex: 2026060511573" onkeydown="if(event.key==='Enter')buscar()">
+          </div>
+          <button class="btn-primary" id="search-btn" onclick="buscar()">
+            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
+            <span id="search-btn-text">Consultar</span>
+          </button>
+          <button class="btn-ghost" onclick="limpar()">Limpar</button>
+        </div>
+        <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-top:20px">
+          <span style="font:600 12.5px Manrope;color:#b3c4e0;margin-right:2px">Período:</span>
+          <button class="chip active" data-periodo="30" onclick="setPeriodo(30,this)">30 dias</button>
+          <button class="chip" data-periodo="60" onclick="setPeriodo(60,this)">60 dias</button>
+          <button class="chip" data-periodo="90" onclick="setPeriodo(90,this)">90 dias</button>
+          <button class="chip" data-periodo="0" onclick="setPeriodo(0,this)">Todos</button>
+        </div>
+      </div>
+
+      <!-- Lista -->
+      <div id="lista-wrap" style="display:none">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin:34px 0 16px">
+          <h2 style="font:700 20px Outfit,sans-serif;color:#f2f7ff">Meus chamados</h2>
+          <span id="lista-count" style="font:600 12.5px Manrope;color:#b3c4e0"></span>
+        </div>
+        <div id="lista-body" style="display:flex;flex-direction:column;gap:13px"></div>
+      </div>
+
+      <div id="search-result" style="margin-top:20px"></div>
+
+      <!-- Detalhe -->
+      <div id="detalhe-wrap" style="display:none;animation:riseIn .5s ease both">
+        <button onclick="voltarLista()" class="btn-ghost" style="display:inline-flex;align-items:center;gap:8px;margin:28px 0 4px;height:40px;padding:0 15px;font-size:13px">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5M11 18l-6-6 6-6"/></svg>
+          Voltar aos chamados
+        </button>
+        <div id="detalhe-header" class="glass" style="margin-top:14px;padding:26px 28px"></div>
+        <div class="grid-2" style="display:grid;grid-template-columns:1.1fr 1fr;gap:22px;margin-top:22px">
+          <div class="glass" style="padding:26px 28px">
+            <div style="display:flex;align-items:center;gap:10px;margin-bottom:22px">
+              <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="#7fd4c0" stroke-width="1.9" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>
+              <h3 style="font:700 17px Outfit,sans-serif;color:#f2f7ff">Histórico do chamado</h3>
+            </div>
+            <div id="timeline-body"></div>
+          </div>
+          <div class="glass" style="padding:26px 28px;align-self:start">
+            <div style="display:flex;align-items:center;gap:10px;margin-bottom:20px">
+              <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="#7fd4c0" stroke-width="1.9" stroke-linecap="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6M9 13h6M9 17h4"/></svg>
+              <h3 style="font:700 17px Outfit,sans-serif;color:#f2f7ff">Detalhes do chamado</h3>
+            </div>
+            <div id="details-body"></div>
+          </div>
+        </div>
+        <div style="margin-top:22px;display:flex;align-items:center;justify-content:space-between;gap:20px;flex-wrap:wrap;background:linear-gradient(135deg,rgba(37,211,102,.12),rgba(63,160,140,.1));border:1px solid rgba(63,190,120,.28);border-radius:22px;padding:24px 28px">
+          <div style="display:flex;align-items:center;gap:16px">
+            <div style="width:52px;height:52px;border-radius:15px;flex-shrink:0;display:flex;align-items:center;justify-content:center;background:linear-gradient(135deg,#1faa55,#25d366);box-shadow:0 10px 26px -8px rgba(37,211,102,.6)">
+              <svg width="26" height="26" viewBox="0 0 24 24" fill="#fff"><path d="M12.04 2C6.58 2 2.13 6.45 2.13 11.91c0 1.75.46 3.45 1.32 4.95L2 22l5.25-1.38a9.9 9.9 0 0 0 4.79 1.22h.01c5.46 0 9.91-4.45 9.91-9.91C21.96 6.45 17.5 2 12.04 2Zm5.8 14.02c-.24.68-1.42 1.31-1.95 1.35-.5.04-.96.22-3.23-.67-2.72-1.07-4.45-3.85-4.58-4.03-.13-.18-1.1-1.46-1.1-2.79 0-1.33.7-1.98.95-2.25.24-.27.53-.34.71-.34.18 0 .35.01.51.02.16.01.38-.06.6.45.24.55.8 1.9.87 2.04.07.13.12.29.02.47-.09.18-.14.29-.27.45-.13.16-.28.35-.4.47-.13.13-.27.28-.12.54.15.27.67 1.1 1.44 1.78.98.88 1.81 1.15 2.07 1.28.26.13.41.11.56-.06.15-.18.65-.76.82-1.02.17-.27.35-.22.59-.13.24.09 1.52.72 1.78.85.26.13.44.2.5.3.07.11.07.61-.17 1.29Z"/></svg>
+            </div>
+            <div>
+              <h3 style="font:700 17px Outfit,sans-serif;color:#eafff2">Precisa de mais informações?</h3>
+              <p style="font:400 13.5px Manrope;color:#a9d6c0;margin-top:3px">Fale com nossa equipe sobre este chamado pelo WhatsApp.</p>
+            </div>
+          </div>
+          <button id="wa-btn" style="height:48px;padding:0 24px;border:none;border-radius:13px;cursor:pointer;font:600 14px Outfit,sans-serif;color:#fff;background:linear-gradient(135deg,#1faa55,#25d366);box-shadow:0 12px 28px -10px rgba(37,211,102,.6);display:flex;align-items:center;gap:9px">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="#fff"><path d="M12.04 2C6.58 2 2.13 6.45 2.13 11.91c0 1.75.46 3.45 1.32 4.95L2 22l5.25-1.38a9.9 9.9 0 0 0 4.79 1.22h.01c5.46 0 9.91-4.45 9.91-9.91C21.96 6.45 17.5 2 12.04 2Zm0 18.13h-.01a8.2 8.2 0 0 1-4.19-1.15l-.3-.18-3.12.82.83-3.04-.2-.31a8.22 8.22 0 0 1-1.26-4.38c0-4.54 3.7-8.24 8.25-8.24 2.2 0 4.27.86 5.83 2.42a8.19 8.19 0 0 1 2.41 5.83c0 4.54-3.7 8.23-8.24 8.23Z"/></svg>
+            Falar sobre este chamado
+          </button>
+        </div>
+      </div>
     </div>
-    <div class="metric-card" style="--accent:var(--red)" onclick="toggleDrawer('aguardando')">
-      <div class="metric-label">Aguardando Meta</div>
-      <div class="metric-value" id="m1" style="color:var(--red)">—</div>
-      <div class="metric-badge">clique para ver</div>
+
+    <!-- ---- NOVO CHAMADO ---- -->
+    <div id="view-newticket" style="display:none;animation:riseIn .45s ease both">
+      <button onclick="goHome()" class="btn-ghost" style="display:inline-flex;align-items:center;gap:8px;margin-bottom:18px;height:40px;padding:0 15px;font-size:13px">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5M11 18l-6-6 6-6"/></svg>
+        Voltar
+      </button>
+      <h1 style="font:700 30px Outfit,sans-serif;color:#f4f8ff">Abrir novo chamado</h1>
+      <p style="font:400 15px Manrope;color:#bcccea;margin-top:6px;margin-bottom:26px">Descreva o problema — vamos encaminhar direto pra equipe via WhatsApp com todos os dados preenchidos.</p>
+
+      <div class="glass" style="max-width:820px;padding:30px">
+        <label style="display:block;font:600 12.5px Manrope;color:#bcccea;margin-bottom:8px">Assunto</label>
+        <div class="field" style="height:52px;margin-bottom:22px">
+          <input type="text" id="nt-assunto" placeholder="Resuma o problema em poucas palavras">
+        </div>
+
+        <label style="display:block;font:600 12.5px Manrope;color:#bcccea;margin-bottom:10px">Categoria</label>
+        <div id="nt-cats" style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:22px"></div>
+
+        <label style="display:block;font:600 12.5px Manrope;color:#bcccea;margin-bottom:10px">Prioridade</label>
+        <div id="nt-prios" style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:22px"></div>
+
+        <label style="display:block;font:600 12.5px Manrope;color:#bcccea;margin-bottom:8px">Descrição</label>
+        <textarea rows="5" id="nt-desc" placeholder="Descreva com detalhes o que está acontecendo, quando começou e o que já foi tentado..." style="width:100%;padding:14px 16px;border-radius:13px;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.22);color:#eaf1ff;font:500 14.5px Manrope;line-height:1.55;margin-bottom:26px"></textarea>
+
+        <div style="display:flex;gap:12px;flex-wrap:wrap">
+          <button class="btn-primary" onclick="enviarNovoChamado()">
+            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
+            Abrir chamado via WhatsApp
+          </button>
+          <button class="btn-ghost" onclick="goHome()">Cancelar</button>
+        </div>
+      </div>
     </div>
-    <div class="metric-card" style="--accent:var(--orange)" onclick="toggleDrawer('andamento')">
-      <div class="metric-label">Em andamento</div>
-      <div class="metric-value" id="m2" style="color:var(--orange)">—</div>
-      <div class="metric-badge">clique para ver</div>
+
+    <!-- ---- PERFIL ---- -->
+    <div id="view-profile" style="display:none;animation:riseIn .45s ease both">
+      <button onclick="goHome()" class="btn-ghost" style="display:inline-flex;align-items:center;gap:8px;margin-bottom:18px;height:40px;padding:0 15px;font-size:13px">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5M11 18l-6-6 6-6"/></svg>
+        Voltar
+      </button>
+      <h1 style="font:700 30px Outfit,sans-serif;color:#f4f8ff">Meu perfil</h1>
+      <p style="font:400 15px Manrope;color:#bcccea;margin-top:6px;margin-bottom:26px">Informações da sua conta de acesso.</p>
+
+      <div class="grid-profile" style="display:grid;grid-template-columns:320px 1fr;gap:22px;align-items:start">
+        <div class="glass" style="padding:30px;text-align:center">
+          <div id="profile-avatar" style="width:96px;height:96px;border-radius:26px;margin:0 auto 16px;display:flex;align-items:center;justify-content:center;font:700 34px Outfit,sans-serif;color:#fff;background:linear-gradient(135deg,#2f5fb0,#3fa08c);box-shadow:0 14px 34px -10px rgba(47,120,180,.6)"></div>
+          <h2 id="profile-name" style="font:700 20px Outfit,sans-serif;color:#f4f8ff"></h2>
+          <p id="profile-unit" style="font:400 13.5px Manrope;color:#b3c4e0;margin-top:4px"></p>
+          <span id="profile-role" style="display:inline-block;margin-top:14px;font:600 12px Manrope;padding:6px 14px;border-radius:999px"></span>
+        </div>
+        <div class="glass" style="padding:28px">
+          <h3 style="font:700 17px Outfit,sans-serif;color:#f2f7ff;margin-bottom:6px">Conta</h3>
+          <p style="font:400 13px Manrope;color:#b3c4e0;margin-bottom:18px">Dados de acesso vindos do sistema central (Cloudflare KV). Alteração de senha ou dados pessoais deve ser feita pelo administrador do portal.</p>
+          <div style="display:flex;align-items:center;justify-content:space-between;gap:14px;padding:16px 18px;border-radius:14px;background:rgba(255,255,255,.035);border:1px solid rgba(255,255,255,.08)">
+            <div style="display:flex;align-items:center;gap:13px">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#7fd4c0" stroke-width="1.8" stroke-linecap="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+              <div><div style="font:600 14px Manrope;color:#eaf1ff">Senha</div><div style="font:400 12px Manrope;color:#b3c4e0">Gerenciada pelo administrador</div></div>
+            </div>
+            <button onclick="showForgot()" style="height:40px;padding:0 18px;border-radius:11px;cursor:pointer;font:600 13px Manrope;color:#dbe6fb;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.14)">Solicitar alteração</button>
+          </div>
+        </div>
+      </div>
     </div>
-    <div class="metric-card" style="--accent:var(--blue)" onclick="toggleDrawer('pendente')">
-      <div class="metric-label">Pendente SRG</div>
-      <div class="metric-value" id="m3" style="color:var(--blue)">—</div>
-      <div class="metric-badge">clique para ver</div>
+
+  </main>
+
+  <footer class="foot">
+    <div style="max-width:1180px;margin:0 auto;padding:22px 30px;display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap">
+      <div style="display:flex;align-items:center;gap:14px">
+        <img src="assets/srg-logo-light.png" alt="SRG" style="height:26px;width:auto;opacity:.85">
+        <span style="font:400 12.5px Manrope;color:#7186ab">© 2026 · Todos os direitos reservados</span>
+      </div>
+      <div style="display:flex;align-items:center;gap:8px;font:600 12.5px Manrope;color:#7fd4c0">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#5abfa0" stroke-width="1.9"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+        Portal seguro
+      </div>
     </div>
-    <div class="metric-card" style="--accent:var(--green)" onclick="toggleDrawer('resolvidos')">
-      <div class="metric-label">Resolvidos</div>
-      <div class="metric-value" id="m4" style="color:var(--green)">—</div>
-      <div class="metric-badge">clique para ver</div>
+  </footer>
+</div>
+
+<!-- ============ MODAL USUÁRIOS ============ -->
+<div id="modal-users" style="display:none;position:fixed;inset:0;z-index:60;align-items:center;justify-content:center;padding:24px;background:rgba(5,9,22,.68);backdrop-filter:blur(6px)">
+  <div style="width:100%;max-width:640px;max-height:88vh;display:flex;flex-direction:column;background:rgba(18,26,52,.9);backdrop-filter:blur(28px);-webkit-backdrop-filter:blur(28px);border:1px solid rgba(255,255,255,.14);border-radius:24px;box-shadow:0 40px 100px -20px rgba(0,0,0,.7);overflow:hidden">
+    <div style="display:flex;align-items:center;justify-content:space-between;gap:14px;padding:22px 26px;border-bottom:1px solid rgba(255,255,255,.09)">
+      <div style="display:flex;align-items:center;gap:13px">
+        <div style="width:42px;height:42px;border-radius:12px;display:flex;align-items:center;justify-content:center;background:linear-gradient(135deg,rgba(47,95,176,.5),rgba(63,160,140,.5));border:1px solid rgba(255,255,255,.14)">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#dbeaff" stroke-width="1.9" stroke-linecap="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+        </div>
+        <div>
+          <h2 style="font:700 18px Outfit,sans-serif;color:#f2f7ff">Gerenciar usuários</h2>
+          <p style="font:400 12.5px Manrope;color:#b3c4e0;margin-top:2px">Usuários centralizados — funcionam em qualquer computador.</p>
+        </div>
+      </div>
+      <button onclick="closeUsers()" class="icon-btn" style="width:38px;height:38px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.12)">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#c3d3ee" stroke-width="2" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg>
+      </button>
+    </div>
+
+    <div style="padding:20px 26px;border-bottom:1px solid rgba(255,255,255,.08)">
+      <label style="display:block;font:600 12.5px Manrope;color:#bcccea;margin-bottom:9px">Novo usuário</label>
+      <div style="display:flex;gap:9px;flex-wrap:wrap;margin-bottom:9px">
+        <div style="flex:1;min-width:150px;display:flex;align-items:center;gap:11px;height:46px;padding:0 15px;border-radius:12px;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.22)">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#8399be" stroke-width="1.8" stroke-linecap="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+          <input type="text" id="new-login" placeholder="Login (ex: cac27)" style="flex:1;background:transparent;border:none;color:#eaf1ff;font:500 13.5px Manrope">
+        </div>
+        <div style="flex:1;min-width:150px;display:flex;align-items:center;gap:11px;height:46px;padding:0 15px;border-radius:12px;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.22)">
+          <input type="text" id="new-pass" placeholder="Senha" style="flex:1;background:transparent;border:none;color:#eaf1ff;font:500 13.5px Manrope">
+        </div>
+      </div>
+      <div style="display:flex;align-items:center;gap:11px;height:46px;padding:0 15px;border-radius:12px;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.22);margin-bottom:11px">
+        <input type="text" id="new-filter" placeholder="Filtro por unidade (ex: CAC 27), separar por vírgula — vazio = acesso total" style="flex:1;background:transparent;border:none;color:#eaf1ff;font:500 13px Manrope">
+      </div>
+      <button onclick="addUser()" class="btn-primary" style="width:100%;height:46px;font-size:13.5px">
+        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.1" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
+        Adicionar
+      </button>
+      <div id="admin-msg" style="font-size:12px;margin-top:8px;display:none"></div>
+    </div>
+
+    <div style="padding:16px 26px 24px;overflow-y:auto">
+      <div style="font:600 11.5px Manrope;letter-spacing:.1em;text-transform:uppercase;color:#a6b8d6;margin:6px 0 12px">Usuários cadastrados</div>
+      <div id="users-list"></div>
     </div>
   </div>
-
-  <div class="drawer" id="drawer">
-    <div class="drawer-header">
-      <span class="drawer-title" id="drawer-title">Chamados</span>
-      <button class="drawer-close" onclick="closeDrawer()">×</button>
-    </div>
-    <div class="drawer-list" id="drawer-list"></div>
-  </div>
-
-  <div class="charts-row">
-    <div class="chart-card">
-      <div class="chart-title">Por status</div>
-      <div class="legend" id="leg-status"></div>
-      <div style="position:relative;height:200px;"><canvas id="cStatus" role="img" aria-label="Chamados por status"></canvas></div>
-    </div>
-    <div class="chart-card">
-      <div class="chart-title">Por atendente</div>
-      <div class="legend" id="leg-atendente"></div>
-      <div style="position:relative;height:200px;"><canvas id="cAtendente" role="img" aria-label="Chamados por atendente"></canvas></div>
-    </div>
-  </div>
-
-  <div class="charts-row">
-    <div class="chart-card full">
-      <div class="chart-title">Por setor</div>
-      <div style="position:relative;height:180px;"><canvas id="cSetor" role="img" aria-label="Chamados por setor"></canvas></div>
-    </div>
-  </div>
-
-  <div class="charts-row">
-    <div class="chart-card full">
-      <div class="chart-title">Por urgência</div>
-      <div style="position:relative;height:90px;"><canvas id="cUrgencia" role="img" aria-label="Chamados por urgência"></canvas></div>
-    </div>
-  </div>
-
-  <div class="status-bar"><div class="status-dot"></div><span id="sbar">Carregando...</span></div>
 </div>
 
 <script>
 const PROXY = 'https://srgdashboard.sergioalvesmeta.workers.dev';
 const DB    = '3761388c50a68096bf2edd5a97daffe1';
-const CHARTS = {};
-let ALL_PAGES = [];
-let currentDrawer = null;
+const WA_NUMBER = '5586989038851';
 
-const STATUS_COLORS = { 'Aguardando Meta':'#fc8181','Em Andamento':'#f6ad55','Pendente SRG':'#63b3ed' };
-const AT_COLORS  = ['#b794f4','#68d391','#f6ad55','#63b3ed','#fc8181'];
-const ST_COLORS  = ['#b794f4','#68d391','#f6ad55','#63b3ed','#fc8181','#76e4f7','#fbb6ce','#a0aec0'];
+// ══════════════════════════════════════════
+// AUTH — via Worker + Cloudflare KV
+// ══════════════════════════════════════════
+async function apiLogin(username, password) {
+  const r = await fetch(`${PROXY}/auth/login`, { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({username,password}) });
+  return r.json();
+}
+async function apiLogout(token) {
+  return fetch(`${PROXY}/auth/logout`, { method:'POST', headers:{'Authorization':`Bearer ${token}`} }).catch(()=>{});
+}
+async function apiListUsers(token) {
+  const r = await fetch(`${PROXY}/auth/users`, { headers:{'Authorization':`Bearer ${token}`} });
+  return r.json();
+}
+async function apiCreateUser(token, username, password, unidades, role) {
+  const r = await fetch(`${PROXY}/auth/users`, { method:'POST', headers:{'Content-Type':'application/json','Authorization':`Bearer ${token}`}, body:JSON.stringify({username,password,unidades,role}) });
+  return r.json();
+}
+async function apiDeleteUser(token, username) {
+  const r = await fetch(`${PROXY}/auth/users/${encodeURIComponent(username)}`, { method:'DELETE', headers:{'Authorization':`Bearer ${token}`} });
+  return r.json();
+}
 
+let currentUser = null;
+let currentPeriodo = 30;
+let currentProto = '';
+let ultimosResultados = [];
+
+function initials(name) {
+  const parts = name.trim().split(/[\s._@]+/).filter(Boolean);
+  if (parts.length === 1) return parts[0].slice(0,2).toUpperCase();
+  return (parts[0][0]+parts[1][0]).toUpperCase();
+}
+function avatarGradient(seed) {
+  const grads = ['linear-gradient(135deg,#2f5fb0,#3fa08c)','linear-gradient(135deg,#3f7bb0,#4aa896)','linear-gradient(135deg,#4a5fa0,#3f9a8e)','linear-gradient(135deg,#5a6480,#6b7a92)','linear-gradient(135deg,#6a4fa0,#4a90a0)'];
+  let h = 0; for (let i=0;i<seed.length;i++) h = (h*31+seed.charCodeAt(i))>>>0;
+  return grads[h % grads.length];
+}
+
+function togglePass() {
+  const inp = document.getElementById('login-pass');
+  inp.type = inp.type === 'password' ? 'text' : 'password';
+}
+
+// ---- Navegação entre telas ----
+function showLogin() {
+  document.getElementById('screen-login').style.display = 'flex';
+  document.getElementById('screen-forgot').style.display = 'none';
+  document.getElementById('screen-app').style.display = 'none';
+}
+function showForgot() {
+  document.getElementById('screen-login').style.display = 'none';
+  document.getElementById('screen-forgot').style.display = 'flex';
+  document.getElementById('screen-app').style.display = 'none';
+  document.getElementById('forgot-form').style.display = 'block';
+  document.getElementById('forgot-success').style.display = 'none';
+}
+function sendReset() {
+  const user = document.getElementById('forgot-user').value.trim();
+  document.getElementById('forgot-form').style.display = 'none';
+  document.getElementById('forgot-success').style.display = 'block';
+  const msg = encodeURIComponent(`Olá! Preciso recuperar o acesso ao Portal de Atendimento.${user ? ' Usuário: '+user : ''}`);
+  setTimeout(()=> window.open(`https://wa.me/${WA_NUMBER}?text=${msg}`, '_blank'), 600);
+}
+function showApp() {
+  document.getElementById('screen-login').style.display = 'none';
+  document.getElementById('screen-forgot').style.display = 'none';
+  document.getElementById('screen-app').style.display = 'flex';
+}
+function goHome() {
+  showView('dashboard');
+  window.scrollTo(0,0);
+}
+function goNew() {
+  buildNewTicketChips();
+  showView('newticket');
+  window.scrollTo(0,0);
+}
+function goProfile() {
+  renderProfile();
+  showView('profile');
+  window.scrollTo(0,0);
+}
+function showView(name) {
+  document.getElementById('view-dashboard').style.display = name==='dashboard' ? 'block' : 'none';
+  document.getElementById('view-newticket').style.display = name==='newticket' ? 'block' : 'none';
+  document.getElementById('view-profile').style.display = name==='profile' ? 'block' : 'none';
+}
+
+// ---- Login / Logout ----
+async function doLogin() {
+  const login = document.getElementById('login-user').value.trim().toLowerCase();
+  const pass  = document.getElementById('login-pass').value;
+  const err   = document.getElementById('login-error');
+  const btn   = document.getElementById('login-btn');
+  const btnText = document.getElementById('login-btn-text');
+  if (!login || !pass) return;
+  btn.disabled = true; btnText.textContent = 'Entrando...';
+  const data = await apiLogin(login, pass);
+  btn.disabled = false; btnText.textContent = 'Entrar';
+  if (data.ok) {
+    currentUser = { username:data.username, role:data.role, unidades:data.unidades||[], token:data.token };
+    err.style.display = 'none';
+    sessionStorage.setItem('srg_user', JSON.stringify(currentUser));
+    enterApp();
+  } else {
+    err.textContent = data.error || 'Usuário ou senha inválidos.';
+    err.style.display = 'block';
+    document.getElementById('login-pass').value = '';
+  }
+}
+async function doLogout() {
+  if (currentUser && currentUser.token) await apiLogout(currentUser.token);
+  currentUser = null;
+  sessionStorage.removeItem('srg_user');
+  showLogin();
+  document.getElementById('login-user').value = '';
+  document.getElementById('login-pass').value = '';
+}
+function enterApp() {
+  document.getElementById('dash-greeting').textContent = `Olá, ${currentUser.username}! 👋`;
+  document.getElementById('avatar-btn').textContent = initials(currentUser.username);
+  document.getElementById('avatar-btn').style.background = avatarGradient(currentUser.username);
+  document.getElementById('admin-btn').style.display = currentUser.role === 'admin' ? 'inline-flex' : 'none';
+  showApp();
+  showView('dashboard');
+  limpar();
+}
+
+// Restaura sessão salva neste navegador
+(function initSession(){
+  const saved = sessionStorage.getItem('srg_user');
+  if (saved) {
+    currentUser = JSON.parse(saved);
+    enterApp();
+  } else {
+    showLogin();
+  }
+})();
+
+// ---- Perfil ----
+function renderProfile() {
+  document.getElementById('profile-avatar').textContent = initials(currentUser.username);
+  document.getElementById('profile-avatar').style.background = avatarGradient(currentUser.username);
+  document.getElementById('profile-name').textContent = currentUser.username;
+  document.getElementById('profile-unit').textContent = currentUser.unidades && currentUser.unidades.length ? 'Unidade: '+currentUser.unidades.join(', ') : 'Acesso a todas as unidades';
+  const roleEl = document.getElementById('profile-role');
+  if (currentUser.role === 'admin') {
+    roleEl.textContent = 'Administrador';
+    roleEl.style.color = '#7fe0c0'; roleEl.style.background = 'rgba(63,190,140,.14)'; roleEl.style.border = '1px solid rgba(90,200,150,.32)';
+  } else {
+    roleEl.textContent = 'Cliente';
+    roleEl.style.color = '#8fb0e0'; roleEl.style.background = 'rgba(47,95,176,.16)'; roleEl.style.border = '1px solid rgba(90,150,220,.3)';
+  }
+}
+
+// ---- Usuários (modal) ----
+function openUsers() {
+  if (!currentUser || currentUser.role !== 'admin') return;
+  renderUsersList();
+  document.getElementById('modal-users').style.display = 'flex';
+}
+function closeUsers() { document.getElementById('modal-users').style.display = 'none'; }
+async function renderUsersList() {
+  const el = document.getElementById('users-list');
+  el.innerHTML = '<div style="font-size:12px;color:#94a3b8;padding:10px 0">Carregando...</div>';
+  const data = await apiListUsers(currentUser.token);
+  if (!data.ok) { el.innerHTML = '<div style="font-size:12px;color:#fc8181;padding:10px 0">Erro ao carregar usuários.</div>'; return; }
+  el.innerHTML = data.users.map(u => `
+    <div style="display:flex;align-items:center;gap:14px;padding:13px 15px;border-radius:14px;background:rgba(255,255,255,.035);border:1px solid rgba(255,255,255,.08);margin-bottom:10px">
+      <div style="width:42px;height:42px;border-radius:12px;flex-shrink:0;display:flex;align-items:center;justify-content:center;font:700 14px Outfit,sans-serif;color:#fff;background:${avatarGradient(u.username)}">${initials(u.username)}</div>
+      <div style="flex:1;min-width:0">
+        <div style="font:600 14.5px Manrope;color:#eaf1ff">${u.username}</div>
+        <div style="font:400 12.5px Manrope;color:#b3c4e0">${u.unidades && u.unidades.length ? 'Unidade: '+u.unidades.join(', ') : 'Acesso total'}</div>
+      </div>
+      <span style="font:600 11.5px Manrope;color:#a9bcda;padding:5px 11px;border-radius:8px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);white-space:nowrap">${u.role==='admin'?'Administrador':'Cliente'}</span>
+      ${u.role !== 'admin' ? `<button onclick="removeUser('${u.username}')" style="width:34px;height:34px;border-radius:9px;cursor:pointer;display:flex;align-items:center;justify-content:center;background:transparent;border:1px solid rgba(255,255,255,.1);flex-shrink:0">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#c98a8a" stroke-width="1.8" stroke-linecap="round"><path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg>
+      </button>` : '<span style="font-size:11px;color:#94a3b8;flex-shrink:0">admin</span>'}
+    </div>
+  `).join('');
+}
+async function addUser() {
+  const login = document.getElementById('new-login').value.trim().toLowerCase();
+  const pass  = document.getElementById('new-pass').value.trim();
+  const msg   = document.getElementById('admin-msg');
+  if (!login || !pass) { msg.style.display='block'; msg.style.color='#fc8181'; msg.textContent='Preencha usuário e senha.'; return; }
+  const filterVal = document.getElementById('new-filter').value.trim();
+  const unidades = filterVal ? filterVal.split(',').map(s=>s.trim()).filter(Boolean) : [];
+  const data = await apiCreateUser(currentUser.token, login, pass, unidades, 'cliente');
+  if (!data.ok) { msg.style.display='block'; msg.style.color='#fc8181'; msg.textContent=data.error||'Erro ao criar usuário.'; return; }
+  document.getElementById('new-login').value = '';
+  document.getElementById('new-pass').value = '';
+  document.getElementById('new-filter').value = '';
+  msg.style.display='block'; msg.style.color='#7fe0c0'; msg.textContent='Usuário adicionado!';
+  setTimeout(()=>msg.style.display='none', 2000);
+  renderUsersList();
+}
+async function removeUser(username) {
+  if (!confirm('Remover usuário ' + username + '?')) return;
+  await apiDeleteUser(currentUser.token, username);
+  renderUsersList();
+}
+
+// ---- Helpers Notion ----
 function gp(page, prop, tipo) {
   const p = page.properties?.[prop];
   if (!p) return '';
-  if (tipo==='select') return p.select?.name||'';
-  if (tipo==='title') return p.title?.[0]?.text?.content||'';
+  if (tipo==='select')    return p.select?.name||'';
+  if (tipo==='title')     return p.title?.[0]?.text?.content||'';
   if (tipo==='rich_text') return p.rich_text?.[0]?.text?.content||'';
+  if (tipo==='date')      return p.date?.start||'';
   return '';
 }
-
-function makeLegend(id, labels, colors) {
-  document.getElementById(id).innerHTML = labels.map((l,i)=>
-    `<div class="legend-item"><span class="legend-dot" style="background:${colors[i%colors.length]}"></span>${l}</div>`
-  ).join('');
+function fmtDate(d) {
+  if (!d || d === 'Invalid Date') return '—';
+  try { const dt = new Date(d.includes('T') ? d : d+'T12:00:00'); if (isNaN(dt.getTime())) return '—'; return dt.toLocaleDateString('pt-BR'); } catch { return '—'; }
+}
+function fmtDateTime(d) {
+  if (!d) return '—';
+  try { const dt = new Date(d); return dt.toLocaleDateString('pt-BR') + ' às ' + dt.toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'}); } catch { return d; }
+}
+const KIND_COLOR = { andamento:'#f2b84b', aberto:'#5aa0e6', resolvido:'#5abfa0', aguardando:'#a992e0' };
+function statusKind(s) {
+  if (s==='Em Andamento' || s==='Pendente SRG') return 'andamento';
+  if (s==='Resolvido') return 'resolvido';
+  if (s==='Aguardando Meta' || s==='Pendente PO') return 'aguardando';
+  return 'aberto';
+}
+function statusLabel(s) {
+  if (!s) return 'Sem status';
+  if (s==='Aguardando Meta')  return 'Em análise técnica';
+  if (s==='Em Andamento')     return 'Em andamento';
+  if (s==='Pendente SRG')     return 'Aguardando ação SRG';
+  if (s==='Pendente PO')      return 'Aguardando aprovação';
+  if (s==='Resolvido')        return 'Resolvido';
+  return s;
+}
+function pillHtml(status) {
+  const kind = statusKind(status);
+  const label = statusLabel(status);
+  const c = KIND_COLOR[kind];
+  const bg = {andamento:'rgba(230,170,60,.14)',aberto:'rgba(47,95,176,.16)',resolvido:'rgba(63,190,140,.14)',aguardando:'rgba(120,90,190,.18)'}[kind];
+  const bd = {andamento:'rgba(230,170,60,.35)',aberto:'rgba(90,150,220,.35)',resolvido:'rgba(90,200,150,.32)',aguardando:'rgba(150,120,220,.35)'}[kind];
+  return `<span style="display:inline-flex;align-items:center;gap:8px;padding:8px 14px;border-radius:999px;font:700 12.5px Manrope;white-space:nowrap;color:${c};background:${bg};border:1px solid ${bd}">${label}</span>`;
+}
+function copy(text, btn) {
+  navigator.clipboard.writeText(text).then(()=>{ btn.textContent='✓'; setTimeout(()=>btn.textContent='📋',1500); });
 }
 
-function makeChart(id, type, labels, data, colors, extraOpts={}) {
-  if (CHARTS[id]) CHARTS[id].destroy();
-  const gridColor = 'rgba(255,255,255,0.05)';
-  CHARTS[id] = new Chart(document.getElementById(id), {
-    type,
-    data: { labels, datasets:[{ data, backgroundColor:colors, borderWidth:0, borderRadius:type==='bar'?4:0 }] },
-    options: {
-      responsive:true, maintainAspectRatio:false,
-      plugins:{ legend:{ display:false } },
-      scales: type==='bar' ? {
-        x:{ ticks:{ color:'#718096', stepSize:1 }, grid:{ color:gridColor } },
-        y:{ ticks:{ color:'#718096' }, grid:{ color:gridColor } }
-      } : undefined,
-      ...extraOpts
-    }
-  });
+// ---- Timeline ----
+function buildTimeline(page) {
+  const status   = gp(page,'Status','select');
+  const abertura = gp(page,'Data Abertura','date');
+  const setor    = gp(page,'Setor Suporte','select');
+  const solucao  = gp(page,'Solução','rich_text');
+  const editado  = page.last_edited_time;
+  const label    = statusLabel(status);
+  const etapas = [];
+  if (abertura) etapas.push({done:true, titulo:'Chamado aberto', data:fmtDate(abertura), desc:'Chamado registrado no portal do cliente.'});
+  if (setor)    etapas.push({done:true, titulo:`Encaminhado para ${setor}`, data:fmtDate(abertura), desc:`Chamado encaminhado para análise da equipe ${setor}.`});
+  etapas.push({ done: status==='Resolvido', titulo: label, data: fmtDateTime(editado), desc: status==='Resolvido' ? 'Chamado encerrado com sucesso.' : (solucao || 'Aguardando retorno da equipe responsável.'), last:true });
+  return etapas.map(e => {
+    const color = e.done ? '#5abfa0' : '#f2b84b';
+    const dotStyle = `width:15px;height:15px;border-radius:50%;background:${color};box-shadow:0 0 0 4px ${color}26;flex-shrink:0;` + (e.done?'':'animation:pulseDot 2.2s infinite;');
+    const lineStyle = e.last ? 'display:none' : `flex:1;width:2px;margin-top:5px;background:linear-gradient(${color},rgba(120,150,200,.15))`;
+    return `<div style="display:flex;gap:16px;padding-bottom:22px">
+      <div style="display:flex;flex-direction:column;align-items:center">
+        <span style="${dotStyle}"></span>
+        <span style="${lineStyle}"></span>
+      </div>
+      <div style="flex:1;margin-top:-3px">
+        <div style="font:400 11.5px Manrope;color:#a6b8d6">${e.data}</div>
+        <div style="font:700 14.5px Manrope;color:#eaf1ff;margin-top:2px">${e.titulo}</div>
+        <div style="font:400 13px Manrope;color:#93a7cb;margin-top:3px;line-height:1.5">${e.desc}</div>
+      </div>
+    </div>`;
+  }).join('');
 }
 
-function statusColor(s) {
-  if (s==='Aguardando Meta') return '#fc8181';
-  if (s==='Em Andamento') return '#f6ad55';
-  if (s==='Pendente SRG') return '#63b3ed';
-  if (s==='Resolvido') return '#68d391';
-  return '#718096';
+// ---- Período / limpar ----
+function setPeriodo(dias, btn) {
+  currentPeriodo = dias;
+  document.querySelectorAll('.chip[data-periodo]').forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active');
+}
+function limpar() {
+  document.getElementById('proto-input').value = '';
+  document.getElementById('detalhe-wrap').style.display = 'none';
+  document.getElementById('search-result').innerHTML = '';
+  currentProto = '';
+  carregarMeusChamados();
+}
+function voltarLista() {
+  document.getElementById('detalhe-wrap').style.display = 'none';
+  document.getElementById('lista-wrap').style.display = 'block';
+  window.scrollTo(0,0);
 }
 
-function toggleDrawer(type) {
-  const drawer = document.getElementById('drawer');
-  const title  = document.getElementById('drawer-title');
-  const list   = document.getElementById('drawer-list');
-
-  if (currentDrawer === type) { closeDrawer(); return; }
-  currentDrawer = type;
-
-  document.querySelectorAll('.metric-card').forEach(c => c.classList.remove('active'));
-  const idx = ['all','aguardando','andamento','pendente','resolvidos'].indexOf(type);
-  if (idx>=0) document.querySelectorAll('.metric-card')[idx].classList.add('active');
-
-  let filtered, titleText;
-  if (type==='all') { filtered=ALL_PAGES.filter(p=>gp(p,'Status','select')!=='Resolvido'&&gp(p,'Status','select')); titleText='Todos os chamados ativos'; }
-  else if (type==='aguardando') { filtered=ALL_PAGES.filter(p=>gp(p,'Status','select')==='Aguardando Meta'); titleText='Aguardando Meta'; }
-  else if (type==='andamento') { filtered=ALL_PAGES.filter(p=>gp(p,'Status','select')==='Em Andamento'); titleText='Em Andamento'; }
-  else if (type==='pendente') { filtered=ALL_PAGES.filter(p=>gp(p,'Status','select')==='Pendente SRG'); titleText='Pendente SRG'; }
-  else { filtered=ALL_PAGES.filter(p=>gp(p,'Status','select')==='Resolvido'); titleText='Resolvidos'; }
-
-  title.textContent = `${titleText} (${filtered.length})`;
-
-  list.innerHTML = filtered.length === 0
-    ? '<div style="padding:1rem;color:#718096;font-size:13px;text-align:center">Nenhum chamado</div>'
-    : filtered.map(p => {
-        const nome     = gp(p,'Cliente','title');
-        const sol      = gp(p,'Solicitante','rich_text');
-        const setor    = gp(p,'Setor Suporte','select');
-        const status   = gp(p,'Status','select');
-        const proto    = gp(p,'Protocolo Digisac','rich_text');
-        const solucao  = gp(p,'Solução','rich_text');
-        const color    = statusColor(status);
-        return `<div class="drawer-item">
-          <div>
-            <div class="drawer-item-name">${nome}</div>
-            <div class="drawer-item-sub">${sol ? sol+' · ' : ''}${setor||''}${proto ? ' · '+proto : ''}</div>
-          </div>
-          <span class="drawer-item-badge" style="background:${color}22;color:${color}">${status}</span>
-          <div class="drawer-item-sol" title="${solucao}">${solucao||'—'}</div>
-        </div>`;
-      }).join('');
-
-  drawer.classList.add('open');
-}
-
-function closeDrawer() {
-  document.getElementById('drawer').classList.remove('open');
-  document.querySelectorAll('.metric-card').forEach(c=>c.classList.remove('active'));
-  currentDrawer = null;
-}
-
-async function loadData() {
-  const icon = document.getElementById('refresh-icon');
-  icon.classList.add('spin');
-  document.getElementById('sbar').textContent = 'Atualizando...';
-  document.getElementById('err').style.display = 'none';
-
+// ---- Carregar lista "Meus chamados" ----
+async function carregarMeusChamados() {
+  const wrap = document.getElementById('lista-wrap');
+  const body = document.getElementById('lista-body');
+  const count = document.getElementById('lista-count');
+  wrap.style.display = 'block';
+  body.innerHTML = '<div style="text-align:center;padding:2rem"><div class="spinner"></div></div>';
   try {
-    let pages=[], cursor=null, hasMore=true;
-    while (hasMore) {
-      const body = { page_size:100, filter:{ property:'Cliente', title:{ does_not_equal:'⚙️ Última Sincronização' } } };
-      if (cursor) body.start_cursor = cursor;
-      const r = await fetch(`${PROXY}/v1/databases/${DB}/query`, {
-        method:'POST',
-        headers:{ 'Content-Type':'application/json' },
-        body: JSON.stringify(body)
+    const r = await fetch(`${PROXY}/v1/databases/${DB}/query`, {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ page_size:30, sorts:[{timestamp:'last_edited_time',direction:'descending'}] })
+    });
+    const d = await r.json();
+    if (!r.ok) throw new Error(d.message||'Erro');
+    let results = d.results || [];
+    if (currentUser.unidades && currentUser.unidades.length) {
+      results = results.filter(p => {
+        const titulo = gp(p,'Cliente','title').toLowerCase();
+        return currentUser.unidades.some(u => titulo.includes(u.toLowerCase()));
       });
-      const d = await r.json();
-      if (!r.ok) throw new Error(d.message||'Erro Notion API');
-      pages = pages.concat(d.results||[]);
-      hasMore = d.has_more; cursor = d.next_cursor;
     }
-
-    ALL_PAGES = pages;
-    if (currentDrawer) toggleDrawer(currentDrawer);
-
-    const sc={}, ac={}, stc={}, uc={};
-    let total=0, resolvidos=0;
-
-    for (const p of pages) {
+    if (currentPeriodo > 0) {
+      const limite = new Date(); limite.setDate(limite.getDate()-currentPeriodo);
+      results = results.filter(p => new Date(p.created_time) >= limite);
+    }
+    ultimosResultados = results;
+    count.textContent = results.length + (results.length===1?' chamado':' chamados');
+    if (!results.length) {
+      body.innerHTML = '<div class="glass" style="padding:2rem;text-align:center;font:500 13px Manrope;color:#b3c4e0">Nenhum chamado encontrado no período selecionado.</div>';
+      return;
+    }
+    body.innerHTML = results.map((p,i) => {
+      const nome = gp(p,'Cliente','title');
       const status = gp(p,'Status','select');
-      const sol    = gp(p,'Solicitante','rich_text').trim();
-      const setor  = gp(p,'Setor Suporte','select');
-      const urg    = gp(p,'Urgência','select')||gp(p,'Urgência','rich_text');
-
-      if (status==='Resolvido') { resolvidos++; continue; }
-      if (!status) continue;
-      total++;
-      sc[status]=(sc[status]||0)+1;
-      const at = sol.charAt(0).toUpperCase()+sol.slice(1).toLowerCase();
-      if (['Sergio','Felipe','Junior','Vitoria','Maycon'].includes(at)) ac[at]=(ac[at]||0)+1;
-      if (setor) stc[setor]=(stc[setor]||0)+1;
-      if (urg) uc[urg]=(uc[urg]||0)+1;
-    }
-
-    document.getElementById('m0').textContent = total;
-    document.getElementById('m1').textContent = sc['Aguardando Meta']||0;
-    document.getElementById('m2').textContent = sc['Em Andamento']||0;
-    document.getElementById('m3').textContent = sc['Pendente SRG']||0;
-    document.getElementById('m4').textContent = resolvidos;
-    document.getElementById('subtitle').textContent = `Chamados Meta — ${new Date().toLocaleString('pt-BR')}`;
-
-    const sL=Object.keys(sc), sD=Object.values(sc), sCols=sL.map(l=>STATUS_COLORS[l]||'#718096');
-    makeLegend('leg-status', sL.map((l,i)=>`${l} (${sD[i]})`), sCols);
-    makeChart('cStatus','doughnut',sL,sD,sCols);
-
-    const aL=Object.keys(ac).sort((a,b)=>ac[b]-ac[a]), aD=aL.map(l=>ac[l]);
-    makeLegend('leg-atendente', aL.map((l,i)=>`${l} (${aD[i]})`), AT_COLORS);
-    makeChart('cAtendente','doughnut',aL,aD,AT_COLORS);
-
-    const stL=Object.keys(stc).sort((a,b)=>stc[b]-stc[a]), stD=stL.map(l=>stc[l]);
-    makeChart('cSetor','bar',stL,stD,ST_COLORS,{ indexAxis:'y', scales:{ x:{ ticks:{ color:'#718096', stepSize:1 }, grid:{ color:'rgba(255,255,255,0.05)' } }, y:{ ticks:{ color:'#718096' }, grid:{ display:false } } } });
-
-    const uL=Object.keys(uc).sort((a,b)=>uc[b]-uc[a]), uD=uL.map(l=>uc[l]);
-    const uC=uL.map(l=>l==='Urgente'?'#fc8181':l==='Normal'?'#63b3ed':'#718096');
-    makeChart('cUrgencia','bar',uL,uD,uC,{ scales:{ x:{ ticks:{ color:'#718096' }, grid:{ display:false } }, y:{ ticks:{ color:'#718096', stepSize:1 }, grid:{ color:'rgba(255,255,255,0.05)' } } } });
-
-    document.getElementById('sbar').textContent = `${pages.length} chamados · última atualização ${new Date().toLocaleTimeString('pt-BR')}`;
+      const proto = gp(p,'Protocolo Digisac','rich_text');
+      const abertura = gp(p,'Data Abertura','date');
+      const kind = statusKind(status);
+      return `<div onclick="abrirDetalheIndex(${i})" style="display:flex;align-items:center;gap:18px;padding:20px 22px;border-radius:18px;cursor:pointer;background:rgba(255,255,255,.045);backdrop-filter:blur(18px);border:1px solid rgba(255,255,255,.1)">
+        <span style="width:12px;height:12px;border-radius:50%;flex-shrink:0;background:${KIND_COLOR[kind]};box-shadow:0 0 0 4px ${KIND_COLOR[kind]}22"></span>
+        <div style="flex:1;min-width:0">
+          <div style="font:700 15.5px Manrope;color:#eaf1ff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${nome||'Sem assunto'}</div>
+          <div style="display:flex;gap:16px;flex-wrap:wrap;margin-top:5px;font:500 12.5px Manrope;color:#b3c4e0">
+            <span>Protocolo ${proto||'—'}</span><span>· Aberto em ${fmtDate(abertura)}</span>
+          </div>
+        </div>
+        ${pillHtml(status)}
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#8399be" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg>
+      </div>`;
+    }).join('');
   } catch(e) {
-    const el=document.getElementById('err');
-    el.textContent='Erro ao carregar: '+e.message;
-    el.style.display='block';
-    document.getElementById('sbar').textContent='Falha na atualização.';
+    body.innerHTML = `<div class="glass" style="padding:2rem;text-align:center;font:500 13px Manrope;color:#fc8181">Erro ao carregar chamados: ${e.message}</div>`;
+  }
+}
+function abrirDetalheIndex(i) { mostrarDetalhe(ultimosResultados[i]); }
+
+// ---- Buscar (protocolo/ticket/SO) ----
+async function buscar() {
+  const q = document.getElementById('proto-input').value.trim();
+  if (!q) return;
+  const btn = document.getElementById('search-btn');
+  const btnText = document.getElementById('search-btn-text');
+  btn.disabled = true; btnText.textContent = 'Buscando...';
+  const res = document.getElementById('search-result');
+  document.getElementById('lista-wrap').style.display = 'none';
+  document.getElementById('detalhe-wrap').style.display = 'none';
+  res.innerHTML = '<div style="text-align:center;padding:2rem"><div class="spinner"></div></div>';
+  try {
+    const searches = [ {property:'Protocolo Digisac'}, {property:'Ticket Meta'} ];
+    let found = null;
+    for (const s of searches) {
+      if (found) break;
+      const body = { page_size:50, filter:{property:s.property, rich_text:{contains:q}} };
+      const r = await fetch(`${PROXY}/v1/databases/${DB}/query`, { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body) });
+      const d = await r.json();
+      if (!r.ok) throw new Error(d.message||'Erro');
+      let exato = (d.results||[]).filter(p => { const val = gp(p,s.property,'rich_text'); return val === q || val.includes(q); });
+      if (currentUser.unidades && currentUser.unidades.length) {
+        exato = exato.filter(p => currentUser.unidades.some(u => gp(p,'Cliente','title').toLowerCase().includes(u.toLowerCase())));
+      }
+      if (exato.length) found = exato.sort((a,b)=>new Date(b.last_edited_time)-new Date(a.last_edited_time))[0];
+    }
+    res.innerHTML = '';
+    if (!found) {
+      res.innerHTML = `<div class="glass" style="padding:2rem;text-align:center"><div style="font:700 15px Outfit,sans-serif;color:#f2f7ff;margin-bottom:6px">Chamado não encontrado</div><div style="font:400 13px Manrope;color:#b3c4e0">Verifique o número informado ou entre em contato com o suporte.</div></div>`;
+      return;
+    }
+    mostrarDetalhe(found);
+  } catch(e) {
+    res.innerHTML = `<div class="glass" style="padding:2rem;text-align:center;color:#fc8181;font:600 14px Manrope">Erro ao consultar: ${e.message}</div>`;
   } finally {
-    icon.classList.remove('spin');
+    btn.disabled=false; btnText.textContent='Consultar';
   }
 }
 
-loadData();
-</script>
-<script>
-const DASH_PASSWORD = 'srg@2026';
-function checkLogin() {
-  const pwd = document.getElementById('pwd-input').value;
-  if (pwd === DASH_PASSWORD) {
-    document.getElementById('login-screen').style.display = 'none';
-    sessionStorage.setItem('srg_auth', '1');
-  } else {
-    document.getElementById('login-error').style.display = 'block';
-    document.getElementById('pwd-input').value = '';
-    document.getElementById('pwd-input').focus();
-  }
+function mostrarDetalhe(found) {
+  document.getElementById('lista-wrap').style.display = 'none';
+  document.getElementById('search-result').innerHTML = '';
+  const nome     = gp(found,'Cliente','title');
+  const status   = gp(found,'Status','select');
+  const setor    = gp(found,'Setor Suporte','select');
+  const abertura = gp(found,'Data Abertura','date');
+  const urgencia = gp(found,'Urgência','select')||gp(found,'Urgência','rich_text');
+  const ticket   = gp(found,'Ticket Meta','rich_text');
+  const proto    = gp(found,'Protocolo Digisac','rich_text');
+  const atendente= gp(found,'Atendente','rich_text');
+  const dtDigisac= gp(found,'Data Digisac','date');
+  const editado  = found.last_edited_time;
+  currentProto = proto || '';
+
+  document.getElementById('detalhe-header').innerHTML = `
+    <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:16px;flex-wrap:wrap">
+      <div>
+        <p style="font:600 12px Manrope;letter-spacing:.12em;text-transform:uppercase;color:#7fd4c0;margin-bottom:8px">Chamado localizado</p>
+        <h2 style="font:700 22px Outfit,sans-serif;color:#f4f8ff;max-width:560px;line-height:1.25">${nome||'—'}</h2>
+      </div>
+      ${pillHtml(status)}
+    </div>
+    <div style="display:flex;gap:12px;flex-wrap:wrap;margin-top:20px">
+      <div style="padding:10px 16px;border-radius:12px;background:rgba(47,95,176,.16);border:1px solid rgba(90,150,220,.3)">
+        <div style="font:600 10.5px Manrope;letter-spacing:.1em;text-transform:uppercase;color:#8fb0e0">Protocolo</div>
+        <div style="font:600 15px 'IBM Plex Mono',monospace;color:#eaf3ff;margin-top:3px">${proto||'—'}</div>
+      </div>
+      <div style="padding:10px 16px;border-radius:12px;background:rgba(63,160,140,.14);border:1px solid rgba(90,190,160,.3)">
+        <div style="font:600 10.5px Manrope;letter-spacing:.1em;text-transform:uppercase;color:#8fd8c4">Ticket</div>
+        <div style="font:600 15px 'IBM Plex Mono',monospace;color:#eaf3ff;margin-top:3px">${ticket||'—'}</div>
+      </div>
+    </div>`;
+
+  document.getElementById('timeline-body').innerHTML = buildTimeline(found);
+  document.getElementById('details-body').innerHTML = [
+    ['Assunto', nome||'—'], ['Setor', setor||'—'], ['Prioridade', urgencia||'Normal'],
+    ['Aberto em', dtDigisac ? fmtDate(dtDigisac) : fmtDate(abertura)], ['Última atualização', fmtDateTime(editado)],
+    ['Atendente', atendente||'—'], ['Canal', 'Portal Web'],
+  ].map(([label,value]) => `<div style="display:flex;justify-content:space-between;gap:14px;padding:11px 0;border-bottom:1px solid rgba(255,255,255,.07)"><span style="font:500 13px Manrope;color:#b3c4e0;flex-shrink:0">${label}</span><span style="font:600 13.5px Manrope;color:#e7eefb;text-align:right">${value}</span></div>`).join('');
+
+  const waMsg = encodeURIComponent(`Olá, gostaria de informações sobre o chamado ${currentProto||''}.`);
+  document.getElementById('wa-btn').onclick = () => window.open(`https://wa.me/${WA_NUMBER}?text=${waMsg}`,'_blank');
+
+  document.getElementById('detalhe-wrap').style.display = 'block';
+  window.scrollTo(0,0);
 }
-if (sessionStorage.getItem('srg_auth') === '1') {
-  document.addEventListener('DOMContentLoaded', () => {
-    document.getElementById('login-screen').style.display = 'none';
-  });
+
+// ---- Novo chamado (encaminha via WhatsApp — sem API de criação de ticket) ----
+let ntCat = 'Rede', ntPrio = 'Média';
+function buildNewTicketChips() {
+  const cats = ['Rede','Hardware','Software','Acesso','Outro'];
+  const prios = ['Baixa','Média','Alta'];
+  document.getElementById('nt-cats').innerHTML = cats.map(c=>`<button class="chip ${c===ntCat?'active':''}" onclick="ntCat='${c}';buildNewTicketChips()">${c}</button>`).join('');
+  document.getElementById('nt-prios').innerHTML = prios.map(p=>`<button class="chip ${p===ntPrio?'active':''}" onclick="ntPrio='${p}';buildNewTicketChips()">${p}</button>`).join('');
+}
+function enviarNovoChamado() {
+  const assunto = document.getElementById('nt-assunto').value.trim();
+  const desc = document.getElementById('nt-desc').value.trim();
+  if (!assunto) { document.getElementById('nt-assunto').focus(); return; }
+  const msg = encodeURIComponent(`*Novo chamado — Portal SRG*\nUsuário: ${currentUser.username}\nAssunto: ${assunto}\nCategoria: ${ntCat}\nPrioridade: ${ntPrio}\nDescrição: ${desc||'—'}`);
+  window.open(`https://wa.me/${WA_NUMBER}?text=${msg}`,'_blank');
 }
 </script>
 </body>
