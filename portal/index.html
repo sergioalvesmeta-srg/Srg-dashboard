@@ -794,16 +794,38 @@ async function carregarMeusChamados() {
   wrap.style.display = 'block';
   body.innerHTML = '<div style="text-align:center;padding:2rem"><div class="spinner"></div></div>';
   try {
-    const r = await fetch(`${PROXY}/v1/databases/${DB}/query`, {
-      method:'POST', headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({ page_size:30, sorts:[{timestamp:'last_edited_time',direction:'descending'}] })
-    });
-    const d = await r.json();
-    if (!r.ok) throw new Error(d.message||'Erro');
-    let results = d.results || [];
-    if (currentUser.unidades && currentUser.unidades.length) {
-      results = results.filter(p => contatoPertenceAoUsuario(p, currentUser.unidades));
+    let results;
+    const chavesTelefone = (currentUser.unidades||[]).map(u => phoneKey(u)).filter(k => k && k.length >= 8);
+
+    if (chavesTelefone.length) {
+      // Usuario restrito por telefone: filtra direto no Notion pelo campo
+      // "Contato Digisac" (contains), em vez de trazer só os 30 mais
+      // recentes de TODA a base e filtrar depois -- isso garante que
+      // chamados mais antigos do cliente tambem apareçam.
+      const filtroTelefone = chavesTelefone.length === 1
+        ? { property:'Contato Digisac', rich_text:{ contains: chavesTelefone[0] } }
+        : { or: chavesTelefone.map(k => ({ property:'Contato Digisac', rich_text:{ contains: k } })) };
+      const r = await fetch(`${PROXY}/v1/databases/${DB}/query`, {
+        method:'POST', headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({ page_size:100, sorts:[{timestamp:'last_edited_time',direction:'descending'}], filter: filtroTelefone })
+      });
+      const d = await r.json();
+      if (!r.ok) throw new Error(d.message||'Erro');
+      // O filtro do Notion e "contains" (substring), entao ainda passamos
+      // pelo match fino em JS pra eliminar qualquer falso positivo.
+      results = (d.results||[]).filter(p => contatoPertenceAoUsuario(p, currentUser.unidades));
+    } else {
+      // Admin / usuario sem restricao: mantem o comportamento original
+      // (30 mais recentes de toda a base).
+      const r = await fetch(`${PROXY}/v1/databases/${DB}/query`, {
+        method:'POST', headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({ page_size:30, sorts:[{timestamp:'last_edited_time',direction:'descending'}] })
+      });
+      const d = await r.json();
+      if (!r.ok) throw new Error(d.message||'Erro');
+      results = d.results || [];
     }
+
     if (currentPeriodo > 0) {
       const limite = new Date(); limite.setDate(limite.getDate()-currentPeriodo);
       results = results.filter(p => new Date(p.created_time) >= limite);
