@@ -805,15 +805,24 @@ async function carregarMeusChamados() {
       const filtroTelefone = chavesTelefone.length === 1
         ? { property:'Contato Digisac', rich_text:{ contains: chavesTelefone[0] } }
         : { or: chavesTelefone.map(k => ({ property:'Contato Digisac', rich_text:{ contains: k } })) };
-      const r = await fetch(`${PROXY}/v1/databases/${DB}/query`, {
-        method:'POST', headers:{'Content-Type':'application/json'},
-        body: JSON.stringify({ page_size:100, sorts:[{timestamp:'last_edited_time',direction:'descending'}], filter: filtroTelefone })
-      });
-      const d = await r.json();
-      if (!r.ok) throw new Error(d.message||'Erro');
+      // Pagina ate trazer TODOS os chamados do cliente (Notion so devolve
+      // ate 100 por pagina) -- desde o primeiro chamado dele, sem limite.
+      let todos = [];
+      let cursor = undefined;
+      do {
+        const payload = { page_size:100, sorts:[{timestamp:'last_edited_time',direction:'descending'}], filter: filtroTelefone };
+        if (cursor) payload.start_cursor = cursor;
+        const r = await fetch(`${PROXY}/v1/databases/${DB}/query`, {
+          method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload)
+        });
+        const d = await r.json();
+        if (!r.ok) throw new Error(d.message||'Erro');
+        todos = todos.concat(d.results||[]);
+        cursor = d.has_more ? d.next_cursor : null;
+      } while (cursor);
       // O filtro do Notion e "contains" (substring), entao ainda passamos
       // pelo match fino em JS pra eliminar qualquer falso positivo.
-      results = (d.results||[]).filter(p => contatoPertenceAoUsuario(p, currentUser.unidades));
+      results = todos.filter(p => contatoPertenceAoUsuario(p, currentUser.unidades));
     } else {
       // Admin / usuario sem restricao: mantem o comportamento original
       // (30 mais recentes de toda a base).
