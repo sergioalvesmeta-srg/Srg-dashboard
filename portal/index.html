@@ -842,6 +842,18 @@ async function carregarMeusChamados() {
     if (currentStatusFiltro) {
       results = results.filter(p => gp(p,'Status','select') === currentStatusFiltro);
     }
+    // Chamados "Resolvido" ficam limitados aos 10 mais recentes (results
+    // ja vem ordenado por last_edited_time descendente); todos os demais
+    // status (Em Andamento, Aguardando Meta, Pendente SRG, Pendente PO)
+    // aparecem sem limite nenhum.
+    let resolvidosContados = 0;
+    results = results.filter(p => {
+      if (gp(p,'Status','select') === 'Resolvido') {
+        resolvidosContados++;
+        return resolvidosContados <= 10;
+      }
+      return true;
+    });
     ultimosResultados = results;
     count.textContent = results.length + (results.length===1?' chamado':' chamados');
     if (!results.length) {
