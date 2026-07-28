@@ -672,14 +672,26 @@ function gp(page, prop, tipo) {
 function normPhone(s) {
   return (s || '').replace(/\D/g, '');
 }
+// Chave de comparacao = ultimos 8 digitos do numero (numero local "puro",
+// sem DDI, sem DDD... na verdade sem os primeiros digitos variaveis).
+// Isso resolve a diferenca entre formatos como:
+//   558694297173  (55 + DDD 86 + 8 digitos, sem o 9º dígito -- formato Digisac)
+//   86995607747   (DDD 86 + 9 digitos, com o 9º dígito -- formato digitado por humano)
+// Os ultimos 8 digitos (95607747 / 94297173) sao o "nucleo" que nao muda
+// entre esses formatos, entao comparamos por eles.
+function phoneKey(s) {
+  const d = normPhone(s);
+  return d.slice(-8);
+}
 function contatoPertenceAoUsuario(page, contatosUsuario) {
   if (!contatosUsuario || !contatosUsuario.length) return true; // sem filtro = acesso total
-  const contatoChamado = normPhone(gp(page, 'Contato Digisac', 'rich_text'));
-  if (!contatoChamado) return false; // sem contato no chamado = invisivel para usuario restrito
+  const contatoChamado = gp(page, 'Contato Digisac', 'rich_text');
+  const chaveChamado = phoneKey(contatoChamado);
+  if (!chaveChamado || chaveChamado.length < 8) return false; // sem contato no chamado = invisivel para usuario restrito
   return contatosUsuario.some(u => {
-    const un = normPhone(u);
-    if (!un) return false;
-    return contatoChamado.includes(un) || un.includes(contatoChamado);
+    const chaveUsuario = phoneKey(u);
+    if (!chaveUsuario || chaveUsuario.length < 8) return false;
+    return chaveChamado === chaveUsuario;
   });
 }
 function fmtDate(d) {
