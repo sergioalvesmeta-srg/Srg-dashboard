@@ -382,6 +382,10 @@ footer.foot{border-top:1px solid rgba(255,255,255,.07);background:rgba(10,16,36,
           <input type="text" id="new-pass" placeholder="Senha (deixe em branco para manter, ao editar)" style="flex:1;background:transparent;border:none;color:#eaf1ff;font:500 13.5px Manrope">
         </div>
       </div>
+      <div style="display:flex;align-items:center;gap:11px;height:46px;padding:0 15px;border-radius:12px;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.22);margin-bottom:9px">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#8399be" stroke-width="1.8" stroke-linecap="round"><path d="M17 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+        <input type="text" id="new-nome" placeholder="Nome de exibição (ex: Douglas)" style="flex:1;background:transparent;border:none;color:#eaf1ff;font:500 13.5px Manrope">
+      </div>
       <div style="display:flex;align-items:center;gap:11px;height:46px;padding:0 15px;border-radius:12px;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.22);margin-bottom:11px">
         <input type="text" id="new-filter" placeholder="Telefone(s) do contato Digisac (ex: 5586999998888), separar por vírgula — vazio = acesso total" style="flex:1;background:transparent;border:none;color:#eaf1ff;font:500 13px Manrope">
       </div>
@@ -421,12 +425,12 @@ async function apiListUsers(token) {
   const r = await fetch(`${PROXY}/auth/users`, { headers:{'Authorization':`Bearer ${token}`} });
   return r.json();
 }
-async function apiCreateUser(token, username, password, unidades, role) {
-  const r = await fetch(`${PROXY}/auth/users`, { method:'POST', headers:{'Content-Type':'application/json','Authorization':`Bearer ${token}`}, body:JSON.stringify({username,password,unidades,role}) });
+async function apiCreateUser(token, username, password, unidades, role, nome) {
+  const r = await fetch(`${PROXY}/auth/users`, { method:'POST', headers:{'Content-Type':'application/json','Authorization':`Bearer ${token}`}, body:JSON.stringify({username,password,unidades,role,nome}) });
   return r.json();
 }
 async function apiUpdateUser(token, username, campos) {
-  // campos: {password?, unidades?, role?} -- so envia o que foi preenchido
+  // campos: {password?, unidades?, role?, nome?} -- so envia o que foi preenchido
   const r = await fetch(`${PROXY}/auth/users/${encodeURIComponent(username)}`, { method:'PATCH', headers:{'Content-Type':'application/json','Authorization':`Bearer ${token}`}, body:JSON.stringify(campos) });
   return r.json();
 }
@@ -515,7 +519,7 @@ async function doLogin() {
   const data = await apiLogin(login, pass);
   btn.disabled = false; btnText.textContent = 'Entrar';
   if (data.ok) {
-    currentUser = { username:data.username, role:data.role, unidades:data.unidades||[], token:data.token };
+    currentUser = { username:data.username, nome:data.nome||'', role:data.role, unidades:data.unidades||[], token:data.token };
     err.style.display = 'none';
     sessionStorage.setItem('srg_user', JSON.stringify(currentUser));
     enterApp();
@@ -534,8 +538,9 @@ async function doLogout() {
   document.getElementById('login-pass').value = '';
 }
 function enterApp() {
-  document.getElementById('dash-greeting').textContent = `Olá, ${currentUser.username}! 👋`;
-  document.getElementById('avatar-btn').textContent = initials(currentUser.username);
+  const nomeExibido = currentUser.nome && currentUser.nome.trim() ? currentUser.nome.trim() : currentUser.username;
+  document.getElementById('dash-greeting').textContent = `Olá, ${nomeExibido}! 👋`;
+  document.getElementById('avatar-btn').textContent = initials(nomeExibido);
   document.getElementById('avatar-btn').style.background = avatarGradient(currentUser.username);
   document.getElementById('admin-btn').style.display = currentUser.role === 'admin' ? 'inline-flex' : 'none';
   showApp();
@@ -556,9 +561,10 @@ function enterApp() {
 
 // ---- Perfil ----
 function renderProfile() {
-  document.getElementById('profile-avatar').textContent = initials(currentUser.username);
+  const nomeExibido = currentUser.nome && currentUser.nome.trim() ? currentUser.nome.trim() : currentUser.username;
+  document.getElementById('profile-avatar').textContent = initials(nomeExibido);
   document.getElementById('profile-avatar').style.background = avatarGradient(currentUser.username);
-  document.getElementById('profile-name').textContent = currentUser.username;
+  document.getElementById('profile-name').textContent = nomeExibido;
   document.getElementById('profile-unit').textContent = currentUser.unidades && currentUser.unidades.length ? 'Telefone(s): '+currentUser.unidades.join(', ') : 'Acesso a todos os chamados';
   const roleEl = document.getElementById('profile-role');
   if (currentUser.role === 'admin') {
@@ -585,9 +591,9 @@ async function renderUsersList() {
   if (!data.ok) { el.innerHTML = '<div style="font-size:12px;color:#fc8181;padding:10px 0">Erro ao carregar usuários.</div>'; return; }
   el.innerHTML = data.users.map(u => `
     <div style="display:flex;align-items:center;gap:14px;padding:13px 15px;border-radius:14px;background:rgba(255,255,255,.035);border:1px solid rgba(255,255,255,.08);margin-bottom:10px">
-      <div style="width:42px;height:42px;border-radius:12px;flex-shrink:0;display:flex;align-items:center;justify-content:center;font:700 14px Outfit,sans-serif;color:#fff;background:${avatarGradient(u.username)}">${initials(u.username)}</div>
+      <div style="width:42px;height:42px;border-radius:12px;flex-shrink:0;display:flex;align-items:center;justify-content:center;font:700 14px Outfit,sans-serif;color:#fff;background:${avatarGradient(u.username)}">${initials(u.nome && u.nome.trim() ? u.nome.trim() : u.username)}</div>
       <div style="flex:1;min-width:0">
-        <div style="font:600 14.5px Manrope;color:#eaf1ff">${u.username}</div>
+        <div style="font:600 14.5px Manrope;color:#eaf1ff">${u.nome && u.nome.trim() ? u.nome.trim() : u.username}${u.nome && u.nome.trim() ? ` <span style="color:#7f8fae;font-weight:500">(${u.username})</span>` : ''}</div>
         <div style="font:400 12.5px Manrope;color:#b3c4e0">${u.unidades && u.unidades.length ? 'Telefone(s): '+u.unidades.join(', ') : 'Acesso total'}</div>
       </div>
       <span style="font:600 11.5px Manrope;color:#a9bcda;padding:5px 11px;border-radius:8px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);white-space:nowrap">${u.role==='admin'?'Administrador':'Cliente'}</span>
@@ -606,6 +612,7 @@ function iniciarEdicaoUsuario(u) {
   document.getElementById('new-login').value = u.username;
   document.getElementById('new-login').disabled = true;
   document.getElementById('new-pass').value = '';
+  document.getElementById('new-nome').value = u.nome || '';
   document.getElementById('new-filter').value = (u.unidades||[]).join(', ');
   document.getElementById('form-usuario-titulo').textContent = 'Editando usuário: ' + u.username;
   document.getElementById('btn-salvar-usuario').innerHTML = 'Salvar alterações';
@@ -617,6 +624,7 @@ function cancelarEdicaoUsuario() {
   document.getElementById('new-login').value = '';
   document.getElementById('new-login').disabled = false;
   document.getElementById('new-pass').value = '';
+  document.getElementById('new-nome').value = '';
   document.getElementById('new-filter').value = '';
   document.getElementById('form-usuario-titulo').textContent = 'Novo usuário';
   document.getElementById('btn-salvar-usuario').innerHTML = '<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.1" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg> Adicionar';
@@ -625,13 +633,14 @@ function cancelarEdicaoUsuario() {
 async function addUser() {
   const login = document.getElementById('new-login').value.trim().toLowerCase();
   const pass  = document.getElementById('new-pass').value.trim();
+  const nome  = document.getElementById('new-nome').value.trim();
   const msg   = document.getElementById('admin-msg');
   const filterVal = document.getElementById('new-filter').value.trim();
   const unidades = filterVal ? filterVal.split(',').map(s=>s.trim()).filter(Boolean) : [];
 
   if (usuarioEmEdicao) {
     // ---- modo edição ----
-    const campos = { unidades };
+    const campos = { unidades, nome };
     if (pass) campos.password = pass;
     const data = await apiUpdateUser(currentUser.token, usuarioEmEdicao, campos);
     if (!data.ok) { msg.style.display='block'; msg.style.color='#fc8181'; msg.textContent=data.error||'Erro ao salvar usuário.'; return; }
@@ -644,7 +653,7 @@ async function addUser() {
 
   // ---- modo criação ----
   if (!login || !pass) { msg.style.display='block'; msg.style.color='#fc8181'; msg.textContent='Preencha usuário e senha.'; return; }
-  const data = await apiCreateUser(currentUser.token, login, pass, unidades, 'cliente');
+  const data = await apiCreateUser(currentUser.token, login, pass, unidades, 'cliente', nome);
   if (!data.ok) { msg.style.display='block'; msg.style.color='#fc8181'; msg.textContent=data.error||'Erro ao criar usuário.'; return; }
   cancelarEdicaoUsuario();
   msg.style.display='block'; msg.style.color='#7fe0c0'; msg.textContent='Usuário adicionado!';
