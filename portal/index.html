@@ -205,19 +205,18 @@ footer.foot{border-top:1px solid rgba(255,255,255,.07);background:rgba(10,16,36,
         </div>
         <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-top:20px">
           <span style="font:600 12.5px Manrope;color:#b3c4e0;margin-right:2px">Período:</span>
-          <button class="chip active" data-periodo="30" onclick="setPeriodo(30,this)">30 dias</button>
+          <button class="chip" data-periodo="30" onclick="setPeriodo(30,this)">30 dias</button>
           <button class="chip" data-periodo="60" onclick="setPeriodo(60,this)">60 dias</button>
           <button class="chip" data-periodo="90" onclick="setPeriodo(90,this)">90 dias</button>
-          <button class="chip" data-periodo="0" onclick="setPeriodo(0,this)">Todos</button>
+          <button class="chip active" data-periodo="0" onclick="setPeriodo(0,this)">Todos</button>
         </div>
         <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-top:14px">
           <span style="font:600 12.5px Manrope;color:#b3c4e0;margin-right:2px">Status:</span>
-          <button class="chip active" data-status="" onclick="setStatusFiltro('',this)">Todos</button>
-          <button class="chip" data-status="Resolvido" onclick="setStatusFiltro('Resolvido',this)">Resolvido</button>
-          <button class="chip" data-status="Em Andamento" onclick="setStatusFiltro('Em Andamento',this)">Em andamento</button>
-          <button class="chip" data-status="Aguardando Meta" onclick="setStatusFiltro('Aguardando Meta',this)">Em análise técnica</button>
-          <button class="chip" data-status="Pendente SRG" onclick="setStatusFiltro('Pendente SRG',this)">Aguardando ação SRG</button>
-          <button class="chip" data-status="Pendente PO" onclick="setStatusFiltro('Pendente PO',this)">Aguardando aprovação</button>
+          <button class="chip" data-status="Resolvido" onclick="toggleStatusFiltro('Resolvido',this)">Resolvido</button>
+          <button class="chip active" data-status="Em Andamento" onclick="toggleStatusFiltro('Em Andamento',this)">Em andamento</button>
+          <button class="chip active" data-status="Aguardando Meta" onclick="toggleStatusFiltro('Aguardando Meta',this)">Em análise técnica</button>
+          <button class="chip active" data-status="Pendente SRG" onclick="toggleStatusFiltro('Pendente SRG',this)">Aguardando ação SRG</button>
+          <button class="chip active" data-status="Pendente PO" onclick="toggleStatusFiltro('Pendente PO',this)">Aguardando aprovação</button>
         </div>
       </div>
 
@@ -440,8 +439,8 @@ async function apiDeleteUser(token, username) {
 }
 
 let currentUser = null;
-let currentPeriodo = 30;
-let currentStatusFiltro = '';
+let currentPeriodo = 0;
+let currentStatusFiltro = ['Em Andamento','Aguardando Meta','Pendente SRG','Pendente PO'];
 let currentProto = '';
 let ultimosResultados = [];
 let usuarioEmEdicao = null; // username do usuario sendo editado, ou null = modo "criar"
@@ -776,10 +775,15 @@ function setPeriodo(dias, btn) {
   btn.classList.add('active');
   carregarMeusChamados();
 }
-function setStatusFiltro(status, btn) {
-  currentStatusFiltro = status;
-  document.querySelectorAll('.chip[data-status]').forEach(b=>b.classList.remove('active'));
-  btn.classList.add('active');
+function toggleStatusFiltro(status, btn) {
+  const idx = currentStatusFiltro.indexOf(status);
+  if (idx === -1) {
+    currentStatusFiltro.push(status);
+    btn.classList.add('active');
+  } else {
+    currentStatusFiltro.splice(idx, 1);
+    btn.classList.remove('active');
+  }
   carregarMeusChamados();
 }
 function limpar() {
@@ -848,8 +852,10 @@ async function carregarMeusChamados() {
       const limite = new Date(); limite.setDate(limite.getDate()-currentPeriodo);
       results = results.filter(p => new Date(p.created_time) >= limite);
     }
-    if (currentStatusFiltro) {
-      results = results.filter(p => gp(p,'Status','select') === currentStatusFiltro);
+    if (currentStatusFiltro.length) {
+      results = results.filter(p => currentStatusFiltro.includes(gp(p,'Status','select')));
+    } else {
+      results = [];
     }
     // Chamados "Resolvido" ficam limitados aos 10 mais recentes (results
     // ja vem ordenado por last_edited_time descendente); todos os demais
