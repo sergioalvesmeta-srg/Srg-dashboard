@@ -935,14 +935,19 @@ async function buscar() {
 function mostrarDetalhe(found) {
   document.getElementById('lista-wrap').style.display = 'none';
   document.getElementById('search-result').innerHTML = '';
-  const nome     = gp(found,'Cliente','title');
-  const status   = gp(found,'Status','select');
-  const setor    = gp(found,'Setor Suporte','select');
-  const abertura = gp(found,'Data Abertura','date');
-  const urgencia = gp(found,'Urgência','select')||gp(found,'Urgência','rich_text');
-  const ticket   = gp(found,'Ticket Meta','rich_text');
-  const proto    = gp(found,'Protocolo Digisac','rich_text');
-  const atendente= gp(found,'Atendente','rich_text');
+  const nome        = gp(found,'Cliente','title');
+  const status      = gp(found,'Status','select');
+  const setor       = gp(found,'Setor Suporte','select');
+  const abertura    = gp(found,'Data Abertura','date');
+  const urgencia    = gp(found,'Urgência','select')||gp(found,'Urgência','rich_text');
+  const ticket      = gp(found,'Ticket Meta','rich_text');
+  const proto       = gp(found,'Protocolo Digisac','rich_text');
+  const atendenteMeta = gp(found,'Atendente','rich_text');
+  const atendenteSRG  = gp(found,'Solicitante','rich_text');
+  const categoria   = gp(found,'Categoria','select');
+  const nomeContato = gp(found,'Nome Contato Digisac','rich_text');
+  const descCompleta= gp(found,'Descrição Completa','rich_text');
+  const solucaoTxt  = gp(found,'Solução','rich_text');
   const dtDigisac= gp(found,'Data Digisac','date');
   const editado  = found.last_edited_time;
   currentProto = proto || '';
@@ -968,16 +973,37 @@ function mostrarDetalhe(found) {
 
   document.getElementById('timeline-body').innerHTML = buildTimeline(found);
   document.getElementById('details-body').innerHTML = [
-    ['Assunto', nome||'—'], ['Setor', setor||'—'], ['Prioridade', urgencia||'Normal'],
+    ['Cliente', nomeContato||'—'], ['Assunto', nome||'—'], ['Setor', setor||'—'], ['Prioridade', urgencia||'Normal'],
     ['Aberto em', dtDigisac ? fmtDate(dtDigisac) : fmtDate(abertura)], ['Última atualização', fmtDateTime(editado)],
-    ['Atendente', atendente||'—'], ['Canal', 'Portal Web'],
+    ['Atendente Meta', atendenteMeta||'—'], ['Atendente SRG', atendenteSRG||'—'], ['Categoria', categoria||'—'],
   ].map(([label,value]) => `<div style="display:flex;justify-content:space-between;gap:14px;padding:11px 0;border-bottom:1px solid rgba(255,255,255,.07)"><span style="font:500 13px Manrope;color:#b3c4e0;flex-shrink:0">${label}</span><span style="font:600 13.5px Manrope;color:#e7eefb;text-align:right">${value}</span></div>`).join('');
+
+  document.getElementById('details-body').innerHTML += buildExpandable('desc-expand', 'Descrição completa', descCompleta) + buildExpandable('sol-expand', 'Solução', solucaoTxt);
 
   const waMsg = encodeURIComponent(`Olá, gostaria de informações sobre o chamado ${currentProto||''}.`);
   document.getElementById('wa-btn').onclick = () => window.open(`https://wa.me/${WA_NUMBER}?text=${waMsg}`,'_blank');
 
   document.getElementById('detalhe-wrap').style.display = 'block';
   window.scrollTo(0,0);
+}
+
+function buildExpandable(id, label, text) {
+  if (!text) return '';
+  return `
+    <div style="margin-top:14px">
+      <button onclick="toggleExpand('${id}')" style="width:100%;display:flex;align-items:center;justify-content:space-between;background:rgba(127,212,192,.08);border:1px solid rgba(127,212,192,.22);border-radius:12px;padding:11px 15px;cursor:pointer;font:600 13px Manrope;color:#7fd4c0">
+        <span>${label}</span>
+        <span id="${id}-arrow" style="transition:transform .2s">▾</span>
+      </button>
+      <div id="${id}" style="display:none;margin-top:8px;padding:13px 15px;background:rgba(255,255,255,.03);border-radius:10px;font:400 13px Manrope;color:#d6e2f5;line-height:1.55;white-space:pre-wrap">${text}</div>
+    </div>`;
+}
+function toggleExpand(id) {
+  const el = document.getElementById(id);
+  const arrow = document.getElementById(id+'-arrow');
+  const open = el.style.display !== 'none';
+  el.style.display = open ? 'none' : 'block';
+  arrow.style.transform = open ? 'rotate(0deg)' : 'rotate(180deg)';
 }
 
 // ---- Novo chamado (encaminha via WhatsApp — sem API de criação de ticket) ----
