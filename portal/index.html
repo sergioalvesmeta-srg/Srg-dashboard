@@ -210,6 +210,15 @@ footer.foot{border-top:1px solid rgba(255,255,255,.07);background:rgba(10,16,36,
           <button class="chip" data-periodo="90" onclick="setPeriodo(90,this)">90 dias</button>
           <button class="chip" data-periodo="0" onclick="setPeriodo(0,this)">Todos</button>
         </div>
+        <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-top:14px">
+          <span style="font:600 12.5px Manrope;color:#b3c4e0;margin-right:2px">Status:</span>
+          <button class="chip active" data-status="" onclick="setStatusFiltro('',this)">Todos</button>
+          <button class="chip" data-status="Resolvido" onclick="setStatusFiltro('Resolvido',this)">Resolvido</button>
+          <button class="chip" data-status="Em Andamento" onclick="setStatusFiltro('Em Andamento',this)">Em andamento</button>
+          <button class="chip" data-status="Aguardando Meta" onclick="setStatusFiltro('Aguardando Meta',this)">Em análise técnica</button>
+          <button class="chip" data-status="Pendente SRG" onclick="setStatusFiltro('Pendente SRG',this)">Aguardando ação SRG</button>
+          <button class="chip" data-status="Pendente PO" onclick="setStatusFiltro('Pendente PO',this)">Aguardando aprovação</button>
+        </div>
       </div>
 
       <!-- Lista -->
@@ -428,6 +437,7 @@ async function apiDeleteUser(token, username) {
 
 let currentUser = null;
 let currentPeriodo = 30;
+let currentStatusFiltro = '';
 let currentProto = '';
 let ultimosResultados = [];
 let usuarioEmEdicao = null; // username do usuario sendo editado, ou null = modo "criar"
@@ -743,6 +753,13 @@ function setPeriodo(dias, btn) {
   currentPeriodo = dias;
   document.querySelectorAll('.chip[data-periodo]').forEach(b=>b.classList.remove('active'));
   btn.classList.add('active');
+  carregarMeusChamados();
+}
+function setStatusFiltro(status, btn) {
+  currentStatusFiltro = status;
+  document.querySelectorAll('.chip[data-status]').forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active');
+  carregarMeusChamados();
 }
 function limpar() {
   document.getElementById('proto-input').value = '';
@@ -778,6 +795,9 @@ async function carregarMeusChamados() {
     if (currentPeriodo > 0) {
       const limite = new Date(); limite.setDate(limite.getDate()-currentPeriodo);
       results = results.filter(p => new Date(p.created_time) >= limite);
+    }
+    if (currentStatusFiltro) {
+      results = results.filter(p => gp(p,'Status','select') === currentStatusFiltro);
     }
     ultimosResultados = results;
     count.textContent = results.length + (results.length===1?' chamado':' chamados');
