@@ -363,23 +363,26 @@ footer.foot{border-top:1px solid rgba(255,255,255,.07);background:rgba(10,16,36,
     </div>
 
     <div style="padding:20px 26px;border-bottom:1px solid rgba(255,255,255,.08)">
-      <label style="display:block;font:600 12.5px Manrope;color:#bcccea;margin-bottom:9px">Novo usuário</label>
+      <label style="display:block;font:600 12.5px Manrope;color:#bcccea;margin-bottom:9px" id="form-usuario-titulo">Novo usuário</label>
       <div style="display:flex;gap:9px;flex-wrap:wrap;margin-bottom:9px">
         <div style="flex:1;min-width:150px;display:flex;align-items:center;gap:11px;height:46px;padding:0 15px;border-radius:12px;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.22)">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#8399be" stroke-width="1.8" stroke-linecap="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
           <input type="text" id="new-login" placeholder="Login (ex: cac27)" style="flex:1;background:transparent;border:none;color:#eaf1ff;font:500 13.5px Manrope">
         </div>
         <div style="flex:1;min-width:150px;display:flex;align-items:center;gap:11px;height:46px;padding:0 15px;border-radius:12px;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.22)">
-          <input type="text" id="new-pass" placeholder="Senha" style="flex:1;background:transparent;border:none;color:#eaf1ff;font:500 13.5px Manrope">
+          <input type="text" id="new-pass" placeholder="Senha (deixe em branco para manter, ao editar)" style="flex:1;background:transparent;border:none;color:#eaf1ff;font:500 13.5px Manrope">
         </div>
       </div>
       <div style="display:flex;align-items:center;gap:11px;height:46px;padding:0 15px;border-radius:12px;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.22);margin-bottom:11px">
-        <input type="text" id="new-filter" placeholder="Filtro por unidade (ex: CAC 27), separar por vírgula — vazio = acesso total" style="flex:1;background:transparent;border:none;color:#eaf1ff;font:500 13px Manrope">
+        <input type="text" id="new-filter" placeholder="Telefone(s) do contato Digisac (ex: 5586999998888), separar por vírgula — vazio = acesso total" style="flex:1;background:transparent;border:none;color:#eaf1ff;font:500 13px Manrope">
       </div>
-      <button onclick="addUser()" class="btn-primary" style="width:100%;height:46px;font-size:13.5px">
-        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.1" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
-        Adicionar
-      </button>
+      <div style="display:flex;gap:9px">
+        <button onclick="addUser()" id="btn-salvar-usuario" class="btn-primary" style="flex:1;height:46px;font-size:13.5px">
+          <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.1" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
+          Adicionar
+        </button>
+        <button onclick="cancelarEdicaoUsuario()" id="btn-cancelar-edicao" style="display:none;height:46px;padding:0 18px;border-radius:14px;cursor:pointer;font:600 13.5px Manrope;color:#bcccea;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.12)">Cancelar</button>
+      </div>
       <div id="admin-msg" style="font-size:12px;margin-top:8px;display:none"></div>
     </div>
 
@@ -413,6 +416,11 @@ async function apiCreateUser(token, username, password, unidades, role) {
   const r = await fetch(`${PROXY}/auth/users`, { method:'POST', headers:{'Content-Type':'application/json','Authorization':`Bearer ${token}`}, body:JSON.stringify({username,password,unidades,role}) });
   return r.json();
 }
+async function apiUpdateUser(token, username, campos) {
+  // campos: {password?, unidades?, role?} -- so envia o que foi preenchido
+  const r = await fetch(`${PROXY}/auth/users/${encodeURIComponent(username)}`, { method:'PATCH', headers:{'Content-Type':'application/json','Authorization':`Bearer ${token}`}, body:JSON.stringify(campos) });
+  return r.json();
+}
 async function apiDeleteUser(token, username) {
   const r = await fetch(`${PROXY}/auth/users/${encodeURIComponent(username)}`, { method:'DELETE', headers:{'Authorization':`Bearer ${token}`} });
   return r.json();
@@ -422,6 +430,7 @@ let currentUser = null;
 let currentPeriodo = 30;
 let currentProto = '';
 let ultimosResultados = [];
+let usuarioEmEdicao = null; // username do usuario sendo editado, ou null = modo "criar"
 
 function initials(name) {
   const parts = name.trim().split(/[\s._@]+/).filter(Boolean);
@@ -540,7 +549,7 @@ function renderProfile() {
   document.getElementById('profile-avatar').textContent = initials(currentUser.username);
   document.getElementById('profile-avatar').style.background = avatarGradient(currentUser.username);
   document.getElementById('profile-name').textContent = currentUser.username;
-  document.getElementById('profile-unit').textContent = currentUser.unidades && currentUser.unidades.length ? 'Unidade: '+currentUser.unidades.join(', ') : 'Acesso a todas as unidades';
+  document.getElementById('profile-unit').textContent = currentUser.unidades && currentUser.unidades.length ? 'Telefone(s): '+currentUser.unidades.join(', ') : 'Acesso a todos os chamados';
   const roleEl = document.getElementById('profile-role');
   if (currentUser.role === 'admin') {
     roleEl.textContent = 'Administrador';
@@ -554,6 +563,7 @@ function renderProfile() {
 // ---- Usuários (modal) ----
 function openUsers() {
   if (!currentUser || currentUser.role !== 'admin') return;
+  cancelarEdicaoUsuario();
   renderUsersList();
   document.getElementById('modal-users').style.display = 'flex';
 }
@@ -568,27 +578,65 @@ async function renderUsersList() {
       <div style="width:42px;height:42px;border-radius:12px;flex-shrink:0;display:flex;align-items:center;justify-content:center;font:700 14px Outfit,sans-serif;color:#fff;background:${avatarGradient(u.username)}">${initials(u.username)}</div>
       <div style="flex:1;min-width:0">
         <div style="font:600 14.5px Manrope;color:#eaf1ff">${u.username}</div>
-        <div style="font:400 12.5px Manrope;color:#b3c4e0">${u.unidades && u.unidades.length ? 'Unidade: '+u.unidades.join(', ') : 'Acesso total'}</div>
+        <div style="font:400 12.5px Manrope;color:#b3c4e0">${u.unidades && u.unidades.length ? 'Telefone(s): '+u.unidades.join(', ') : 'Acesso total'}</div>
       </div>
       <span style="font:600 11.5px Manrope;color:#a9bcda;padding:5px 11px;border-radius:8px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);white-space:nowrap">${u.role==='admin'?'Administrador':'Cliente'}</span>
-      ${u.role !== 'admin' ? `<button onclick="removeUser('${u.username}')" style="width:34px;height:34px;border-radius:9px;cursor:pointer;display:flex;align-items:center;justify-content:center;background:transparent;border:1px solid rgba(255,255,255,.1);flex-shrink:0">
+      ${u.role !== 'admin' ? `
+      <button onclick='iniciarEdicaoUsuario(${JSON.stringify(u).replace(/'/g,"&#39;")})' style="width:34px;height:34px;border-radius:9px;cursor:pointer;display:flex;align-items:center;justify-content:center;background:transparent;border:1px solid rgba(255,255,255,.1);flex-shrink:0">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#8fb0e0" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.12 2.12 0 0 1 3 3L12 15l-4 1 1-4Z"/></svg>
+      </button>
+      <button onclick="removeUser('${u.username}')" style="width:34px;height:34px;border-radius:9px;cursor:pointer;display:flex;align-items:center;justify-content:center;background:transparent;border:1px solid rgba(255,255,255,.1);flex-shrink:0">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#c98a8a" stroke-width="1.8" stroke-linecap="round"><path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg>
       </button>` : '<span style="font-size:11px;color:#94a3b8;flex-shrink:0">admin</span>'}
     </div>
   `).join('');
 }
+function iniciarEdicaoUsuario(u) {
+  usuarioEmEdicao = u.username;
+  document.getElementById('new-login').value = u.username;
+  document.getElementById('new-login').disabled = true;
+  document.getElementById('new-pass').value = '';
+  document.getElementById('new-filter').value = (u.unidades||[]).join(', ');
+  document.getElementById('form-usuario-titulo').textContent = 'Editando usuário: ' + u.username;
+  document.getElementById('btn-salvar-usuario').innerHTML = 'Salvar alterações';
+  document.getElementById('btn-cancelar-edicao').style.display = 'inline-flex';
+  document.getElementById('new-login').scrollIntoView({behavior:'smooth', block:'center'});
+}
+function cancelarEdicaoUsuario() {
+  usuarioEmEdicao = null;
+  document.getElementById('new-login').value = '';
+  document.getElementById('new-login').disabled = false;
+  document.getElementById('new-pass').value = '';
+  document.getElementById('new-filter').value = '';
+  document.getElementById('form-usuario-titulo').textContent = 'Novo usuário';
+  document.getElementById('btn-salvar-usuario').innerHTML = '<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.1" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg> Adicionar';
+  document.getElementById('btn-cancelar-edicao').style.display = 'none';
+}
 async function addUser() {
   const login = document.getElementById('new-login').value.trim().toLowerCase();
   const pass  = document.getElementById('new-pass').value.trim();
   const msg   = document.getElementById('admin-msg');
-  if (!login || !pass) { msg.style.display='block'; msg.style.color='#fc8181'; msg.textContent='Preencha usuário e senha.'; return; }
   const filterVal = document.getElementById('new-filter').value.trim();
   const unidades = filterVal ? filterVal.split(',').map(s=>s.trim()).filter(Boolean) : [];
+
+  if (usuarioEmEdicao) {
+    // ---- modo edição ----
+    const campos = { unidades };
+    if (pass) campos.password = pass;
+    const data = await apiUpdateUser(currentUser.token, usuarioEmEdicao, campos);
+    if (!data.ok) { msg.style.display='block'; msg.style.color='#fc8181'; msg.textContent=data.error||'Erro ao salvar usuário.'; return; }
+    msg.style.display='block'; msg.style.color='#7fe0c0'; msg.textContent='Usuário atualizado!';
+    setTimeout(()=>msg.style.display='none', 2000);
+    cancelarEdicaoUsuario();
+    renderUsersList();
+    return;
+  }
+
+  // ---- modo criação ----
+  if (!login || !pass) { msg.style.display='block'; msg.style.color='#fc8181'; msg.textContent='Preencha usuário e senha.'; return; }
   const data = await apiCreateUser(currentUser.token, login, pass, unidades, 'cliente');
   if (!data.ok) { msg.style.display='block'; msg.style.color='#fc8181'; msg.textContent=data.error||'Erro ao criar usuário.'; return; }
-  document.getElementById('new-login').value = '';
-  document.getElementById('new-pass').value = '';
-  document.getElementById('new-filter').value = '';
+  cancelarEdicaoUsuario();
   msg.style.display='block'; msg.style.color='#7fe0c0'; msg.textContent='Usuário adicionado!';
   setTimeout(()=>msg.style.display='none', 2000);
   renderUsersList();
@@ -596,6 +644,7 @@ async function addUser() {
 async function removeUser(username) {
   if (!confirm('Remover usuário ' + username + '?')) return;
   await apiDeleteUser(currentUser.token, username);
+  if (usuarioEmEdicao === username) cancelarEdicaoUsuario();
   renderUsersList();
 }
 
@@ -608,6 +657,20 @@ function gp(page, prop, tipo) {
   if (tipo==='rich_text') return p.rich_text?.[0]?.text?.content||'';
   if (tipo==='date')      return p.date?.start||'';
   return '';
+}
+// ---- Normaliza telefone e compara contato do chamado com os telefones do usuário ----
+function normPhone(s) {
+  return (s || '').replace(/\D/g, '');
+}
+function contatoPertenceAoUsuario(page, contatosUsuario) {
+  if (!contatosUsuario || !contatosUsuario.length) return true; // sem filtro = acesso total
+  const contatoChamado = normPhone(gp(page, 'Contato Digisac', 'rich_text'));
+  if (!contatoChamado) return false; // sem contato no chamado = invisivel para usuario restrito
+  return contatosUsuario.some(u => {
+    const un = normPhone(u);
+    if (!un) return false;
+    return contatoChamado.includes(un) || un.includes(contatoChamado);
+  });
 }
 function fmtDate(d) {
   if (!d || d === 'Invalid Date') return '—';
@@ -710,10 +773,7 @@ async function carregarMeusChamados() {
     if (!r.ok) throw new Error(d.message||'Erro');
     let results = d.results || [];
     if (currentUser.unidades && currentUser.unidades.length) {
-      results = results.filter(p => {
-        const titulo = gp(p,'Cliente','title').toLowerCase();
-        return currentUser.unidades.some(u => titulo.includes(u.toLowerCase()));
-      });
+      results = results.filter(p => contatoPertenceAoUsuario(p, currentUser.unidades));
     }
     if (currentPeriodo > 0) {
       const limite = new Date(); limite.setDate(limite.getDate()-currentPeriodo);
@@ -771,7 +831,7 @@ async function buscar() {
       if (!r.ok) throw new Error(d.message||'Erro');
       let exato = (d.results||[]).filter(p => { const val = gp(p,s.property,'rich_text'); return val === q || val.includes(q); });
       if (currentUser.unidades && currentUser.unidades.length) {
-        exato = exato.filter(p => currentUser.unidades.some(u => gp(p,'Cliente','title').toLowerCase().includes(u.toLowerCase())));
+        exato = exato.filter(p => contatoPertenceAoUsuario(p, currentUser.unidades));
       }
       if (exato.length) found = exato.sort((a,b)=>new Date(b.last_edited_time)-new Date(a.last_edited_time))[0];
     }
