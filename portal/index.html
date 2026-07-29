@@ -998,10 +998,15 @@ function mostrarDetalhe(found) {
   currentProto = proto || '';
 
   document.getElementById('detalhe-header').innerHTML = `
-    <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:16px;flex-wrap:wrap">
-      <div>
-        <p style="font:600 12px Manrope;letter-spacing:.12em;text-transform:uppercase;color:#7fd4c0;margin-bottom:8px">Chamado localizado</p>
-        <h2 style="font:700 22px Outfit,sans-serif;color:#f4f8ff;max-width:560px;line-height:1.25">${nome||'—'}</h2>
+    <div onclick="voltarLista()" style="display:flex;align-items:flex-start;justify-content:space-between;gap:16px;flex-wrap:wrap;cursor:pointer" title="Clique para recolher e voltar aos chamados">
+      <div style="display:flex;align-items:flex-start;gap:12px">
+        <span style="margin-top:3px;color:#7fd4c0;transition:transform .2s">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="m18 15-6-6-6 6"/></svg>
+        </span>
+        <div>
+          <p style="font:600 12px Manrope;letter-spacing:.12em;text-transform:uppercase;color:#7fd4c0;margin-bottom:8px">Chamado localizado</p>
+          <h2 style="font:700 22px Outfit,sans-serif;color:#f4f8ff;max-width:560px;line-height:1.25">${nome||'—'}</h2>
+        </div>
       </div>
       ${pillHtml(status)}
     </div>
