@@ -229,6 +229,15 @@ footer.foot{border-top:1px solid rgba(255,255,255,.07);background:rgba(10,16,36,
         <div id="lista-body" style="display:flex;flex-direction:column;gap:13px"></div>
       </div>
 
+      <!-- Funil de vendas GERTEC (troca/envio de maquinetas) -->
+      <div id="gertec-wrap" style="display:none">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin:34px 0 16px">
+          <h2 style="font:700 20px Outfit,sans-serif;color:#f2f7ff">Equipamentos (GERTEC)</h2>
+          <span id="gertec-count" style="font:600 12.5px Manrope;color:#b3c4e0"></span>
+        </div>
+        <div id="gertec-body" style="display:flex;flex-direction:column;gap:13px"></div>
+      </div>
+
       <div id="search-result" style="margin-top:20px"></div>
 
       <!-- Detalhe -->
@@ -545,6 +554,7 @@ function enterApp() {
   showApp();
   showView('dashboard');
   limpar();
+  carregarGertecCards();
 }
 
 // Restaura sessão salva neste navegador
@@ -937,6 +947,79 @@ async function carregarMeusChamados() {
   }
 }
 function abrirDetalheIndex(i) { mostrarDetalhe(ultimosResultados[i]); }
+
+// ---- Funil de vendas GERTEC (troca/envio de maquinetas) ----
+// Comunicacao direta Digisac <-> portal via Worker, NAO passa pelo Notion.
+function stripHtml(html) {
+  const div = document.createElement('div');
+  div.innerHTML = html || '';
+  return (div.textContent || div.innerText || '').trim();
+}
+async function carregarGertecCards() {
+  const wrap = document.getElementById('gertec-wrap');
+  const body = document.getElementById('gertec-body');
+  const count = document.getElementById('gertec-count');
+  body.innerHTML = '<div style="text-align:center;padding:2rem"><div class="spinner"></div></div>';
+  try {
+    const r = await fetch(`${PROXY}/digisac/gertec-cards`);
+    const d = await r.json();
+    if (!r.ok || !d.ok) throw new Error(d.error || 'Erro ao consultar Digisac');
+
+    const chavesTelefone = (currentUser.unidades||[]).map(u => phoneKey(u)).filter(k => k && k.length >= 8);
+    let cards = d.cards || [];
+    if (chavesTelefone.length) {
+      cards = cards.filter(c => chavesTelefone.includes(phoneKey(c.contactPhone)));
+    }
+
+    if (!cards.length) {
+      wrap.style.display = 'none';
+      return;
+    }
+    wrap.style.display = 'block';
+
+    // Ordena: ativos (fora de "Finalizados") primeiro, mais parados primeiro;
+    // "Finalizados" limitado aos 10 mais recentes, igual fizemos com
+    // "Resolvido" nos chamados.
+    cards.sort((a, b) => new Date(b.dataEntradaEtapa) - new Date(a.dataEntradaEtapa));
+    let finalizadosContados = 0;
+    cards = cards.filter(c => {
+      if (c.stageName === 'Finalizados') {
+        finalizadosContados++;
+        return finalizadosContados <= 10;
+      }
+      return true;
+    });
+    cards.sort((a, b) => {
+      const aAtivo = a.stageName !== 'Finalizados';
+      const bAtivo = b.stageName !== 'Finalizados';
+      if (aAtivo !== bAtivo) return aAtivo ? -1 : 1;
+      return new Date(a.dataEntradaEtapa) - new Date(b.dataEntradaEtapa);
+    });
+
+    count.textContent = cards.length + (cards.length===1?' equipamento':' equipamentos');
+    body.innerHTML = cards.map(c => {
+      const finalizado = c.stageName === 'Finalizados';
+      const dias = diasDesde(c.dataEntradaEtapa);
+      const paradoMuito = !finalizado && dias !== null && dias >= 10;
+      const ultimoComentario = c.comentarios && c.comentarios[0] ? stripHtml(c.comentarios[0].texto) : '';
+      return `<div style="padding:20px 22px;border-radius:18px;background:rgba(255,255,255,.045);backdrop-filter:blur(18px);border:1px solid rgba(255,255,255,.1)">
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap">
+          <div style="font:700 15.5px Manrope;color:#eaf1ff">${c.title||'Sem título'}</div>
+          <span style="padding:5px 14px;border-radius:999px;font:700 11.5px Manrope;background:${finalizado?'rgba(90,190,160,.16)':'rgba(150,120,220,.18)'};color:${finalizado?'#7fe0c0':'#c3aef0'}">${c.stageName||'—'}</span>
+        </div>
+        <div style="display:flex;gap:16px;flex-wrap:wrap;margin-top:8px;font:500 12.5px Manrope;color:#b3c4e0">
+          ${c.contactName ? `<span>${c.contactName}</span>` : ''}
+          <span style="${paradoMuito?'color:#fc9a6a;font-weight:700':''}">${diasLabel(dias)} nesta etapa</span>
+        </div>
+        ${c.description ? `<div style="margin-top:10px;font:400 13px Manrope;color:#cfe0f5">${c.description}</div>` : ''}
+        ${ultimoComentario ? `<div style="margin-top:8px;padding:9px 12px;border-radius:10px;background:rgba(255,255,255,.04);font:400 12.5px Manrope;color:#a9bcd8">Último comentário: ${ultimoComentario}</div>` : ''}
+      </div>`;
+    }).join('');
+  } catch(e) {
+    document.getElementById('gertec-wrap').style.display = 'block';
+    body.innerHTML = `<div class="glass" style="padding:2rem;text-align:center;font:500 13px Manrope;color:#fc8181">Erro ao carregar equipamentos: ${e.message}</div>`;
+  }
+}
 
 // ---- Buscar (protocolo/ticket/SO) ----
 async function buscar() {
