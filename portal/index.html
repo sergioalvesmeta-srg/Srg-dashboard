@@ -710,6 +710,22 @@ function fmtDateTime(d) {
   if (!d) return '—';
   try { const dt = new Date(d); return dt.toLocaleDateString('pt-BR') + ' às ' + dt.toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'}); } catch { return d; }
 }
+// Numero de dias corridos entre uma data/hora e agora (sempre >=0, arredonda pra baixo).
+function diasDesde(d) {
+  if (!d) return null;
+  try {
+    const dt = new Date(d.includes && d.includes('T') ? d : d+'T12:00:00');
+    if (isNaN(dt.getTime())) return null;
+    const ms = Date.now() - dt.getTime();
+    if (ms < 0) return 0;
+    return Math.floor(ms / 86400000);
+  } catch { return null; }
+}
+function diasLabel(n) {
+  if (n === null) return '—';
+  if (n === 0) return 'hoje';
+  return n + (n === 1 ? ' dia' : ' dias');
+}
 const KIND_COLOR = { andamento:'#f2b84b', aberto:'#5aa0e6', resolvido:'#5abfa0', aguardando:'#a992e0' };
 function statusKind(s) {
   if (s==='Em Andamento' || s==='Pendente SRG') return 'andamento';
@@ -880,13 +896,21 @@ async function carregarMeusChamados() {
       const status = gp(p,'Status','select');
       const proto = gp(p,'Protocolo Digisac','rich_text');
       const abertura = gp(p,'Data Abertura','date');
+      const dtDigisac = gp(p,'Data Digisac','date');
+      const ultimaInt = gp(p,'Última Interação (Data)','date');
       const kind = statusKind(status);
+      const resolvido = status === 'Resolvido';
+      const diasAberto = diasDesde(dtDigisac || abertura);
+      const diasParado = diasDesde(ultimaInt || p.last_edited_time);
+      const parado5mais = !resolvido && diasParado !== null && diasParado >= 5;
       return `<div onclick="abrirDetalheIndex(${i})" style="display:flex;align-items:center;gap:18px;padding:20px 22px;border-radius:18px;cursor:pointer;background:rgba(255,255,255,.045);backdrop-filter:blur(18px);border:1px solid rgba(255,255,255,.1)">
         <span style="width:12px;height:12px;border-radius:50%;flex-shrink:0;background:${KIND_COLOR[kind]};box-shadow:0 0 0 4px ${KIND_COLOR[kind]}22"></span>
         <div style="flex:1;min-width:0">
           <div style="font:700 15.5px Manrope;color:#eaf1ff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${nome||'Sem assunto'}</div>
           <div style="display:flex;gap:16px;flex-wrap:wrap;margin-top:5px;font:500 12.5px Manrope;color:#b3c4e0">
-            <span>Protocolo ${proto||'—'}</span><span>· Aberto em ${fmtDate(abertura)}</span>
+            <span>Protocolo ${proto||'—'}</span><span>· Aberto em ${fmtDate(dtDigisac||abertura)}</span>
+            <span>· ${diasLabel(diasAberto)} em aberto</span>
+            ${!resolvido ? `<span style="${parado5mais?'color:#fc9a6a;font-weight:700':''}">· ${diasLabel(diasParado)} parado</span>` : ''}
           </div>
         </div>
         ${pillHtml(status)}
@@ -978,9 +1002,16 @@ function mostrarDetalhe(found) {
     </div>`;
 
   document.getElementById('timeline-body').innerHTML = buildTimeline(found);
+  const ultimaInt = gp(found,'Última Interação (Data)','date');
+  const resolvido = status === 'Resolvido';
+  const diasAberto = diasDesde(dtDigisac || abertura);
+  const diasParado = diasDesde(ultimaInt || editado);
+  const parado5mais = !resolvido && diasParado !== null && diasParado >= 5;
   document.getElementById('details-body').innerHTML = [
     ['Cliente', nomeContato||'—'], ['Assunto', nome||'—'], ['Setor', setor||'—'], ['Prioridade', urgencia||'Normal'],
     ['Aberto em', dtDigisac ? fmtDate(dtDigisac) : fmtDate(abertura)], ['Última atualização', fmtDateTime(editado)],
+    ['Dias em aberto', diasLabel(diasAberto)],
+    ...(resolvido ? [] : [['Dias parado', `<span style="${parado5mais?'color:#fc9a6a':''}">${diasLabel(diasParado)}</span>`]]),
     ['Atendente Meta', atendenteMeta||'—'], ['Atendente SRG', atendenteSRG||'—'], ['Categoria', categoria||'—'],
   ].map(([label,value]) => `<div style="display:flex;justify-content:space-between;gap:14px;padding:11px 0;border-bottom:1px solid rgba(255,255,255,.07)"><span style="font:500 13px Manrope;color:#b3c4e0;flex-shrink:0">${label}</span><span style="font:600 13.5px Manrope;color:#e7eefb;text-align:right">${value}</span></div>`).join('');
 
