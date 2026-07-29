@@ -1041,6 +1041,7 @@ function toggleGertecCard(i) {
 function renderGertecDetalhe(c) {
   const linhas = [
     ['Telefone', c.contactPhone || '—'],
+    ['Responsável SRG', c.ownerName || '—'],
     ['Aberto em', fmtDateTime(c.createdAt)],
     ['Entrou na etapa atual em', fmtDateTime(c.dataEntradaEtapa)],
   ].map(([label,value]) => `<div style="display:flex;justify-content:space-between;gap:14px;padding:9px 0;border-bottom:1px solid rgba(255,255,255,.06)"><span style="font:500 13px Manrope;color:#b3c4e0">${label}</span><span style="font:600 13px Manrope;color:#e7eefb;text-align:right">${value}</span></div>`).join('');
