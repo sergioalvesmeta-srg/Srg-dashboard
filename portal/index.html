@@ -452,6 +452,7 @@ let currentPeriodo = 0;
 let currentStatusFiltro = ['Em Andamento','Aguardando Meta','Pendente SRG','Pendente PO'];
 let currentProto = '';
 let ultimosResultados = [];
+let ultimosGertec = [];
 let usuarioEmEdicao = null; // username do usuario sendo editado, ou null = modo "criar"
 
 function initials(name) {
@@ -997,28 +998,64 @@ async function carregarGertecCards() {
     });
 
     count.textContent = cards.length + (cards.length===1?' equipamento':' equipamentos');
-    body.innerHTML = cards.map(c => {
+    ultimosGertec = cards;
+    body.innerHTML = cards.map((c, i) => {
       const finalizado = c.stageName === 'Finalizados';
       const dias = diasDesde(c.dataEntradaEtapa);
       const paradoMuito = !finalizado && dias !== null && dias >= 10;
-      const ultimoComentario = c.comentarios && c.comentarios[0] ? stripHtml(c.comentarios[0].texto) : '';
-      return `<div style="padding:20px 22px;border-radius:18px;background:rgba(255,255,255,.045);backdrop-filter:blur(18px);border:1px solid rgba(255,255,255,.1)">
-        <div style="display:flex;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap">
-          <div style="font:700 15.5px Manrope;color:#eaf1ff">${c.title||'Sem título'}</div>
-          <span style="padding:5px 14px;border-radius:999px;font:700 11.5px Manrope;background:${finalizado?'rgba(90,190,160,.16)':'rgba(150,120,220,.18)'};color:${finalizado?'#7fe0c0':'#c3aef0'}">${c.stageName||'—'}</span>
+      return `<div style="border-radius:18px;background:rgba(255,255,255,.045);backdrop-filter:blur(18px);border:1px solid rgba(255,255,255,.1);overflow:hidden">
+        <div onclick="toggleGertecCard(${i})" style="padding:20px 22px;cursor:pointer;display:flex;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap">
+          <div style="display:flex;align-items:center;gap:12px;min-width:0">
+            <span id="gertec-arrow-${i}" style="color:#8399be;transition:transform .2s;flex-shrink:0">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg>
+            </span>
+            <div style="min-width:0">
+              <div style="font:700 15.5px Manrope;color:#eaf1ff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${c.title||'Sem título'}</div>
+              <div style="display:flex;gap:16px;flex-wrap:wrap;margin-top:5px;font:500 12.5px Manrope;color:#b3c4e0">
+                ${c.contactName ? `<span>${c.contactName}</span>` : ''}
+                <span style="${paradoMuito?'color:#fc9a6a;font-weight:700':''}">${diasLabel(dias)} nesta etapa</span>
+              </div>
+            </div>
+          </div>
+          <span style="flex-shrink:0;padding:5px 14px;border-radius:999px;font:700 11.5px Manrope;background:${finalizado?'rgba(90,190,160,.16)':'rgba(150,120,220,.18)'};color:${finalizado?'#7fe0c0':'#c3aef0'}">${c.stageName||'—'}</span>
         </div>
-        <div style="display:flex;gap:16px;flex-wrap:wrap;margin-top:8px;font:500 12.5px Manrope;color:#b3c4e0">
-          ${c.contactName ? `<span>${c.contactName}</span>` : ''}
-          <span style="${paradoMuito?'color:#fc9a6a;font-weight:700':''}">${diasLabel(dias)} nesta etapa</span>
-        </div>
-        ${c.description ? `<div style="margin-top:10px;font:400 13px Manrope;color:#cfe0f5">${c.description}</div>` : ''}
-        ${ultimoComentario ? `<div style="margin-top:8px;padding:9px 12px;border-radius:10px;background:rgba(255,255,255,.04);font:400 12.5px Manrope;color:#a9bcd8">Último comentário: ${ultimoComentario}</div>` : ''}
+        <div id="gertec-detalhe-${i}" style="display:none;padding:0 22px 20px;border-top:1px solid rgba(255,255,255,.07)"></div>
       </div>`;
     }).join('');
   } catch(e) {
     document.getElementById('gertec-wrap').style.display = 'block';
     body.innerHTML = `<div class="glass" style="padding:2rem;text-align:center;font:500 13px Manrope;color:#fc8181">Erro ao carregar equipamentos: ${e.message}</div>`;
   }
+}
+function toggleGertecCard(i) {
+  const painel = document.getElementById(`gertec-detalhe-${i}`);
+  const seta = document.getElementById(`gertec-arrow-${i}`);
+  const abrindo = painel.style.display === 'none';
+  if (abrindo && !painel.dataset.montado) {
+    painel.innerHTML = renderGertecDetalhe(ultimosGertec[i]);
+    painel.dataset.montado = '1';
+  }
+  painel.style.display = abrindo ? 'block' : 'none';
+  seta.style.transform = abrindo ? 'rotate(90deg)' : 'rotate(0deg)';
+}
+function renderGertecDetalhe(c) {
+  const linhas = [
+    ['Telefone', c.contactPhone || '—'],
+    ['Aberto em', fmtDateTime(c.createdAt)],
+    ['Entrou na etapa atual em', fmtDateTime(c.dataEntradaEtapa)],
+  ].map(([label,value]) => `<div style="display:flex;justify-content:space-between;gap:14px;padding:9px 0;border-bottom:1px solid rgba(255,255,255,.06)"><span style="font:500 13px Manrope;color:#b3c4e0">${label}</span><span style="font:600 13px Manrope;color:#e7eefb;text-align:right">${value}</span></div>`).join('');
+
+  const descricao = c.description
+    ? `<div style="margin-top:14px"><div style="font:600 11px Manrope;letter-spacing:.08em;text-transform:uppercase;color:#8fb0e0;margin-bottom:6px">Descrição</div><div style="font:400 13px Manrope;color:#d6e2f5;line-height:1.55;white-space:pre-wrap">${c.description}</div></div>`
+    : '';
+
+  const comentarios = (c.comentarios && c.comentarios.length)
+    ? `<div style="margin-top:14px"><div style="font:600 11px Manrope;letter-spacing:.08em;text-transform:uppercase;color:#8fb0e0;margin-bottom:6px">Comentários</div>` +
+      c.comentarios.map(cm => `<div style="padding:8px 0;border-bottom:1px solid rgba(255,255,255,.05)"><div style="font:400 12.5px Manrope;color:#d6e2f5">${stripHtml(cm.texto)}</div><div style="font:500 10.5px Manrope;color:#7f93b3;margin-top:3px">${fmtDateTime(cm.criadoEm)}</div></div>`).join('') +
+      `</div>`
+    : '';
+
+  return linhas + descricao + comentarios;
 }
 
 // ---- Buscar (protocolo/ticket/SO) ----
