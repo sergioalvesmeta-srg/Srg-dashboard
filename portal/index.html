@@ -706,6 +706,19 @@ function fmtDate(d) {
   if (!d || d === 'Invalid Date') return '—';
   try { const dt = new Date(d.includes('T') ? d : d+'T12:00:00'); if (isNaN(dt.getTime())) return '—'; return dt.toLocaleDateString('pt-BR'); } catch { return '—'; }
 }
+function botaoCopiar(valor) {
+  const safe = String(valor).replace(/'/g, "\\'");
+  return `<button onclick="copiarValor('${safe}', this)" title="Copiar" style="flex-shrink:0;width:30px;height:30px;border-radius:8px;border:1px solid rgba(255,255,255,.15);background:rgba(255,255,255,.06);cursor:pointer;display:flex;align-items:center;justify-content:center;color:#cfe0f5">
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+  </button>`;
+}
+function copiarValor(valor, btn) {
+  navigator.clipboard.writeText(valor).then(() => {
+    const original = btn.innerHTML;
+    btn.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#7fe0c0" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>';
+    setTimeout(() => { btn.innerHTML = original; }, 1200);
+  }).catch(() => {});
+}
 function fmtDateTime(d) {
   if (!d) return '—';
   try { const dt = new Date(d); return dt.toLocaleDateString('pt-BR') + ' às ' + dt.toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'}); } catch { return d; }
@@ -898,6 +911,7 @@ async function carregarMeusChamados() {
       const abertura = gp(p,'Data Abertura','date');
       const dtDigisac = gp(p,'Data Digisac','date');
       const ultimaInt = gp(p,'Última Interação (Data)','date');
+      const nomeContatoLista = gp(p,'Nome Contato Digisac','rich_text');
       const kind = statusKind(status);
       const resolvido = status === 'Resolvido';
       const diasAberto = diasDesde(dtDigisac || abertura);
@@ -908,6 +922,7 @@ async function carregarMeusChamados() {
         <div style="flex:1;min-width:0">
           <div style="font:700 15.5px Manrope;color:#eaf1ff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${nome||'Sem assunto'}</div>
           <div style="display:flex;gap:16px;flex-wrap:wrap;margin-top:5px;font:500 12.5px Manrope;color:#b3c4e0">
+            ${nomeContatoLista ? `<span>${nomeContatoLista}</span>` : ''}
             <span>Protocolo ${proto||'—'}</span><span>· Aberto em ${fmtDate(dtDigisac||abertura)}</span>
             <span>· ${diasLabel(diasAberto)} em aberto</span>
             ${!resolvido ? `<span style="${parado5mais?'color:#fc9a6a;font-weight:700':''}">· ${diasLabel(diasParado)} parado</span>` : ''}
@@ -991,13 +1006,19 @@ function mostrarDetalhe(found) {
       ${pillHtml(status)}
     </div>
     <div style="display:flex;gap:12px;flex-wrap:wrap;margin-top:20px">
-      <div style="padding:10px 16px;border-radius:12px;background:rgba(47,95,176,.16);border:1px solid rgba(90,150,220,.3)">
-        <div style="font:600 10.5px Manrope;letter-spacing:.1em;text-transform:uppercase;color:#8fb0e0">Protocolo</div>
-        <div style="font:600 15px 'IBM Plex Mono',monospace;color:#eaf3ff;margin-top:3px">${proto||'—'}</div>
+      <div style="display:flex;align-items:center;gap:10px;padding:10px 12px 10px 16px;border-radius:12px;background:rgba(47,95,176,.16);border:1px solid rgba(90,150,220,.3)">
+        <div>
+          <div style="font:600 10.5px Manrope;letter-spacing:.1em;text-transform:uppercase;color:#8fb0e0">Protocolo</div>
+          <div style="font:600 15px 'IBM Plex Mono',monospace;color:#eaf3ff;margin-top:3px">${proto||'—'}</div>
+        </div>
+        ${proto ? botaoCopiar(proto) : ''}
       </div>
-      <div style="padding:10px 16px;border-radius:12px;background:rgba(63,160,140,.14);border:1px solid rgba(90,190,160,.3)">
-        <div style="font:600 10.5px Manrope;letter-spacing:.1em;text-transform:uppercase;color:#8fd8c4">Ticket</div>
-        <div style="font:600 15px 'IBM Plex Mono',monospace;color:#eaf3ff;margin-top:3px">${ticket||'—'}</div>
+      <div style="display:flex;align-items:center;gap:10px;padding:10px 12px 10px 16px;border-radius:12px;background:rgba(63,160,140,.14);border:1px solid rgba(90,190,160,.3)">
+        <div>
+          <div style="font:600 10.5px Manrope;letter-spacing:.1em;text-transform:uppercase;color:#8fd8c4">Ticket</div>
+          <div style="font:600 15px 'IBM Plex Mono',monospace;color:#eaf3ff;margin-top:3px">${ticket||'—'}</div>
+        </div>
+        ${ticket ? botaoCopiar(ticket) : ''}
       </div>
       <div style="padding:10px 16px;border-radius:12px;background:rgba(150,120,220,.14);border:1px solid rgba(170,140,230,.3)">
         <div style="font:600 10.5px Manrope;letter-spacing:.1em;text-transform:uppercase;color:#c3aef0">Contato</div>
