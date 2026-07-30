@@ -306,6 +306,19 @@ footer.foot{border-top:1px solid rgba(255,255,255,.07);background:rgba(10,16,36,
       <h1 style="font:700 30px Outfit,sans-serif;color:#f4f8ff">Abrir novo chamado</h1>
       <p style="font:400 15px Manrope;color:#bcccea;margin-top:6px;margin-bottom:26px">Preencha os dados abaixo — vamos montar a mensagem no formato padrão e encaminhar direto pra equipe via WhatsApp.</p>
 
+      <div class="glass" style="max-width:820px;padding:24px 26px;margin-bottom:18px;border:1px solid rgba(127,212,192,.3);background:rgba(63,160,140,.06)">
+        <label style="display:flex;align-items:center;gap:8px;font:600 13px Manrope;color:#9fe0cc;margin-bottom:10px">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#7fd4c0" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v3M12 18v3M3 12h3M18 12h3M5.6 5.6l2.1 2.1M16.3 16.3l2.1 2.1M18.4 5.6l-2.1 2.1M7.7 16.3l-2.1 2.1"/><circle cx="12" cy="12" r="3.5"/></svg>
+          Descreva o problema com suas palavras (opcional) — a IA preenche o resto
+        </label>
+        <textarea id="nt-texto-livre" rows="3" placeholder="Ex: o PDV está com venda aguardando solução lá no CAC10 e gostaria que fosse visto." style="width:100%;padding:14px 16px;border-radius:13px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.2);color:#eaf1ff;font:500 14px Manrope;line-height:1.5;margin-bottom:12px"></textarea>
+        <button class="btn-primary" id="nt-ia-btn" onclick="preencherComIA()" style="height:44px;padding:0 20px">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v3M12 18v3M3 12h3M18 12h3M5.6 5.6l2.1 2.1M16.3 16.3l2.1 2.1M18.4 5.6l-2.1 2.1M7.7 16.3l-2.1 2.1"/><circle cx="12" cy="12" r="3.5"/></svg>
+          <span id="nt-ia-btn-text">Preencher automaticamente</span>
+        </button>
+        <div id="nt-ia-erro" style="display:none;margin-top:10px;font:500 12.5px Manrope;color:#fc8181"></div>
+      </div>
+
       <div class="glass" style="max-width:820px;padding:30px">
 
         <label style="display:block;font:600 12.5px Manrope;color:#bcccea;margin-bottom:8px">Cliente</label>
@@ -1436,6 +1449,53 @@ function buildNewTicketChips() {
   if (dataInput && !dataInput.value) {
     const hoje = new Date();
     dataInput.value = hoje.toISOString().slice(0,10);
+  }
+}
+
+// Manda o relato em texto livre pro Worker (que chama a IA) e preenche
+// Posto/Setor/Prioridade/Assunto/Descrição automaticamente. O usuário
+// ainda pode revisar/corrigir tudo antes de clicar em enviar.
+async function preencherComIA() {
+  const texto = document.getElementById('nt-texto-livre').value.trim();
+  const erroEl = document.getElementById('nt-ia-erro');
+  const btn = document.getElementById('nt-ia-btn');
+  const btnText = document.getElementById('nt-ia-btn-text');
+  erroEl.style.display = 'none';
+  if (!texto) { document.getElementById('nt-texto-livre').focus(); return; }
+
+  btn.disabled = true; btnText.textContent = 'Analisando...';
+  try {
+    const r = await fetch(`${PROXY}/ai/parse-chamado`, {
+      method: 'POST', headers: { 'Content-Type':'application/json' },
+      body: JSON.stringify({ texto, postos: NT_POSTOS, setores: NT_SETORES.filter(s=>!s.startsWith('Outro')) })
+    });
+    const d = await r.json();
+    if (!r.ok || !d.ok) throw new Error(d.error || 'Erro ao consultar a IA');
+    const c = d.campos || {};
+
+    if (c.posto && NT_POSTOS.includes(c.posto)) {
+      document.getElementById('nt-posto-search').value = c.posto;
+      ntFiltrarSelect('nt-posto-select', NT_POSTOS, c.posto);
+      document.getElementById('nt-posto-select').value = c.posto;
+    }
+    if (c.setor && NT_SETORES.includes(c.setor)) {
+      document.getElementById('nt-setor-search').value = c.setor;
+      ntFiltrarSelect('nt-setor-select', NT_SETORES, c.setor);
+      document.getElementById('nt-setor-select').value = c.setor;
+      ntToggleSetorCustom();
+    }
+    if (c.prioridade) {
+      const norm = String(c.prioridade).trim();
+      const match = NT_PRIORIDADES.find(p => p.toLowerCase() === norm.toLowerCase());
+      if (match) { ntPrio = match; buildNewTicketChips(); }
+    }
+    if (c.assunto) document.getElementById('nt-assunto').value = c.assunto;
+    if (c.descricao) document.getElementById('nt-desc').value = c.descricao;
+  } catch (e) {
+    erroEl.textContent = `Não consegui preencher automaticamente: ${e.message}. Preenche manualmente abaixo.`;
+    erroEl.style.display = 'block';
+  } finally {
+    btn.disabled = false; btnText.textContent = 'Preencher automaticamente';
   }
 }
 
