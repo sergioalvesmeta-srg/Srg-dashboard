@@ -457,7 +457,7 @@ footer.foot{border-top:1px solid rgba(255,255,255,.07);background:rgba(10,16,36,
       </div>
 
       <div id="gestor-kpis" class="gestor-kpis" style="display:grid;grid-template-columns:repeat(6,1fr);gap:16px;margin-bottom:20px"></div>
-      <div id="gestor-insights" class="gestor-insights" style="display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin-bottom:26px"></div>
+      <div id="gestor-insights" class="gestor-insights" style="display:grid;grid-template-columns:repeat(5,1fr);gap:16px;margin-bottom:26px"></div>
 
       <div class="gestor-grid-2" style="display:grid;grid-template-columns:1.1fr 1fr;gap:20px;margin-bottom:20px">
         <div class="glass" style="padding:26px 28px">
@@ -1319,6 +1319,7 @@ function mostrarDetalhe(found) {
   const atendenteMeta = gp(found,'Atendente','rich_text');
   const atendenteSRG  = gp(found,'Solicitante','rich_text');
   const categoria   = gp(found,'Categoria','select');
+  const nivelAtd    = gp(found,'Nível de Atendimento','select');
   const nomeContato = gp(found,'Nome Contato Digisac','rich_text');
   const descCompleta= gp(found,'Descrição Completa','rich_text');
   const solucaoTxt  = gp(found,'Solução','rich_text');
@@ -1372,6 +1373,7 @@ function mostrarDetalhe(found) {
     ['Dias em aberto', diasLabel(diasAberto)],
     ...(resolvido ? [] : [['Dias parado', `<span style="${parado5mais?'color:#fc9a6a':''}">${diasLabel(diasParado)}</span>`]]),
     ['Atendente Meta', atendenteMeta||'—'], ['Atendente SRG', atendenteSRG||'—'], ['Categoria', categoria||'—'],
+    ['Nível de atendimento', nivelAtd ? `<span style="${nivelAtd==='N3+'?'color:#fc9a6a;font-weight:700':''}">${nivelAtd==='N3+'?'N3+ (escalado)':nivelAtd}</span>` : '—'],
   ].map(([label,value]) => `<div style="display:flex;justify-content:space-between;gap:14px;padding:11px 0;border-bottom:1px solid rgba(255,255,255,.07)"><span style="font:500 13px Manrope;color:#b3c4e0;flex-shrink:0">${label}</span><span style="font:600 13.5px Manrope;color:#e7eefb;text-align:right">${value}</span></div>`).join('');
 
   document.getElementById('details-body').innerHTML += buildExpandable('desc-expand', 'Descrição completa', descCompleta) + buildExpandable('sol-expand', 'Solução', solucaoTxt);
@@ -1646,6 +1648,7 @@ async function getChamados({ forcar=false } = {}) {
       setor: gp(p,'Setor Suporte','select') || 'Sem setor',
       atendente: gp(p,'Atendente','rich_text') || 'Sem atendente',
       atendenteSRG: gp(p,'Solicitante','rich_text') || '',
+      nivelAtendimento: gp(p,'Nível de Atendimento','select') || 'N2',
       protocolo: gp(p,'Protocolo Digisac','rich_text') || '',
       dataAbertura,
       dataConclusao,
@@ -1825,11 +1828,16 @@ function gestorRenderInsights(filtrados) {
     const pend = lista.filter(c=>c.balde==='pendente').length;
     if (pend > maisPendVal) { maisPendVal = pend; setorMaisPendencia = setor; }
   });
+  const totalComNivel = filtrados.length;
+  const n3mais = filtrados.filter(c => c.nivelAtendimento === 'N3+').length;
+  const pctN2 = totalComNivel ? Math.round(((totalComNivel - n3mais) / totalComNivel) * 100) : 0;
+
   const items = [
     { label:'Mais sobrecarregado', val: maisSobrecarregado },
     { label:'Menor carga', val: menorCarga },
     { label:'Melhor % resolução', val: melhorPct },
     { label:'Setor com mais pendências', val: setorMaisPendencia },
+    { label:'Resolvido no N2 (sem escalar)', val: `${pctN2}%` },
   ];
   document.getElementById('gestor-insights').innerHTML = items.map(it => `
     <div class="glass" style="padding:16px 18px">
@@ -1959,6 +1967,7 @@ function gestorRenderTickets(filtrados) {
         <div style="font:700 14px Manrope;color:#eaf1ff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${c.cliente}</div>
         <div style="font:500 12px Manrope;color:#93a6c4;margin-top:3px">Protocolo ${c.protocolo||'—'} · ${c.setor} · ${c.atendente} · ${fmtDate(c.dataAbertura)}</div>
       </div>
+      ${c.nivelAtendimento==='N3+' ? `<span style="font:700 10.5px Manrope;padding:4px 10px;border-radius:999px;background:rgba(224,149,95,.16);color:#e0a888;border:1px solid rgba(224,149,95,.35);white-space:nowrap">N3+</span>` : ''}
       ${pillHtml(c.status)}
     </div>`).join('');
 }
@@ -1979,6 +1988,7 @@ function gestorAbrirTicket(id) {
       <div><div style="font:600 11.5px Manrope;color:#93a6c4">Atendente SRG</div><div style="font:600 14px Manrope;color:#eaf1ff">${c.atendenteSRG||'—'}</div></div>
       <div><div style="font:600 11.5px Manrope;color:#93a6c4">Aberto em</div><div style="font:600 14px Manrope;color:#eaf1ff">${fmtDate(c.dataAbertura)}</div></div>
       <div><div style="font:600 11.5px Manrope;color:#93a6c4">Conclusão</div><div style="font:600 14px Manrope;color:#eaf1ff">${c.dataConclusao?fmtDate(c.dataConclusao):'—'}</div></div>
+      <div><div style="font:600 11.5px Manrope;color:#93a6c4">Nível de atendimento</div><div style="font:600 14px Manrope;color:${c.nivelAtendimento==='N3+'?'#e0a888':'#eaf1ff'}">${c.nivelAtendimento==='N3+'?'N3+ (escalado)':(c.nivelAtendimento||'N2')}</div></div>
     </div>
     <div style="font:600 13px Manrope;color:#bcccea;margin-bottom:10px">Histórico</div>
     ${buildTimeline(c.page)}`;
