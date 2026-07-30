@@ -1490,11 +1490,31 @@ function ntExtrairCampos(texto) {
   if (NT_PRIORIDADE_ALTA.some(p => baixo.includes(p))) prioridade = 'Alta';
   else if (NT_PRIORIDADE_BAIXA.some(p => baixo.includes(p))) prioridade = 'Baixa';
 
-  let assunto = texto.trim().split(/[.\n]/)[0].trim();
-  if (assunto.length > 80) assunto = assunto.slice(0,77).trim() + '...';
-  if (assunto) assunto = assunto.charAt(0).toUpperCase() + assunto.slice(1);
+  // Descrição = texto completo, sem cortes, exatamente como o usuário digitou.
+  const descricao = texto.trim();
+  const assunto = ntResumirAssunto(texto);
 
-  return { posto, setor, prioridade, assunto, descricao: texto.trim() };
+  return { posto, setor, prioridade, assunto, descricao };
+}
+
+// Assunto = versão bem resumida do relato: pega só a primeira frase, corta
+// complementos tipo "e gostaria que...", tira a menção ao posto (que já
+// vai num campo separado) e limita a ~60 caracteres sem quebrar palavra.
+function ntResumirAssunto(texto) {
+  let s = texto.trim().split(/[.\n]/)[0].trim();
+  s = s.split(/\s+(?:e\s+gostaria|gostaria|por favor|pois|porque|já que|ja que|obrigado|obrigada)\b.*/i)[0].trim();
+  s = s.replace(/,?\s*(lá\s+)?(no|na)\s+cac(?:ique)?\s*0*\d{1,2}\b/gi, '');
+  s = s.replace(/,?\s*(lá\s+)?(no|na)\s+matriz[\wÀ-ÿ\s]*$/gi, '');
+  s = s.replace(/\s{2,}/g, ' ').trim();
+  const LIMITE = 60;
+  if (s.length > LIMITE) {
+    let corte = s.slice(0, LIMITE);
+    const ultimoEspaco = corte.lastIndexOf(' ');
+    if (ultimoEspaco > 30) corte = corte.slice(0, ultimoEspaco);
+    s = corte.trim() + '...';
+  }
+  if (s) s = s.charAt(0).toUpperCase() + s.slice(1);
+  return s;
 }
 
 function preencherComIA() {
