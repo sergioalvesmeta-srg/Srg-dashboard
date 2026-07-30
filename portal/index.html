@@ -385,6 +385,7 @@ footer.foot{border-top:1px solid rgba(255,255,255,.07);background:rgba(10,16,36,
       <div class="glass" style="padding:24px 26px;margin:20px 0 26px">
         <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
           <span style="font:600 12.5px Manrope;color:#b3c4e0;margin-right:2px">Período:</span>
+          <button class="chip" data-gperiodo="7" onclick="setGestorPeriodo(7)">Esta semana</button>
           <button class="chip active" data-gperiodo="30" onclick="setGestorPeriodo(30)">30 dias</button>
           <button class="chip" data-gperiodo="60" onclick="setGestorPeriodo(60)">60 dias</button>
           <button class="chip" data-gperiodo="90" onclick="setGestorPeriodo(90)">90 dias</button>
@@ -404,8 +405,8 @@ footer.foot{border-top:1px solid rgba(255,255,255,.07);background:rgba(10,16,36,
             <select id="gestor-setor-select" onchange="setGestorSetor(this.value)" style="width:100%;height:44px;padding:0 14px;border-radius:12px;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.22);color:#eaf1ff;font:500 13.5px Manrope"></select>
           </div>
           <div style="flex:1;min-width:200px">
-            <label style="display:block;font:600 12px Manrope;color:#bcccea;margin-bottom:7px">Atendente</label>
-            <input type="text" id="gestor-atendente-search" oninput="onGestorBuscaAtendente(this.value)" placeholder="Buscar atendente..." style="width:100%;height:38px;padding:0 13px;margin-bottom:7px;border-radius:10px;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.18);color:#eaf1ff;font:500 13px Manrope">
+            <label style="display:block;font:600 12px Manrope;color:#bcccea;margin-bottom:7px">Solicitante</label>
+            <input type="text" id="gestor-atendente-search" oninput="onGestorBuscaAtendente(this.value)" placeholder="Buscar solicitante..." style="width:100%;height:38px;padding:0 13px;margin-bottom:7px;border-radius:10px;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.18);color:#eaf1ff;font:500 13px Manrope">
             <select id="gestor-atendente-select" onchange="setGestorAtendente(this.value)" style="width:100%;height:44px;padding:0 14px;border-radius:12px;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.22);color:#eaf1ff;font:500 13.5px Manrope"></select>
           </div>
         </div>
@@ -430,7 +431,7 @@ footer.foot{border-top:1px solid rgba(255,255,255,.07);background:rgba(10,16,36,
         <div class="glass" style="padding:26px 28px">
           <div style="display:flex;align-items:center;gap:10px;margin-bottom:22px">
             <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="#7fd4c0" stroke-width="1.9" stroke-linecap="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/></svg>
-            <h3 style="font:700 17px Outfit,sans-serif;color:#f2f7ff;margin:0">Ranking por atendente</h3>
+            <h3 style="font:700 17px Outfit,sans-serif;color:#f2f7ff;margin:0">Ranking por solicitante</h3>
           </div>
           <div id="gestor-ranking" style="display:flex;flex-direction:column;gap:13px"></div>
         </div>
@@ -1534,14 +1535,14 @@ function gestorAplicarFiltros(lista) {
   let r = gestorFiltrarPeriodo(lista);
   if (gestorState.statusFiltro !== 'todos') r = r.filter(c => c.balde === gestorState.statusFiltro);
   if (gestorState.setor !== 'todos') r = r.filter(c => c.setor === gestorState.setor);
-  if (gestorState.atendente !== 'todos') r = r.filter(c => c.atendente === gestorState.atendente);
+  if (gestorState.atendente !== 'todos') r = r.filter(c => c.atendenteSRG === gestorState.atendente);
   return r;
 }
 
 function gestorPopularSelects() {
   const todos = gestorChamadosCache || [];
   const setores = [...new Set(todos.map(c => c.setor))].sort();
-  const atendentes = [...new Set(todos.map(c => c.atendente))].sort();
+  const atendentes = [...new Set(todos.map(c => c.atendenteSRG).filter(Boolean))].sort();
   const selSetor = document.getElementById('gestor-setor-select');
   const selAtd = document.getElementById('gestor-atendente-select');
   const buildOptions = (lista, atual, termo) => {
@@ -1556,7 +1557,7 @@ function gestorRenderCrumbs() {
   const wrap = document.getElementById('gestor-crumbs');
   const crumbs = [];
   if (gestorState.setor !== 'todos') crumbs.push({ label:`Setor: ${gestorState.setor}`, campo:'setor' });
-  if (gestorState.atendente !== 'todos') crumbs.push({ label:`Atendente: ${gestorState.atendente}`, campo:'atendente' });
+  if (gestorState.atendente !== 'todos') crumbs.push({ label:`Solicitante: ${gestorState.atendente}`, campo:'atendente' });
   if (gestorState.statusFiltro !== 'todos') {
     const nomes = { aberto:'Em aberto', pendente:'Pendente', resolvido:'Resolvido' };
     crumbs.push({ label:`Status: ${nomes[gestorState.statusFiltro]}`, campo:'status' });
@@ -1600,7 +1601,7 @@ function gestorRenderInsights(filtrados) {
   const porAtendente = {};
   filtrados.forEach(c => {
     (porSetor[c.setor] ||= []).push(c);
-    (porAtendente[c.atendente] ||= []).push(c);
+    (porAtendente[c.atendenteSRG || 'Sem solicitante'] ||= []).push(c);
   });
   const entradasAtd = Object.entries(porAtendente);
   const mediaCarga = entradasAtd.length ? entradasAtd.reduce((s,[,l])=>s+l.length,0)/entradasAtd.length : 0;
@@ -1657,7 +1658,7 @@ function gestorRenderSetores(filtrados) {
 
 function gestorRenderRanking(filtrados, mediaCarga) {
   const porAtendente = {};
-  filtrados.forEach(c => (porAtendente[c.atendente] ||= []).push(c));
+  filtrados.forEach(c => (porAtendente[c.atendenteSRG || 'Sem solicitante'] ||= []).push(c));
   const linhas = Object.entries(porAtendente).sort((a,b)=>b[1].length-a[1].length);
   const el = document.getElementById('gestor-ranking');
   if (!linhas.length) { el.innerHTML = '<div style="font:500 13px Manrope;color:#7186ab">Sem dados no período/filtro atual.</div>'; return; }
