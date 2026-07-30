@@ -330,19 +330,9 @@ footer.foot{border-top:1px solid rgba(255,255,255,.07);background:rgba(10,16,36,
         <label style="display:block;font:600 12.5px Manrope;color:#bcccea;margin-bottom:10px">Grau de prioridade</label>
         <div id="nt-prios" style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:22px"></div>
 
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:18px;margin-bottom:22px">
-          <div>
-            <label style="display:block;font:600 12.5px Manrope;color:#bcccea;margin-bottom:8px">Solicitante</label>
-            <div class="field" style="height:52px">
-              <input type="text" id="nt-solicitante" placeholder="Nome de quem está solicitando">
-            </div>
-          </div>
-          <div>
-            <label style="display:block;font:600 12.5px Manrope;color:#bcccea;margin-bottom:8px">Data do problema</label>
-            <div class="field" style="height:52px">
-              <input type="date" id="nt-data">
-            </div>
-          </div>
+        <label style="display:block;font:600 12.5px Manrope;color:#bcccea;margin-bottom:8px">Data do problema</label>
+        <div class="field" style="height:52px;margin-bottom:22px;max-width:260px">
+          <input type="date" id="nt-data">
         </div>
 
         <label style="display:block;font:600 12.5px Manrope;color:#bcccea;margin-bottom:8px">Assunto</label>
@@ -1454,7 +1444,6 @@ function enviarNovoChamado() {
   const posto = document.getElementById('nt-posto-select').value;
   const setorSel = document.getElementById('nt-setor-select').value;
   const setor = setorSel === 'Outro (digitar abaixo)' ? document.getElementById('nt-setor-custom').value.trim() : setorSel;
-  const solicitante = document.getElementById('nt-solicitante').value.trim();
   const assunto = document.getElementById('nt-assunto').value.trim();
   const dataProblema = document.getElementById('nt-data').value;
   const desc = document.getElementById('nt-desc').value.trim();
@@ -1465,12 +1454,17 @@ function enviarNovoChamado() {
 
   const dataFmt = dataProblema ? new Date(dataProblema+'T12:00:00').toLocaleDateString('pt-BR') : new Date().toLocaleDateString('pt-BR');
 
+  // Solicitante e Protocolo vão sempre em branco -- ficam a cargo do
+  // analista preencher na Meta antes de encaminhar, por isso nem tem
+  // campo de input pra eles no formulário.
   const linhas = [
+    `*Novo chamado — Portal SRG*`,
+    ``,
     `• Cliente: ${cliente || '—'}`,
     `• Posto: ${posto}`,
     `• Grau de prioridade: ${ntPrio}`,
     `• Setor: ${setor || '—'}`,
-    `• Solicitante: ${solicitante || '—'}`,
+    `• Solicitante: `,
     `• Assunto: ${assunto}`,
     `• Data do problema: ${dataFmt}`,
     `• Protocolo: `,
