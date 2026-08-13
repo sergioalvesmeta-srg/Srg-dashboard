@@ -2242,7 +2242,12 @@ function gestorRenderN2N3(metricas) {
 // selecionou "Esta semana" + "Pendente", essa tabela mostra so o que
 // bate com esse filtro, igual todo o resto do painel.
 function gestorCalcularAtencao(filtrados) {
-  return filtrados
+  // Programação e a fila de especialista N3 -- naturalmente demora mais
+  // e domina o ranking, escondendo o que realmente importa aqui: chamado
+  // de Suporte (N2) parado ha muito tempo. Segue o mesmo toggle de
+  // "Todos os chamados" (oculto por padrao, reexibivel).
+  const base = gestorState.ocultarProgramacao ? filtrados.filter(c => c.setor !== 'Programação') : filtrados;
+  return base
     .filter(c => c.balde !== 'resolvido')
     .map(c => {
       const dias = diasDesde(c.dataAbertura) || 0;
@@ -2285,7 +2290,7 @@ function gestorRenderTickets(filtrados) {
   document.getElementById('gestor-ticket-count').textContent = `${base.length} no total · exibindo ${ordenados.length}`;
   const toggleEl = document.getElementById('gestor-toggle-prog');
   toggleEl.textContent = gestorState.ocultarProgramacao
-    ? `Programação oculta (${escondidos}) · mostrar`
+    ? `Programação oculta (${escondidos}) · mostrar (afeta esta lista e "exigem atenção")`
     : 'Ocultar setor Programação';
   const el = document.getElementById('gestor-tickets');
   if (!ordenados.length) { el.innerHTML = '<div style="font:500 13px Manrope;color:#7186ab;padding:1rem 0">Nenhum chamado no filtro atual.</div>'; return; }
