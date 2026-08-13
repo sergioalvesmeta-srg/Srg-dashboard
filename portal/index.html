@@ -527,8 +527,12 @@ footer.foot{border-top:1px solid rgba(255,255,255,.07);background:rgba(10,16,36,
           <div class="gestor-scroll">
             <table class="gestor-table" id="gestor-equipe">
               <thead><tr>
-                <th>Responsável</th><th>Recebidos</th><th>Resolvidos</th><th>Em aberto</th>
-                <th>Pendentes</th><th>% resolução</th><th>Tempo médio</th><th>Carga</th>
+                <th>Responsável</th>
+                <th title="Chamados que entraram no período selecionado (fluxo).">Recebidos <span style="color:#5c7095;font-weight:500">· período</span></th>
+                <th title="Chamados que foram concluídos dentro do período selecionado (fluxo). Pode incluir chamados recebidos antes do período.">Resolvidos <span style="color:#5c7095;font-weight:500">· período</span></th>
+                <th title="Chamados desse responsável que estão em aberto AGORA, de qualquer época (estoque/foto atual -- não é limitado ao período selecionado).">Em aberto <span style="color:#5c7095;font-weight:500">· atual</span></th>
+                <th title="Chamados desse responsável pendentes AGORA (estoque/foto atual).">Pendentes <span style="color:#5c7095;font-weight:500">· atual</span></th>
+                <th>% resolução</th><th>Tempo médio</th><th>Carga</th>
               </tr></thead>
               <tbody id="gestor-equipe-body"></tbody>
             </table>
@@ -1908,14 +1912,29 @@ function gestorCalcularMetricas(lista, ini, fim) {
   const taxaResolucao = recebidos ? (resolvidos / recebidos) * 100 : 0;
   const temposH = resolvidosLista.map(c => (new Date(c.dataConclusao) - new Date(c.dataAbertura)) / 3600000).filter(h => h >= 0);
   const tempoMedio = temposH.length ? temposH.reduce((a,b)=>a+b,0)/temposH.length : 0;
-  const resolvidoN2 = resolvidosLista.filter(c => c.nivelAtendimento !== 'N3+').length;
-  const escaladoN3 = recebidosLista.filter(c => c.nivelAtendimento === 'N3+').length;
-  const aguardandoN3 = recebidosLista.filter(c => c.nivelAtendimento === 'N3+' && c.balde !== 'resolvido').length;
+  // Eficiencia N2/N3 -- tudo calculado sobre a MESMA base (recebidosLista,
+  // os chamados que entraram na janela selecionada), em categorias
+  // mutuamente exclusivas, pra somar 100% de verdade:
+  //   Resolvido no N2   = nunca escalado (nivel != N3+) e ja resolvido
+  //   Em atendimento N2 = nunca escalado, ainda nao resolvido
+  //   Escalado para N3  = nivel N3+ (independente do status)
+  // E dentro do escalado, um recorte proprio (nao soma com os 3 acima):
+  //   Aguardando N3     = escalado e ainda nao resolvido
+  //   Resolvido pelo N3 = escalado e ja resolvido
+  const naoN3Lista = recebidosLista.filter(c => c.nivelAtendimento !== 'N3+');
+  const n3Lista = recebidosLista.filter(c => c.nivelAtendimento === 'N3+');
+  const resolvidoN2 = naoN3Lista.filter(c => c.balde === 'resolvido').length;
+  const emAtendimentoN2 = naoN3Lista.length - resolvidoN2;
+  const escaladoN3 = n3Lista.length;
+  const resolvidoN3 = n3Lista.filter(c => c.balde === 'resolvido').length;
+  const aguardandoN3 = escaladoN3 - resolvidoN3;
   return {
     recebidos, resolvidos, backlog, pendentes, emAberto, taxaResolucao, tempoMedio,
     pctResolvidoN2: recebidos ? (resolvidoN2/recebidos)*100 : 0,
+    pctEmAtendimentoN2: recebidos ? (emAtendimentoN2/recebidos)*100 : 0,
     pctEscaladoN3: recebidos ? (escaladoN3/recebidos)*100 : 0,
-    pctAguardandoN3: recebidos ? (aguardandoN3/recebidos)*100 : 0,
+    pctAguardandoN3: escaladoN3 ? (aguardandoN3/escaladoN3)*100 : 0,
+    pctResolvidoN3: escaladoN3 ? (resolvidoN3/escaladoN3)*100 : 0,
   };
 }
 // Badge "↑X% / ↓X% / → estável" vs. periodo anterior. modo controla a
@@ -1946,18 +1965,28 @@ function gestorRenderKPIs(baseSemPeriodo, janela) {
   const anteriores = janela.iniAnterior ? gestorCalcularMetricas(baseSemPeriodo, janela.iniAnterior, janela.fimAnterior) : null;
   const sufixo = gestorRotuloPeriodo[gestorState.periodo] || 'período anterior';
 
+  // Estoque (nao muda com o periodo, e o passivo acumulado ate agora) vs.
+  // Fluxo (atuais.backlog, ja e so o que entrou NESSE periodo e ficou
+  // parado). Mostrados juntos, mas rotulados, pra um numero de fluxo da
+  // semana nunca ser confundido com o estoque historico de centenas.
+  const backlogTotalAtual = gestorBacklogEm(baseSemPeriodo, janela.fimAtual);
+  const backlogInicioPeriodo = janela.iniAtual ? gestorBacklogEm(baseSemPeriodo, janela.iniAtual) : backlogTotalAtual;
+  const variacaoBacklog = backlogTotalAtual - backlogInicioPeriodo;
+  const variacaoTxt = variacaoBacklog === 0 ? 'estável no período' : `${variacaoBacklog>0?'+':''}${variacaoBacklog} no período`;
+  const variacaoCor = variacaoBacklog > 0 ? '#e0955f' : (variacaoBacklog < 0 ? '#5abfa0' : '#7186ab');
+
   const cards = [
-    { label:'Chamados recebidos', val: atuais.recebidos, click:`setGestorStatus('todos')`, cor:'#f2f7ff',
+    { label:'Chamados recebidos <span style="font-weight:500;color:#5c7095">· fluxo</span>', val: atuais.recebidos, click:`setGestorStatus('todos')`, cor:'#f2f7ff',
       badge: anteriores ? gestorBadge(atuais.recebidos, anteriores.recebidos, {modo:'neutro', sufixo}) : '' },
-    { label:'Resolvidos', val: atuais.resolvidos, click:`setGestorStatus('resolvido')`, cor:'#3fa08c',
+    { label:'Resolvidos <span style="font-weight:500;color:#5c7095">· fluxo</span>', val: atuais.resolvidos, click:`setGestorStatus('resolvido')`, cor:'#3fa08c',
       badge: anteriores ? gestorBadge(atuais.resolvidos, anteriores.resolvidos, {modo:'sobe-bom', sufixo}) : '' },
-    { label:'Backlog do período', val: atuais.backlog, click:`setGestorStatus('aberto')`, cor:'#a992e0',
-      badge: anteriores ? gestorBadge(atuais.backlog, anteriores.backlog, {modo:'desce-bom', sufixo}) : '' },
-    { label:'Pendentes', val: atuais.pendentes, click:`setGestorStatus('pendente')`, cor:'#c15c5c',
+    { label:'Backlog do período <span style="font-weight:500;color:#5c7095">· fluxo</span>', val: atuais.backlog, click:`setGestorStatus('aberto')`, cor:'#a992e0',
+      badge: (anteriores ? gestorBadge(atuais.backlog, anteriores.backlog, {modo:'desce-bom', sufixo}) : '') + `<div style="margin-top:6px;font:600 11px Manrope;color:#7186ab" title="Passivo total acumulado ate agora, independente do periodo selecionado.">Total atual: <span style="color:#dbe6fb;font-weight:700">${backlogTotalAtual}</span> <span style="color:${variacaoCor}">(${variacaoTxt})</span></div>` },
+    { label:'Pendentes <span style="font-weight:500;color:#5c7095">· estoque</span>', val: atuais.pendentes, click:`setGestorStatus('pendente')`, cor:'#c15c5c',
       badge: anteriores ? gestorBadge(atuais.pendentes, anteriores.pendentes, {modo:'desce-bom', sufixo}) : '' },
-    { label:'Taxa de resolução', val: atuais.taxaResolucao.toFixed(0)+'%', click:`setGestorStatus('resolvido')`, cor:'#5db4e6',
+    { label:'Taxa de resolução <span style="font-weight:500;color:#5c7095">· fluxo</span>', val: atuais.taxaResolucao.toFixed(0)+'%', click:`setGestorStatus('resolvido')`, cor:'#5db4e6',
       badge: anteriores ? gestorBadge(atuais.taxaResolucao, anteriores.taxaResolucao, {modo:'sobe-bom', pontosPercentuais:true, casas:1, sufixo}) : '' },
-    { label:'Tempo médio de resolução', val: atuais.tempoMedio.toFixed(1)+'h', click:null, cor:'#7fd4c0',
+    { label:'Tempo médio de resolução <span style="font-weight:500;color:#5c7095">· fluxo</span>', val: atuais.tempoMedio.toFixed(1)+'h', click:null, cor:'#7fd4c0',
       badge: anteriores ? gestorBadge(atuais.tempoMedio, anteriores.tempoMedio, {modo:'desce-bom', casas:1, sufixo}) : '' },
   ];
   document.getElementById('gestor-kpis').innerHTML = cards.map(c => `
@@ -1966,7 +1995,7 @@ function gestorRenderKPIs(baseSemPeriodo, janela) {
       <div style="font:700 26px Outfit,sans-serif;color:${c.cor};margin-bottom:8px">${c.val}</div>
       <div>${c.badge}</div>
     </div>`).join('');
-  return { atuais, anteriores };
+  return { atuais, anteriores, backlogTotalAtual, variacaoBacklog };
 }
 
 // ---- LINHA 2 (esquerda): grafico de evolucao -- recebidos, resolvidos
@@ -2000,23 +2029,29 @@ function gestorSerieEvolucao(baseSemPeriodo, periodoDias) {
 }
 function gestorRenderEvolucao(baseSemPeriodo) {
   const pontos = gestorSerieEvolucao(baseSemPeriodo, gestorState.periodo);
-  const max = Math.max(1, ...pontos.map(p => Math.max(p.recebidos, p.resolvidos, p.backlog)));
+  // Recebidos/resolvidos (fluxo diario, escala pequena) e backlog (estoque
+  // acumulado, escala bem maior) usam eixos Y SEPARADOS -- senao o backlog
+  // achata as outras duas linhas no grafico. Backlog fica em linha
+  // tracejada e ganha a propria escala (maxBacklog), independente.
+  const maxFluxo = Math.max(1, ...pontos.map(p => Math.max(p.recebidos, p.resolvidos)));
+  const maxBacklog = Math.max(1, ...pontos.map(p => p.backlog));
   const W = 720, H = 240, padX = 26, padY = 20;
   const stepX = pontos.length > 1 ? (W - padX*2) / (pontos.length-1) : 0;
-  const y = v => H - padY - (v/max)*(H - padY*2);
-  const linha = (campo) => pontos.map((p,i) => `${padX+i*stepX},${y(p[campo])}`).join(' ');
-  const pontosHit = (campo, cor) => pontos.map((p,i) => `<circle cx="${padX+i*stepX}" cy="${y(p[campo])}" r="9" fill="transparent"><title>${p.data.toLocaleDateString('pt-BR')} — ${campo}: ${p[campo]}</title></circle><circle cx="${padX+i*stepX}" cy="${y(p[campo])}" r="3" fill="${cor}" style="pointer-events:none"/>`).join('');
+  const yFluxo = v => H - padY - (v/maxFluxo)*(H - padY*2);
+  const yBacklog = v => H - padY - (v/maxBacklog)*(H - padY*2);
+  const linha = (campo, escala) => pontos.map((p,i) => `${padX+i*stepX},${escala(p[campo])}`).join(' ');
+  const pontosHit = (campo, cor, escala) => pontos.map((p,i) => `<circle cx="${padX+i*stepX}" cy="${escala(p[campo])}" r="9" fill="transparent"><title>${p.data.toLocaleDateString('pt-BR')} — ${campo}: ${p[campo]}</title></circle><circle cx="${padX+i*stepX}" cy="${escala(p[campo])}" r="3" fill="${cor}" style="pointer-events:none"/>`).join('');
   document.getElementById('gestor-evo-svg').innerHTML = `
-    <polyline points="${linha('backlog')}" fill="none" stroke="#a992e0" stroke-width="2.2" stroke-dasharray="4 3" opacity=".85"/>
-    <polyline points="${linha('recebidos')}" fill="none" stroke="#5db4e6" stroke-width="2.4"/>
-    <polyline points="${linha('resolvidos')}" fill="none" stroke="#3fa08c" stroke-width="2.4"/>
-    ${pontosHit('backlog','#a992e0')}${pontosHit('recebidos','#5db4e6')}${pontosHit('resolvidos','#3fa08c')}`;
+    <polyline points="${linha('backlog', yBacklog)}" fill="none" stroke="#a992e0" stroke-width="2.2" stroke-dasharray="4 3" opacity=".85"/>
+    <polyline points="${linha('recebidos', yFluxo)}" fill="none" stroke="#5db4e6" stroke-width="2.4"/>
+    <polyline points="${linha('resolvidos', yFluxo)}" fill="none" stroke="#3fa08c" stroke-width="2.4"/>
+    ${pontosHit('backlog','#a992e0',yBacklog)}${pontosHit('recebidos','#5db4e6',yFluxo)}${pontosHit('resolvidos','#3fa08c',yFluxo)}`;
   const passo = Math.max(1, Math.ceil(pontos.length/7));
   document.getElementById('gestor-evo-labels').innerHTML = pontos.map((p,i) =>
     i % passo === 0 || i === pontos.length-1
       ? `<span style="font:500 10.5px Manrope;color:#7186ab">${p.data.toLocaleDateString('pt-BR',{day:'2-digit',month:'2-digit'})}</span>`
       : ''
-  ).join('');
+  ).join('') + `<span style="font:500 10px Manrope;color:#a992e0;margin-left:auto">Backlog em escala própria (linha tracejada)</span>`;
 }
 
 // ---- LINHA 2 (direita): situação atual -- leitura automática do
@@ -2091,7 +2126,7 @@ function gestorCalcularIdadeBacklog(baseSemPeriodo) {
   let maisAntigo = null;
   abertos.forEach(c => {
     const dias = diasDesde(c.dataAbertura);
-    if (dias !== null && (!maisAntigo || dias > maisAntigo.dias)) maisAntigo = { dias, cliente: c.cliente };
+    if (dias !== null && (!maisAntigo || dias > maisAntigo.dias)) maisAntigo = { dias, cliente: c.cliente, id: c.id };
   });
   const contagens = buckets.map(b => ({
     ...b, qtd: abertos.filter(c => { const d = diasDesde(c.dataAbertura); return d!==null && d>=b.min && d<b.max; }).length,
@@ -2099,7 +2134,17 @@ function gestorCalcularIdadeBacklog(baseSemPeriodo) {
   return { contagens, maisAntigo, total: abertos.length };
 }
 function gestorRenderIdadeBacklog(idadeBacklog) {
-  document.getElementById('gestor-mais-antigo').textContent = idadeBacklog.maisAntigo ? `Mais antigo: ${idadeBacklog.maisAntigo.dias}d` : '';
+  const elMaisAntigo = document.getElementById('gestor-mais-antigo');
+  if (idadeBacklog.maisAntigo) {
+    elMaisAntigo.textContent = `Mais antigo: ${idadeBacklog.maisAntigo.dias}d`;
+    elMaisAntigo.style.cursor = 'pointer';
+    elMaisAntigo.title = 'Ver detalhes deste chamado';
+    elMaisAntigo.onclick = () => gestorAbrirTicket(idadeBacklog.maisAntigo.id);
+  } else {
+    elMaisAntigo.textContent = '';
+    elMaisAntigo.onclick = null;
+    elMaisAntigo.style.cursor = 'default';
+  }
   const max = Math.max(1, ...idadeBacklog.contagens.map(b=>b.qtd));
   document.getElementById('gestor-idade-backlog').innerHTML = idadeBacklog.contagens.map(b => `
     <div>
@@ -2149,16 +2194,22 @@ function gestorRenderEquipe(linhas) {
 }
 
 // ---- LINHA 4 (direita): eficiência N2 / escalonamento ----
+// Duas visões, pra nao repetir o erro de somar categorias que nao sao
+// mutuamente exclusivas (o "128%" que o gestor pegou): "Destino" fecha
+// em 100% dos chamados recebidos no periodo; "Situação dos escalados" e
+// um recorte SO de dentro do que foi escalado (fecha 100% entre si, mas
+// nao soma com o grupo de cima).
 function gestorRenderN2N3(metricas) {
   const { atuais, anteriores } = metricas;
-  const linhas = [
-    { label:'Resolvido pelo N2', val: atuais.pctResolvidoN2, cor:'#3fa08c',
-      badge: anteriores ? gestorBadge(atuais.pctResolvidoN2, anteriores.pctResolvidoN2, {modo:'sobe-bom', pontosPercentuais:true, casas:0, sufixo: gestorRotuloPeriodo[gestorState.periodo]||''}) : '' },
+  const sufixo = gestorRotuloPeriodo[gestorState.periodo] || '';
+  const destino = [
+    { label:'Resolvido no N2', val: atuais.pctResolvidoN2, cor:'#3fa08c',
+      badge: anteriores ? gestorBadge(atuais.pctResolvidoN2, anteriores.pctResolvidoN2, {modo:'sobe-bom', pontosPercentuais:true, sufixo}) : '' },
+    { label:'Em atendimento N2', val: atuais.pctEmAtendimentoN2, cor:'#5db4e6', badge:'' },
     { label:'Escalado para N3', val: atuais.pctEscaladoN3, cor:'#e0955f',
-      badge: anteriores ? gestorBadge(atuais.pctEscaladoN3, anteriores.pctEscaladoN3, {modo:'desce-bom', pontosPercentuais:true, casas:0, sufixo: gestorRotuloPeriodo[gestorState.periodo]||''}) : '' },
-    { label:'Aguardando N3 agora', val: atuais.pctAguardandoN3, cor:'#c15c5c', badge:'' },
+      badge: anteriores ? gestorBadge(atuais.pctEscaladoN3, anteriores.pctEscaladoN3, {modo:'desce-bom', pontosPercentuais:true, sufixo}) : '' },
   ];
-  document.getElementById('gestor-n2n3').innerHTML = linhas.map(l => `
+  const linha = (l) => `
     <div>
       <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:6px">
         <span style="font:600 13px Manrope;color:#dbe6fb">${l.label}</span>
@@ -2168,7 +2219,16 @@ function gestorRenderN2N3(metricas) {
         <div style="height:100%;width:${Math.min(100,l.val)}%;background:${l.cor};border-radius:5px"></div>
       </div>
       <div>${l.badge}</div>
-    </div>`).join('');
+    </div>`;
+  let html = `<div style="font:600 11px Manrope;color:#7186ab;text-transform:uppercase;letter-spacing:.04em;margin-bottom:2px">Destino dos chamados recebidos</div>` + destino.map(linha).join('');
+  if (atuais.pctEscaladoN3 > 0) {
+    const situacao = [
+      { label:'Aguardando N3', val: atuais.pctAguardandoN3, cor:'#c15c5c', badge:'' },
+      { label:'Resolvido pelo N3', val: atuais.pctResolvidoN3, cor:'#3fa08c', badge:'' },
+    ];
+    html += `<div style="font:600 11px Manrope;color:#7186ab;text-transform:uppercase;letter-spacing:.04em;margin:14px 0 2px;padding-top:10px;border-top:1px solid rgba(255,255,255,.08)" title="Recorte apenas dos chamados escalados para N3 -- nao soma com o grupo acima.">Situação dos escalados</div>` + situacao.map(linha).join('');
+  }
+  document.getElementById('gestor-n2n3').innerHTML = html;
 }
 
 // ---- LINHA 5: chamados que exigem atenção ----
