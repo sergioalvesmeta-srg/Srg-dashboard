@@ -1898,8 +1898,11 @@ function gestorCalcularMetricas(lista, ini, fim) {
   const resolvidosLista = ini ? lista.filter(c => gestorEmJanela(c.dataConclusao, ini, fim)) : lista.filter(c => c.dataConclusao);
   const recebidos = recebidosLista.length;
   const resolvidos = resolvidosLista.length;
-  const backlog = gestorBacklogEm(lista, fim);
-  const backlogInicio = ini ? gestorBacklogEm(lista, ini) : null;
+  // Backlog = dentre os chamados RECEBIDOS na janela selecionada, quantos
+  // ainda nao foram resolvidos. Propositalmente reage ao periodo (se o
+  // gestor escolhe "Esta semana", o numero reflete so o que entrou nessa
+  // semana e segue parado -- nao o acumulado historico inteiro).
+  const backlog = recebidosLista.filter(c => c.balde !== 'resolvido').length;
   const pendentes = lista.filter(c => c.balde === 'pendente').length;
   const emAberto = lista.filter(c => c.balde === 'aberto').length;
   const taxaResolucao = recebidos ? (resolvidos / recebidos) * 100 : 0;
@@ -1909,7 +1912,7 @@ function gestorCalcularMetricas(lista, ini, fim) {
   const escaladoN3 = recebidosLista.filter(c => c.nivelAtendimento === 'N3+').length;
   const aguardandoN3 = recebidosLista.filter(c => c.nivelAtendimento === 'N3+' && c.balde !== 'resolvido').length;
   return {
-    recebidos, resolvidos, backlog, backlogInicio, pendentes, emAberto, taxaResolucao, tempoMedio,
+    recebidos, resolvidos, backlog, pendentes, emAberto, taxaResolucao, tempoMedio,
     pctResolvidoN2: recebidos ? (resolvidoN2/recebidos)*100 : 0,
     pctEscaladoN3: recebidos ? (escaladoN3/recebidos)*100 : 0,
     pctAguardandoN3: recebidos ? (aguardandoN3/recebidos)*100 : 0,
@@ -1948,8 +1951,8 @@ function gestorRenderKPIs(baseSemPeriodo, janela) {
       badge: anteriores ? gestorBadge(atuais.recebidos, anteriores.recebidos, {modo:'neutro', sufixo}) : '' },
     { label:'Resolvidos', val: atuais.resolvidos, click:`setGestorStatus('resolvido')`, cor:'#3fa08c',
       badge: anteriores ? gestorBadge(atuais.resolvidos, anteriores.resolvidos, {modo:'sobe-bom', sufixo}) : '' },
-    { label:'Backlog atual', val: atuais.backlog, click:`setGestorStatus('aberto')`, cor:'#a992e0',
-      badge: `<span style="font:700 12px Manrope;color:${atuais.backlog>atuais.backlogInicio?'#e0955f':(atuais.backlog<atuais.backlogInicio?'#5abfa0':'#93a6c4')}">${atuais.backlog>atuais.backlogInicio?'+':''}${atuais.backlog-(atuais.backlogInicio??atuais.backlog)}</span> <span style="font:500 11px Manrope;color:#7186ab">vs. início do período</span>` },
+    { label:'Backlog do período', val: atuais.backlog, click:`setGestorStatus('aberto')`, cor:'#a992e0',
+      badge: anteriores ? gestorBadge(atuais.backlog, anteriores.backlog, {modo:'desce-bom', sufixo}) : '' },
     { label:'Pendentes', val: atuais.pendentes, click:`setGestorStatus('pendente')`, cor:'#c15c5c',
       badge: anteriores ? gestorBadge(atuais.pendentes, anteriores.pendentes, {modo:'desce-bom', sufixo}) : '' },
     { label:'Taxa de resolução', val: atuais.taxaResolucao.toFixed(0)+'%', click:`setGestorStatus('resolvido')`, cor:'#5db4e6',
@@ -1974,14 +1977,23 @@ function gestorSerieEvolucao(baseSemPeriodo, periodoDias) {
   const dias = Math.max(2, Math.min(periodoDias >= 999 ? 90 : periodoDias, 90));
   const hoje = new Date(); hoje.setHours(23,59,59,999);
   const pontos = [];
+  // Backlog aqui e acumulado DENTRO da janela do grafico (recebidos menos
+  // resolvidos, dia a dia, comecando do zero no inicio da janela) -- nao
+  // o acumulado historico desde sempre. Assim a linha reage ao periodo
+  // selecionado, igual ao KPI "Backlog do período".
+  let acumRecebidos = 0, acumResolvidos = 0;
   for (let i = dias-1; i >= 0; i--) {
     const fimDia = new Date(hoje); fimDia.setDate(fimDia.getDate()-i);
     const iniDia = new Date(fimDia); iniDia.setHours(0,0,0,0);
+    const recebidosDia = baseSemPeriodo.filter(c => gestorEmJanela(c.dataAbertura, iniDia, fimDia)).length;
+    const resolvidosDia = baseSemPeriodo.filter(c => gestorEmJanela(c.dataConclusao, iniDia, fimDia)).length;
+    acumRecebidos += recebidosDia;
+    acumResolvidos += resolvidosDia;
     pontos.push({
       data: iniDia,
-      recebidos: baseSemPeriodo.filter(c => gestorEmJanela(c.dataAbertura, iniDia, fimDia)).length,
-      resolvidos: baseSemPeriodo.filter(c => gestorEmJanela(c.dataConclusao, iniDia, fimDia)).length,
-      backlog: gestorBacklogEm(baseSemPeriodo, fimDia),
+      recebidos: recebidosDia,
+      resolvidos: resolvidosDia,
+      backlog: Math.max(0, acumRecebidos - acumResolvidos),
     });
   }
   return pontos;
