@@ -684,6 +684,10 @@ async function apiLogin(username, password) {
   const r = await fetch(`${PROXY}/auth/login`, { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({username,password}) });
   return r.json();
 }
+async function apiValidate(token) {
+  const r = await fetch(`${PROXY}/auth/validate`, { headers:{'Authorization':`Bearer ${token}`} });
+  return r.json();
+}
 async function apiLogout(token) {
   return fetch(`${PROXY}/auth/logout`, { method:'POST', headers:{'Authorization':`Bearer ${token}`} }).catch(()=>{});
 }
@@ -834,16 +838,33 @@ function enterApp() {
   carregarGertecCards();
 }
 
-// Restaura sessão salva neste navegador
+// Restaura sessão salva neste navegador. Usa o snapshot local pra abrir
+// a tela na hora (nao trava esperando rede), mas em seguida revalida
+// contra o servidor -- assim, se um admin mudou o flag "gestor" (ou
+// nome/telefones/atendenteSRG) de alguem que já está logado nesse
+// navegador, a mudança aparece sem precisar deslogar e logar de novo
+// (antes so pegava o dado do momento do login e ficava preso nele).
 (function initSession(){
   const saved = sessionStorage.getItem('srg_user');
   if (saved) {
     currentUser = JSON.parse(saved);
     enterApp();
+    revalidarSessao();
   } else {
     showLogin();
   }
 })();
+async function revalidarSessao() {
+  if (!currentUser || !currentUser.token) return;
+  try {
+    const data = await apiValidate(currentUser.token);
+    if (!data.ok) { doLogout(); return; } // sessao expirada ou usuario removido
+    currentUser = { ...currentUser, nome:data.nome||'', role:data.role, unidades:data.unidades||[], gestor:!!data.gestor, atendenteSRG:data.atendenteSRG||'' };
+    sessionStorage.setItem('srg_user', JSON.stringify(currentUser));
+    document.getElementById('nav-gestor').style.display = (currentUser.gestor || currentUser.role === 'admin') ? 'inline-block' : 'none';
+    document.getElementById('admin-btn').style.display = currentUser.role === 'admin' ? 'inline-flex' : 'none';
+  } catch(e) { /* falha de rede na revalidacao -- mantem sessao local, tenta de novo no proximo load */ }
+}
 
 // ---- Perfil ----
 function renderProfile() {
