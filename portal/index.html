@@ -441,6 +441,11 @@ footer.foot{border-top:1px solid rgba(255,255,255,.07);background:rgba(10,16,36,
           <button class="chip" data-gperiodo="60" onclick="setGestorPeriodo(60)">60 dias</button>
           <button class="chip" data-gperiodo="90" onclick="setGestorPeriodo(90)">90 dias</button>
           <button class="chip" data-gperiodo="999" onclick="setGestorPeriodo(999)">Todos</button>
+          <span style="width:1px;height:22px;background:rgba(255,255,255,.14);margin:0 4px"></span>
+          <span style="font:600 12.5px Manrope;color:#b3c4e0">De:</span>
+          <input type="date" id="gestor-data-de" onchange="setGestorDataCustom('dataDe', this.value)" style="height:38px;padding:0 10px;border-radius:10px;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.22);color:#eaf1ff;font:500 13px Manrope;color-scheme:dark">
+          <span style="font:600 12.5px Manrope;color:#b3c4e0">Até:</span>
+          <input type="date" id="gestor-data-ate" onchange="setGestorDataCustom('dataAte', this.value)" style="height:38px;padding:0 10px;border-radius:10px;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.22);color:#eaf1ff;font:500 13px Manrope;color-scheme:dark">
         </div>
         <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-top:16px">
           <span style="font:600 12.5px Manrope;color:#b3c4e0;margin-right:2px">Status:</span>
@@ -1697,6 +1702,8 @@ const gestorState = {
   setorSearch: '',
   atendenteSearch: '',
   ocultarProgramacao: true, // "Todos os chamados": esconde setor Programação na visão inicial (fila tecnica interna da Meta, nao o foco do dia-a-dia do gestor) -- pode reexibir clicando no toggle
+  dataDe: null,  // 'YYYY-MM-DD' -- quando preenchido, substitui os chips de periodo por um recorte exato de datas
+  dataAte: null,
 };
 
 // Mapeia o Status real do Notion (4 estados + Resolvido) pro agrupamento
@@ -1804,7 +1811,20 @@ async function carregarPainelGestor(forcar=false) {
 // outra tela", tudo e sempre a mesma pagina refiltrada.
 function setGestorPeriodo(p) {
   gestorState.periodo = p;
+  // Escolher um chip de periodo pronto cancela qualquer recorte de data
+  // exata que estivesse ativo (sao mutuamente exclusivos).
+  gestorState.dataDe = null; gestorState.dataAte = null;
+  document.getElementById('gestor-data-de').value = '';
+  document.getElementById('gestor-data-ate').value = '';
   document.querySelectorAll('[data-gperiodo]').forEach(b => b.classList.toggle('active', +b.dataset.gperiodo === p));
+  gestorRenderTudo();
+}
+// Campo de data exata ("De"/"Até"): assim que um dos dois é preenchido,
+// passa a mandar sobre os chips de período (que ficam todos inativos --
+// visualmente deixa claro que o recorte agora é por data, nao por dias).
+function setGestorDataCustom(campo, valor) {
+  gestorState[campo] = valor || null;
+  document.querySelectorAll('[data-gperiodo]').forEach(b => b.classList.remove('active'));
   gestorRenderTudo();
 }
 function setGestorStatus(s) {
@@ -1820,20 +1840,46 @@ function gestorLimparFiltro(campo) {
   if (campo === 'setor') gestorState.setor = 'todos';
   if (campo === 'atendente') gestorState.atendente = 'todos';
   if (campo === 'status') setGestorStatus('todos');
+  if (campo === 'data') {
+    gestorState.dataDe = null; gestorState.dataAte = null;
+    document.getElementById('gestor-data-de').value = '';
+    document.getElementById('gestor-data-ate').value = '';
+    document.querySelectorAll('[data-gperiodo]').forEach(b => b.classList.toggle('active', +b.dataset.gperiodo === gestorState.periodo));
+  }
   gestorPopularSelects();
   gestorRenderTudo();
 }
 function gestorLimparTudo() {
   gestorState.setor = 'todos'; gestorState.atendente = 'todos'; gestorState.statusFiltro = 'todos';
+  gestorState.dataDe = null; gestorState.dataAte = null;
+  document.getElementById('gestor-data-de').value = '';
+  document.getElementById('gestor-data-ate').value = '';
   document.querySelectorAll('[data-gstatus]').forEach(b => b.classList.toggle('active', b.dataset.gstatus === 'todos'));
+  document.querySelectorAll('[data-gperiodo]').forEach(b => b.classList.toggle('active', +b.dataset.gperiodo === gestorState.periodo));
   gestorPopularSelects();
   gestorRenderTudo();
 }
 
+// Recorte de datas ativo (custom "De"/"Até" tem prioridade sobre os
+// chips de dias) -- usado tanto pelo filtro de lista quanto pela janela
+// de comparacao com o periodo anterior, pra tudo no painel ler a mesma
+// definicao de "periodo selecionado".
+function gestorRangeAtivo() {
+  if (gestorState.dataDe || gestorState.dataAte) {
+    return {
+      ini: gestorState.dataDe ? new Date(gestorState.dataDe+'T00:00:00') : null,
+      fim: gestorState.dataAte ? new Date(gestorState.dataAte+'T23:59:59') : new Date(),
+    };
+  }
+  if (gestorState.periodo >= 999) return { ini: null, fim: new Date() };
+  const fim = new Date();
+  const ini = new Date(fim); ini.setDate(ini.getDate() - gestorState.periodo);
+  return { ini, fim };
+}
 function gestorFiltrarPeriodo(lista) {
-  if (gestorState.periodo >= 999) return lista;
-  const limite = new Date(); limite.setDate(limite.getDate() - gestorState.periodo);
-  return lista.filter(c => { const d = new Date(c.dataAbertura); return !isNaN(d) && d >= limite; });
+  const { ini, fim } = gestorRangeAtivo();
+  if (!ini) return lista;
+  return lista.filter(c => { const d = new Date(c.dataAbertura); return !isNaN(d) && d >= ini && d <= fim; });
 }
 function gestorAplicarFiltros(lista) {
   let r = gestorFiltrarPeriodo(lista);
@@ -1860,6 +1906,11 @@ function gestorPopularSelects() {
 function gestorRenderCrumbs() {
   const wrap = document.getElementById('gestor-crumbs');
   const crumbs = [];
+  if (gestorState.dataDe || gestorState.dataAte) {
+    const de = gestorState.dataDe ? fmtDate(gestorState.dataDe) : '—';
+    const ate = gestorState.dataAte ? fmtDate(gestorState.dataAte) : 'hoje';
+    crumbs.push({ label:`Data: ${de} até ${ate}`, campo:'data' });
+  }
   if (gestorState.setor !== 'todos') crumbs.push({ label:`Setor: ${gestorState.setor}`, campo:'setor' });
   if (gestorState.atendente !== 'todos') crumbs.push({ label:`Solicitante: ${gestorState.atendente}`, campo:'atendente' });
   if (gestorState.statusFiltro !== 'todos') {
@@ -1888,11 +1939,14 @@ function gestorRenderCrumbs() {
 // anterior (pra comparacao "vs. periodo anterior"). "Todos" nao tem
 // anterior (nao ha uma linha de base pra comparar).
 function gestorJanela(periodoDias) {
-  const fimAtual = new Date();
-  if (periodoDias >= 999) return { iniAtual: null, fimAtual, iniAnterior: null, fimAnterior: null };
-  const iniAtual = new Date(fimAtual); iniAtual.setDate(iniAtual.getDate() - periodoDias);
-  const fimAnterior = new Date(iniAtual);
-  const iniAnterior = new Date(fimAnterior); iniAnterior.setDate(iniAnterior.getDate() - periodoDias);
+  const { ini: iniAtual, fim: fimAtual } = gestorRangeAtivo();
+  if (!iniAtual) return { iniAtual: null, fimAtual, iniAnterior: null, fimAnterior: null };
+  // Periodo anterior = uma janela de duracao IGUAL, terminando bem antes
+  // do inicio da janela atual -- funciona tanto pros chips (30/60/90
+  // dias) quanto pro recorte de data exata "De"/"Até".
+  const duracaoMs = fimAtual - iniAtual;
+  const fimAnterior = new Date(iniAtual.getTime() - 1000);
+  const iniAnterior = new Date(fimAnterior.getTime() - duracaoMs);
   return { iniAtual, fimAtual, iniAnterior, fimAnterior };
 }
 function gestorEmJanela(dataStr, ini, fim) {
@@ -2035,8 +2089,12 @@ function gestorRenderKPIs(baseSemPeriodo, janela) {
 // 90 dias (nao daria pra ler um grafico com anos de pontos), mas os
 // KPIs continuam considerando a base inteira.
 function gestorSerieEvolucao(baseSemPeriodo, periodoDias) {
-  const dias = Math.max(2, Math.min(periodoDias >= 999 ? 90 : periodoDias, 90));
-  const hoje = new Date(); hoje.setHours(23,59,59,999);
+  // Respeita o recorte de data exata ("De"/"Até") quando ativo, senao usa
+  // o chip de periodo em dias -- mesma logica do resto do painel.
+  const range = gestorRangeAtivo();
+  const diasRange = range.ini ? Math.ceil((range.fim - range.ini) / 86400000) + 1 : (periodoDias >= 999 ? 90 : periodoDias);
+  const dias = Math.max(2, Math.min(diasRange, 90));
+  const hoje = range.ini ? new Date(range.fim) : new Date(); hoje.setHours(23,59,59,999);
   const pontos = [];
   // Backlog aqui e acumulado DENTRO da janela do grafico (recebidos menos
   // resolvidos, dia a dia, comecando do zero no inicio da janela) -- nao
