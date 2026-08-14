@@ -251,15 +251,6 @@ footer.foot{border-top:1px solid rgba(255,255,255,.07);background:rgba(10,16,36,
         <div id="lista-body" style="display:flex;flex-direction:column;gap:13px"></div>
       </div>
 
-      <!-- Funil de vendas GERTEC (troca/envio de maquinetas) -->
-      <div id="gertec-wrap" style="display:none">
-        <div style="display:flex;align-items:center;justify-content:space-between;margin:34px 0 16px">
-          <h2 style="font:700 20px Outfit,sans-serif;color:#f2f7ff">Equipamentos (GERTEC)</h2>
-          <span id="gertec-count" style="font:600 12.5px Manrope;color:#b3c4e0"></span>
-        </div>
-        <div id="gertec-body" style="display:flex;flex-direction:column;gap:13px"></div>
-      </div>
-
       <div id="search-result" style="margin-top:20px"></div>
 
       <!-- Detalhe -->
@@ -300,6 +291,16 @@ footer.foot{border-top:1px solid rgba(255,255,255,.07);background:rgba(10,16,36,
             Falar sobre este chamado
           </button>
         </div>
+      </div>
+
+      <!-- Funil de vendas GERTEC (troca/envio de maquinetas) -- fica sempre
+           depois da consulta/lista de chamados, nunca acima. -->
+      <div id="gertec-wrap" style="display:none">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin:34px 0 16px">
+          <h2 style="font:700 20px Outfit,sans-serif;color:#f2f7ff">Equipamentos (GERTEC)</h2>
+          <span id="gertec-count" style="font:600 12.5px Manrope;color:#b3c4e0"></span>
+        </div>
+        <div id="gertec-body" style="display:flex;flex-direction:column;gap:13px"></div>
       </div>
     </div>
 
