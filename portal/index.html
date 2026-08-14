@@ -471,6 +471,25 @@ footer.foot{border-top:1px solid rgba(255,255,255,.07);background:rgba(10,16,36,
       <!-- LINHA 1 — KPIs principais -->
       <div id="gestor-kpis" class="gestor-kpis" style="display:grid;grid-template-columns:repeat(6,1fr);gap:16px;margin-bottom:20px"></div>
 
+      <!-- Lista completa de chamados -- fica logo apos os KPIs, ANTES do
+           grafico/situacao, porque e o unico bloco que reage na hora e de
+           forma obvia a qualquer clique em filtro (KPI, setor, responsavel,
+           status). Clicar em algo e ver o resultado imediatamente embaixo
+           do que foi clicado, em vez de precisar rolar a tela toda. -->
+      <div class="glass" id="gestor-lista-completa" style="padding:26px 28px;margin-bottom:20px;transition:box-shadow .4s ease">
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:20px">
+          <div style="display:flex;align-items:center;gap:10px">
+            <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="#7fd4c0" stroke-width="1.9" stroke-linecap="round"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 9h18M8 4v16"/></svg>
+            <h3 style="font:700 17px Outfit,sans-serif;color:#f2f7ff;margin:0">Todos os chamados</h3>
+          </div>
+          <div style="display:flex;align-items:center;gap:12px">
+            <span id="gestor-toggle-prog" onclick="gestorToggleProgramacao()" style="font:600 11.5px Manrope;color:#8fb8e0;cursor:pointer;white-space:nowrap"></span>
+            <span id="gestor-ticket-count" style="font:600 12.5px Manrope;color:#93a6c4"></span>
+          </div>
+        </div>
+        <div id="gestor-tickets" style="display:flex;flex-direction:column;gap:10px"></div>
+      </div>
+
       <!-- LINHA 2 — Evolução (70%) + Situação atual (30%) -->
       <div class="gestor-evo-grid" style="display:grid;grid-template-columns:1.6fr .9fr;gap:20px;margin-bottom:20px">
         <div class="glass" style="padding:26px 28px">
@@ -567,21 +586,6 @@ footer.foot{border-top:1px solid rgba(255,255,255,.07);background:rgba(10,16,36,
             <tbody id="gestor-atencao-body"></tbody>
           </table>
         </div>
-      </div>
-
-      <!-- Lista completa de chamados (mantida — navegação/busca detalhada) -->
-      <div class="glass" id="gestor-lista-completa" style="padding:26px 28px;transition:box-shadow .4s ease">
-        <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:20px">
-          <div style="display:flex;align-items:center;gap:10px">
-            <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="#7fd4c0" stroke-width="1.9" stroke-linecap="round"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 9h18M8 4v16"/></svg>
-            <h3 style="font:700 17px Outfit,sans-serif;color:#f2f7ff;margin:0">Todos os chamados</h3>
-          </div>
-          <div style="display:flex;align-items:center;gap:12px">
-            <span id="gestor-toggle-prog" onclick="gestorToggleProgramacao()" style="font:600 11.5px Manrope;color:#8fb8e0;cursor:pointer;white-space:nowrap"></span>
-            <span id="gestor-ticket-count" style="font:600 12.5px Manrope;color:#93a6c4"></span>
-          </div>
-        </div>
-        <div id="gestor-tickets" style="display:flex;flex-direction:column;gap:10px"></div>
       </div>
 
       <div style="margin-top:22px;font:400 12px Manrope;color:#7186ab;text-align:center" id="gestor-fonte-nota">
@@ -2446,7 +2450,9 @@ function gestorAbrirTicket(id) {
       <div><div style="font:600 11.5px Manrope;color:#93a6c4">Conclusão</div><div style="font:600 14px Manrope;color:#eaf1ff">${c.dataConclusao?fmtDate(c.dataConclusao):'—'}</div></div>
       <div><div style="font:600 11.5px Manrope;color:#93a6c4">Nível de atendimento</div><div style="font:600 14px Manrope;color:${c.nivelAtendimento==='N3+'?'#e0a888':'#eaf1ff'}">${c.nivelAtendimento==='N3+'?'N3+ (escalado)':(c.nivelAtendimento||'N2')}</div></div>
     </div>
-    <div style="font:600 13px Manrope;color:#bcccea;margin-bottom:10px">Histórico</div>
+    ${buildExpandable('gestor-desc-expand', 'Descrição completa', gp(c.page,'Descrição Completa','rich_text'))}
+    ${buildExpandable('gestor-sol-expand', 'Solução', gp(c.page,'Solução','rich_text'))}
+    <div style="font:600 13px Manrope;color:#bcccea;margin:18px 0 10px">Histórico</div>
     ${buildTimeline(c.page)}`;
   modal.style.display = 'flex';
 }
