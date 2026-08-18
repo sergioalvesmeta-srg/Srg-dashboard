@@ -211,13 +211,13 @@ footer.foot{border-top:1px solid rgba(255,255,255,.07);background:rgba(10,16,36,
           </div>
           <div>
             <h2 style="font:700 19px Outfit,sans-serif;color:#f2f7ff">Consultar chamado</h2>
-            <p style="font:400 13px Manrope;color:#b3c4e0;margin-top:2px">Digite o número do Protocolo, Ticket ou SO.</p>
+            <p style="font:400 13px Manrope;color:#b3c4e0;margin-top:2px">Digite o número do Protocolo, Ticket, SO — ou uma palavra do assunto.</p>
           </div>
         </div>
         <div class="search-row" style="display:flex;gap:12px;flex-wrap:wrap;margin-top:22px">
           <div class="field" style="flex:1;min-width:240px">
             <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="#8399be" stroke-width="1.8" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
-            <input type="text" id="proto-input" placeholder="Ex: 2026060511573" onkeydown="if(event.key==='Enter')buscar()">
+            <input type="text" id="proto-input" placeholder="Ex: 2026060511573 ou Shell" onkeydown="if(event.key==='Enter')buscar()">
           </div>
           <button class="btn-primary" id="search-btn" onclick="buscar()">
             <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
@@ -1415,16 +1415,69 @@ async function buscar() {
       if (exato.length) found = exato.sort((a,b)=>new Date(b.last_edited_time)-new Date(a.last_edited_time))[0];
     }
     res.innerHTML = '';
-    if (!found) {
-      res.innerHTML = `<div class="glass" style="padding:2rem;text-align:center"><div style="font:700 15px Outfit,sans-serif;color:#f2f7ff;margin-bottom:6px">Chamado não encontrado</div><div style="font:400 13px Manrope;color:#b3c4e0">Verifique o número informado ou entre em contato com o suporte.</div></div>`;
+    if (found) { mostrarDetalhe(found); return; }
+
+    // Não achou por protocolo/ticket -- tenta por palavra, no Cliente
+    // (titulo, ex: "CAC 21 — Integração > Shell [Raizen]") e na Descrição
+    // Completa. Se achar mais de um, mostra como lista pra escolher; se
+    // achar só um, abre direto o detalhe.
+    const filtroPalavra = {
+      or: [
+        { property:'Cliente', title:{ contains:q } },
+        { property:'Descrição Completa', rich_text:{ contains:q } },
+      ],
+    };
+    const body = { page_size:50, sorts:[{timestamp:'last_edited_time',direction:'descending'}], filter: filtroPalavra };
+    const r = await fetch(`${PROXY}/v1/databases/${DB}/query`, { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body) });
+    const d = await r.json();
+    if (!r.ok) throw new Error(d.message||'Erro');
+    let achados = d.results || [];
+    if (currentUser.unidades && currentUser.unidades.length) {
+      achados = achados.filter(p => contatoPertenceAoUsuario(p, currentUser.unidades));
+    }
+    if (currentUser.atendenteSRG) {
+      achados = achados.filter(p => gp(p,'Solicitante','rich_text') === currentUser.atendenteSRG);
+    }
+    if (!achados.length) {
+      res.innerHTML = `<div class="glass" style="padding:2rem;text-align:center"><div style="font:700 15px Outfit,sans-serif;color:#f2f7ff;margin-bottom:6px">Chamado não encontrado</div><div style="font:400 13px Manrope;color:#b3c4e0">Verifique o número/palavra informado ou entre em contato com o suporte.</div></div>`;
       return;
     }
-    mostrarDetalhe(found);
+    if (achados.length === 1) { mostrarDetalhe(achados[0]); return; }
+    mostrarResultadosBusca(achados, q);
   } catch(e) {
     res.innerHTML = `<div class="glass" style="padding:2rem;text-align:center;color:#fc8181;font:600 14px Manrope">Erro ao consultar: ${e.message}</div>`;
   } finally {
     btn.disabled=false; btnText.textContent='Consultar';
   }
+}
+
+// Lista de resultados quando a busca por palavra encontra mais de um
+// chamado -- cada card abre o detalhe completo ao clicar.
+function mostrarResultadosBusca(achados, termo) {
+  document.getElementById('lista-wrap').style.display = 'none';
+  document.getElementById('detalhe-wrap').style.display = 'none';
+  const res = document.getElementById('search-result');
+  window.buscaResultadosCache = achados;
+  res.innerHTML = `
+    <div style="font:600 12.5px Manrope;color:#93a6c4;margin-bottom:12px">${achados.length} chamado${achados.length>1?'s':''} encontrado${achados.length>1?'s':''} para "${termo}"</div>
+    <div style="display:flex;flex-direction:column;gap:10px">
+      ${achados.map((p,i) => {
+        const nome = gp(p,'Cliente','title') || 'Sem assunto';
+        const status = gp(p,'Status','select');
+        const proto = gp(p,'Protocolo Digisac','rich_text');
+        const setor = gp(p,'Setor Suporte','select');
+        const atendente = gp(p,'Atendente','rich_text');
+        const abertura = gp(p,'Data Abertura','date');
+        return `<div onclick="mostrarDetalhe(window.buscaResultadosCache[${i}])" style="display:flex;align-items:center;gap:16px;padding:14px 16px;border-radius:14px;cursor:pointer;background:rgba(255,255,255,.035);border:1px solid rgba(255,255,255,.08)">
+          <span style="width:10px;height:10px;border-radius:50%;flex-shrink:0;background:${KIND_COLOR[statusKind(status)]}"></span>
+          <div style="flex:1;min-width:0">
+            <div style="font:700 14px Manrope;color:#eaf1ff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${nome}</div>
+            <div style="font:500 12px Manrope;color:#93a6c4;margin-top:3px">Protocolo ${proto||'—'} · ${setor||'—'} · ${atendente||'—'} · ${fmtDate(abertura)}</div>
+          </div>
+          ${pillHtml(status)}
+        </div>`;
+      }).join('')}
+    </div>`;
 }
 
 function mostrarDetalhe(found) {
@@ -2442,13 +2495,14 @@ function gestorAbrirTicket(id) {
       ${pillHtml(c.status)}
     </div>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:18px">
-      <div><div style="font:600 11.5px Manrope;color:#93a6c4">Protocolo</div><div style="font:600 14px Manrope;color:#eaf1ff">${c.protocolo||'—'}</div></div>
+      <div><div style="font:600 11.5px Manrope;color:#93a6c4">Protocolo</div><div style="display:flex;align-items:center;gap:8px;margin-top:2px"><span style="font:600 14px Manrope;color:#eaf1ff">${c.protocolo||'—'}</span>${c.protocolo?botaoCopiar(c.protocolo):''}</div></div>
+      <div><div style="font:600 11.5px Manrope;color:#93a6c4">Ticket Meta</div><div style="display:flex;align-items:center;gap:8px;margin-top:2px"><span style="font:600 14px Manrope;color:#eaf1ff">${gp(c.page,'Ticket Meta','rich_text')||'—'}</span>${gp(c.page,'Ticket Meta','rich_text')?botaoCopiar(gp(c.page,'Ticket Meta','rich_text')):''}</div></div>
       <div><div style="font:600 11.5px Manrope;color:#93a6c4">Setor</div><div style="font:600 14px Manrope;color:#eaf1ff">${c.setor}</div></div>
+      <div><div style="font:600 11.5px Manrope;color:#93a6c4">Nível de atendimento</div><div style="font:600 14px Manrope;color:${c.nivelAtendimento==='N3+'?'#e0a888':'#eaf1ff'}">${c.nivelAtendimento==='N3+'?'N3+ (escalado)':(c.nivelAtendimento||'N2')}</div></div>
       <div><div style="font:600 11.5px Manrope;color:#93a6c4">Atendente Meta</div><div style="font:600 14px Manrope;color:#eaf1ff">${c.atendente}</div></div>
       <div><div style="font:600 11.5px Manrope;color:#93a6c4">Atendente SRG</div><div style="font:600 14px Manrope;color:#eaf1ff">${c.atendenteSRG||'—'}</div></div>
       <div><div style="font:600 11.5px Manrope;color:#93a6c4">Aberto em</div><div style="font:600 14px Manrope;color:#eaf1ff">${fmtDate(c.dataAbertura)}</div></div>
       <div><div style="font:600 11.5px Manrope;color:#93a6c4">Conclusão</div><div style="font:600 14px Manrope;color:#eaf1ff">${c.dataConclusao?fmtDate(c.dataConclusao):'—'}</div></div>
-      <div><div style="font:600 11.5px Manrope;color:#93a6c4">Nível de atendimento</div><div style="font:600 14px Manrope;color:${c.nivelAtendimento==='N3+'?'#e0a888':'#eaf1ff'}">${c.nivelAtendimento==='N3+'?'N3+ (escalado)':(c.nivelAtendimento||'N2')}</div></div>
     </div>
     ${buildExpandable('gestor-desc-expand', 'Descrição completa', gp(c.page,'Descrição Completa','rich_text'))}
     ${buildExpandable('gestor-sol-expand', 'Solução', gp(c.page,'Solução','rich_text'))}
