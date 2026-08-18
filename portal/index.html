@@ -227,10 +227,16 @@ footer.foot{border-top:1px solid rgba(255,255,255,.07);background:rgba(10,16,36,
         </div>
         <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-top:20px">
           <span style="font:600 12.5px Manrope;color:#b3c4e0;margin-right:2px">Período:</span>
+          <button class="chip" data-periodo="7" onclick="setPeriodo(7,this)">Esta semana</button>
           <button class="chip" data-periodo="30" onclick="setPeriodo(30,this)">30 dias</button>
           <button class="chip" data-periodo="60" onclick="setPeriodo(60,this)">60 dias</button>
           <button class="chip" data-periodo="90" onclick="setPeriodo(90,this)">90 dias</button>
           <button class="chip active" data-periodo="0" onclick="setPeriodo(0,this)">Todos</button>
+          <span style="width:1px;height:22px;background:rgba(255,255,255,.14);margin:0 4px"></span>
+          <span style="font:600 12.5px Manrope;color:#b3c4e0">De:</span>
+          <input type="date" id="dash-data-de" onchange="setDataCustom('dataDe', this.value)" style="height:38px;padding:0 10px;border-radius:10px;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.22);color:#eaf1ff;font:500 13px Manrope;color-scheme:dark">
+          <span style="font:600 12.5px Manrope;color:#b3c4e0">Até:</span>
+          <input type="date" id="dash-data-ate" onchange="setDataCustom('dataAte', this.value)" style="height:38px;padding:0 10px;border-radius:10px;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.22);color:#eaf1ff;font:500 13px Manrope;color-scheme:dark">
         </div>
         <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-top:14px">
           <span style="font:600 12.5px Manrope;color:#b3c4e0;margin-right:2px">Status:</span>
@@ -715,6 +721,8 @@ async function apiDeleteUser(token, username) {
 
 let currentUser = null;
 let currentPeriodo = 0;
+let currentDataDe = null;   // 'YYYY-MM-DD' -- quando preenchido, substitui os chips de periodo
+let currentDataAte = null;
 let currentStatusFiltro = ['Em Andamento','Aguardando Meta','Pendente SRG','Pendente PO'];
 let currentProto = '';
 let ultimosResultados = [];
@@ -1120,8 +1128,19 @@ function buildTimeline(page) {
 // ---- Período / limpar ----
 function setPeriodo(dias, btn) {
   currentPeriodo = dias;
+  currentDataDe = null; currentDataAte = null;
+  document.getElementById('dash-data-de').value = '';
+  document.getElementById('dash-data-ate').value = '';
   document.querySelectorAll('.chip[data-periodo]').forEach(b=>b.classList.remove('active'));
   btn.classList.add('active');
+  carregarMeusChamados();
+}
+// Campo de data exata ("De"/"Até"): sobrepoe os chips de periodo quando
+// preenchido, igual ja funciona no Painel do Gestor.
+function setDataCustom(campo, valor) {
+  if (campo === 'dataDe') currentDataDe = valor || null;
+  if (campo === 'dataAte') currentDataAte = valor || null;
+  document.querySelectorAll('.chip[data-periodo]').forEach(b=>b.classList.remove('active'));
   carregarMeusChamados();
 }
 function toggleStatusFiltro(status, btn) {
@@ -1217,7 +1236,11 @@ async function carregarMeusChamados() {
       results = d.results || [];
     }
 
-    if (currentPeriodo > 0) {
+    if (currentDataDe || currentDataAte) {
+      const ini = currentDataDe ? new Date(currentDataDe+'T00:00:00') : null;
+      const fim = currentDataAte ? new Date(currentDataAte+'T23:59:59') : new Date();
+      results = results.filter(p => { const d = new Date(p.created_time); return (!ini || d >= ini) && d <= fim; });
+    } else if (currentPeriodo > 0) {
       const limite = new Date(); limite.setDate(limite.getDate()-currentPeriodo);
       results = results.filter(p => new Date(p.created_time) >= limite);
     }
