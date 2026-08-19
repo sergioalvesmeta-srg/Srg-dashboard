@@ -514,7 +514,7 @@ footer.foot{border-top:1px solid rgba(255,255,255,.07);background:rgba(10,16,36,
             </div>
           </div>
           <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:16px">
-            <span style="font:600 11.5px Manrope;color:#7186ab">Acompanhar quem estava aberto há:</span>
+            <span style="font:600 11.5px Manrope;color:#7186ab">Backlog dia a dia nos últimos:</span>
             <button class="chip" data-gcoorte="7" onclick="setGestorCoorte(7)" style="height:30px;padding:0 12px;font-size:11.5px">7 dias</button>
             <button class="chip" data-gcoorte="15" onclick="setGestorCoorte(15)" style="height:30px;padding:0 12px;font-size:11.5px">15 dias</button>
             <button class="chip" data-gcoorte="30" onclick="setGestorCoorte(30)" style="height:30px;padding:0 12px;font-size:11.5px">30 dias</button>
@@ -2246,57 +2246,54 @@ function gestorSerieEvolucao(baseSemPeriodo, periodoDias) {
   }
   return pontos;
 }
-// ---- Visão de coorte: "quem estava aberto ha N dias, e o que aconteceu
-// com ESSE grupo especifico desde entao ate hoje". Diferente do grafico
-// padrao (que mostra fluxo diario recebidos/resolvidos/backlog geral),
-// aqui o grupo e travado no dia de referencia e so acompanhamos ele.
-function gestorSerieCoorte(baseSemPeriodo, dias) {
+// ---- Visão "Backlog diário": quantos chamados estavam REALMENTE em
+// aberto em cada dia da janela escolhida (7/15/30 dias) -- e um retrato
+// dia a dia (sobe quando entram mais chamados do que se resolve, desce
+// quando se resolve mais do que entra), não um grupo fixo que só
+// diminui. Reaproveita a mesma logica do gestorBacklogEm, mas calculada
+// pra cada dia da janela.
+function gestorSerieBacklogDiario(baseSemPeriodo, dias) {
   const hoje = new Date(); hoje.setHours(23,59,59,999);
-  const referencia = new Date(hoje); referencia.setDate(referencia.getDate() - dias); referencia.setHours(23,59,59,999);
-  // O grupo = tudo que ja estava aberto (recebido e ainda sem conclusao,
-  // ou concluido DEPOIS da referencia) no fim do dia de referencia --
-  // mesma logica do gestorBacklogEm, so que aqui guardamos a lista, nao
-  // so a contagem, pra poder acompanhar cada um deles dia a dia.
-  const grupo = baseSemPeriodo.filter(c => {
-    const abertura = new Date(c.dataAbertura);
-    if (isNaN(abertura) || abertura > referencia) return false;
-    if (!c.dataConclusao) return true;
-    const conclusao = new Date(c.dataConclusao);
-    return isNaN(conclusao) || conclusao > referencia;
-  });
-  const total = grupo.length;
   const pontos = [];
   for (let i = dias; i >= 0; i--) {
     const dia = new Date(hoje); dia.setDate(dia.getDate() - i); dia.setHours(23,59,59,999);
-    const resolvidos = grupo.filter(c => c.dataConclusao && new Date(c.dataConclusao) <= dia).length;
-    pontos.push({ data: new Date(dia), resolvidos, restam: total - resolvidos });
+    pontos.push({ data: new Date(dia), backlog: gestorBacklogEm(baseSemPeriodo, dia) });
   }
-  return { pontos, total, referencia };
+  return pontos;
 }
 function gestorRenderEvolucaoCoorte(baseSemPeriodo, dias) {
-  const { pontos, total, referencia } = gestorSerieCoorte(baseSemPeriodo, dias);
-  // Monta a data local (dia/mes/ano) na mao, sem passar por toISOString --
-  // isso evita virar o dia errado por causa do fuso (UTC-3 perto da
-  // meia-noite deslocaria a data em 1 dia).
-  const refLabel = referencia.toLocaleDateString('pt-BR');
+  const pontos = gestorSerieBacklogDiario(baseSemPeriodo, dias);
+  const primeiro = pontos[0], ultimo = pontos[pontos.length-1];
+  const variacao = ultimo.backlog - primeiro.backlog;
+  const corVar = variacao > 0 ? '#e0955f' : (variacao < 0 ? '#5abfa0' : '#93a6c4');
   const nota = document.getElementById('gestor-evo-coorte-nota');
   nota.style.display = 'block';
-  nota.innerHTML = total
-    ? `<strong style="color:#dbe6fb">${total} chamado${total>1?'s':''}</strong> estava${total>1?'m':''} em aberto em <strong style="color:#dbe6fb">${refLabel}</strong> (há ${dias} dias) — acompanhando o que aconteceu com esse grupo desde então.`
-    : `Nenhum chamado estava em aberto em ${refLabel} (há ${dias} dias) — nada pra acompanhar nesse recorte.`;
+  nota.innerHTML = `Backlog (chamados em aberto) dia a dia nos últimos ${dias} dias: de <strong style="color:#dbe6fb">${primeiro.backlog}</strong> em ${primeiro.data.toLocaleDateString('pt-BR')} para <strong style="color:#dbe6fb">${ultimo.backlog}</strong> hoje <span style="color:${corVar};font-weight:700">(${variacao>0?'+':''}${variacao})</span>.`;
   document.getElementById('gestor-evo-legenda').innerHTML = `
-    <span style="display:flex;align-items:center;gap:7px;font:500 12px Manrope;color:#b3c4e0"><span style="width:10px;height:3px;border-radius:2px;background:#c15c5c"></span>Ainda em aberto (do grupo)</span>
-    <span style="display:flex;align-items:center;gap:7px;font:500 12px Manrope;color:#b3c4e0"><span style="width:10px;height:3px;border-radius:2px;background:#3fa08c"></span>Resolvidos (do grupo)</span>`;
-  const max = Math.max(1, total);
-  const W = 720, H = 240, padX = 26, padY = 20;
+    <span style="display:flex;align-items:center;gap:7px;font:500 12px Manrope;color:#b3c4e0"><span style="width:10px;height:3px;border-radius:2px;background:#a992e0"></span>Backlog no dia</span>`;
+  const max = Math.max(1, ...pontos.map(p => p.backlog));
+  const W = 720, H = 240, padX = 26, padY = 34;
   const stepX = pontos.length > 1 ? (W - padX*2) / (pontos.length-1) : 0;
   const y = v => H - padY - (v/max)*(H - padY*2);
-  const linha = (campo) => pontos.map((p,i) => `${padX+i*stepX},${y(p[campo])}`).join(' ');
-  const pontosHit = (campo, cor) => pontos.map((p,i) => `<circle cx="${padX+i*stepX}" cy="${y(p[campo])}" r="9" fill="transparent"><title>${p.data.toLocaleDateString('pt-BR')} — ${campo==='restam'?'ainda em aberto':'resolvidos'}: ${p[campo]}</title></circle><circle cx="${padX+i*stepX}" cy="${y(p[campo])}" r="3" fill="${cor}" style="pointer-events:none"/>`).join('');
+  const linha = pontos.map((p,i) => `${padX+i*stepX},${y(p.backlog)}`).join(' ');
+  const pontosHit = pontos.map((p,i) => `<circle cx="${padX+i*stepX}" cy="${y(p.backlog)}" r="9" fill="transparent"><title>${p.data.toLocaleDateString('pt-BR')} — backlog: ${p.backlog}</title></circle><circle cx="${padX+i*stepX}" cy="${y(p.backlog)}" r="3.5" fill="#a992e0" style="pointer-events:none"/>`).join('');
+  // "Quadrado" com o valor exato -- fica sempre visível (nao so no hover),
+  // pra dar o numero de cada dia de cara, como pedido. So nao mostra em
+  // TODOS os pontos quando a janela e grande (30 dias), senao empilha.
+  const passoValor = Math.max(1, Math.ceil(pontos.length/10));
+  const valores = pontos.map((p,i) => {
+    if (i % passoValor !== 0 && i !== pontos.length-1) return '';
+    const cx = padX+i*stepX, cy = y(p.backlog);
+    const txt = String(p.backlog);
+    const largura = 14 + txt.length*7;
+    return `<g style="pointer-events:none">
+      <rect x="${cx-largura/2}" y="${cy-26}" width="${largura}" height="19" rx="6" fill="rgba(169,146,224,.18)" stroke="#a992e0" stroke-width="1"/>
+      <text x="${cx}" y="${cy-13}" text-anchor="middle" font-size="11" font-weight="700" fill="#dbe6fb" font-family="Manrope">${txt}</text>
+    </g>`;
+  }).join('');
   document.getElementById('gestor-evo-svg').innerHTML = `
-    <polyline points="${linha('restam')}" fill="none" stroke="#c15c5c" stroke-width="2.4"/>
-    <polyline points="${linha('resolvidos')}" fill="none" stroke="#3fa08c" stroke-width="2.4"/>
-    ${pontosHit('restam','#c15c5c')}${pontosHit('resolvidos','#3fa08c')}`;
+    <polyline points="${linha}" fill="none" stroke="#a992e0" stroke-width="2.4"/>
+    ${pontosHit}${valores}`;
   const passo = Math.max(1, Math.ceil(pontos.length/7));
   document.getElementById('gestor-evo-labels').innerHTML = pontos.map((p,i) =>
     i % passo === 0 || i === pontos.length-1
