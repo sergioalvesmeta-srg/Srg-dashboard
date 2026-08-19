@@ -411,13 +411,19 @@ footer.foot{border-top:1px solid rgba(255,255,255,.07);background:rgba(10,16,36,
         </div>
         <div class="glass" style="padding:28px">
           <h3 style="font:700 17px Outfit,sans-serif;color:#f2f7ff;margin-bottom:6px">Conta</h3>
-          <p style="font:400 13px Manrope;color:#b3c4e0;margin-bottom:18px">Dados de acesso vindos do sistema central (Cloudflare KV). Alteração de senha ou dados pessoais deve ser feita pelo administrador do portal.</p>
-          <div style="display:flex;align-items:center;justify-content:space-between;gap:14px;padding:16px 18px;border-radius:14px;background:rgba(255,255,255,.035);border:1px solid rgba(255,255,255,.08)">
-            <div style="display:flex;align-items:center;gap:13px">
+          <p style="font:400 13px Manrope;color:#b3c4e0;margin-bottom:18px">Dados de acesso vindos do sistema central (Cloudflare KV). Unidade e permissões só o administrador altera — a senha você mesmo pode trocar aqui.</p>
+          <div style="padding:18px 18px 20px;border-radius:14px;background:rgba(255,255,255,.035);border:1px solid rgba(255,255,255,.08)">
+            <div style="display:flex;align-items:center;gap:13px;margin-bottom:16px">
               <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#7fd4c0" stroke-width="1.8" stroke-linecap="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
-              <div><div style="font:600 14px Manrope;color:#eaf1ff">Senha</div><div style="font:400 12px Manrope;color:#b3c4e0">Gerenciada pelo administrador</div></div>
+              <div><div style="font:600 14px Manrope;color:#eaf1ff">Alterar senha</div><div style="font:400 12px Manrope;color:#b3c4e0">Digite a senha atual e a nova senha</div></div>
             </div>
-            <button onclick="showForgot()" style="height:40px;padding:0 18px;border-radius:11px;cursor:pointer;font:600 13px Manrope;color:#dbe6fb;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.14)">Solicitar alteração</button>
+            <div style="display:flex;flex-direction:column;gap:10px;max-width:360px">
+              <input type="password" id="pw-atual" placeholder="Senha atual" autocomplete="current-password" style="height:44px;padding:0 15px;border-radius:11px;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.22);color:#eaf1ff;font:500 13.5px Manrope">
+              <input type="password" id="pw-nova" placeholder="Nova senha (mínimo 6 caracteres)" autocomplete="new-password" style="height:44px;padding:0 15px;border-radius:11px;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.22);color:#eaf1ff;font:500 13.5px Manrope">
+              <input type="password" id="pw-confirma" placeholder="Confirmar nova senha" autocomplete="new-password" onkeydown="if(event.key==='Enter')trocarSenha()" style="height:44px;padding:0 15px;border-radius:11px;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.22);color:#eaf1ff;font:500 13.5px Manrope">
+              <div id="pw-msg" style="display:none;font:500 12.5px Manrope"></div>
+              <button onclick="trocarSenha()" id="pw-btn" class="btn-primary" style="height:44px;margin-top:4px;align-self:flex-start;padding:0 22px">Salvar nova senha</button>
+            </div>
           </div>
         </div>
       </div>
@@ -719,6 +725,47 @@ async function apiValidate(token) {
 }
 async function apiLogout(token) {
   return fetch(`${PROXY}/auth/logout`, { method:'POST', headers:{'Authorization':`Bearer ${token}`} }).catch(()=>{});
+}
+async function apiChangePassword(token, currentPassword, newPassword) {
+  const r = await fetch(`${PROXY}/auth/change-password`, {
+    method: 'POST',
+    headers: { 'Content-Type':'application/json', 'Authorization':`Bearer ${token}` },
+    body: JSON.stringify({ currentPassword, newPassword }),
+  });
+  return r.json();
+}
+async function trocarSenha() {
+  const atual = document.getElementById('pw-atual').value;
+  const nova = document.getElementById('pw-nova').value;
+  const confirma = document.getElementById('pw-confirma').value;
+  const msg = document.getElementById('pw-msg');
+  const btn = document.getElementById('pw-btn');
+
+  const mostrarMsg = (texto, cor) => { msg.style.display = 'block'; msg.style.color = cor; msg.textContent = texto; };
+
+  if (!atual || !nova || !confirma) { mostrarMsg('Preencha todos os campos.', '#fc8181'); return; }
+  if (nova.length < 6) { mostrarMsg('A nova senha precisa ter pelo menos 6 caracteres.', '#fc8181'); return; }
+  if (nova !== confirma) { mostrarMsg('A confirmação não bate com a nova senha.', '#fc8181'); return; }
+
+  btn.disabled = true;
+  const textoOriginal = btn.textContent;
+  btn.textContent = 'Salvando...';
+  try {
+    const data = await apiChangePassword(currentUser.token, atual, nova);
+    if (!data.ok) {
+      mostrarMsg(data.error || 'Não foi possível trocar a senha.', '#fc8181');
+      return;
+    }
+    mostrarMsg('Senha alterada com sucesso!', '#7fe0c0');
+    document.getElementById('pw-atual').value = '';
+    document.getElementById('pw-nova').value = '';
+    document.getElementById('pw-confirma').value = '';
+  } catch(e) {
+    mostrarMsg('Erro de conexão. Tenta de novo em instantes.', '#fc8181');
+  } finally {
+    btn.disabled = false;
+    btn.textContent = textoOriginal;
+  }
 }
 async function apiListUsers(token) {
   const r = await fetch(`${PROXY}/auth/users`, { headers:{'Authorization':`Bearer ${token}`} });
