@@ -1821,6 +1821,7 @@ const gestorState = {
   dataAte: null,
   coorteDias: null, // 7 | 15 | 30 | null -- quando preenchido, o grafico de evolucao muda pra visao de coorte (ver gestorRenderEvolucaoCoorte)
   listaAberta: true, // "Todos os chamados" pode ficar muito longa (100+) -- da pra recolher
+  atencaoExpandido: false, // "Chamados que exigem atenção" mostra so os 15 primeiros por padrao -- da pra expandir e ver todos
 };
 
 // Mapeia o Status real do Notion (4 estados + Resolvido) pro agrupamento
@@ -2558,12 +2559,24 @@ function gestorCalcularAtencao(filtrados) {
       return { ...c, dias, score, statusLabel, cor };
     })
     .sort((a,b) => b.score - a.score);
-  return { linhas: todas.slice(0, 15), total: todas.length };
+  const limite = gestorState.atencaoExpandido ? todas.length : 15;
+  return { linhas: todas.slice(0, limite), total: todas.length };
+}
+function gestorToggleAtencao() {
+  gestorState.atencaoExpandido = !gestorState.atencaoExpandido;
+  gestorRenderTudo();
 }
 function gestorRenderAtencao(resultado) {
   const { linhas, total } = resultado;
   const contagemEl = document.getElementById('gestor-atencao-count');
-  if (contagemEl) contagemEl.textContent = total ? `${total} no total · exibindo ${linhas.length}` : '';
+  if (contagemEl) {
+    const escondidos = total - linhas.length;
+    contagemEl.innerHTML = total
+      ? `${total} no total · exibindo ${linhas.length}` + (escondidos > 0 || gestorState.atencaoExpandido
+          ? ` &nbsp;·&nbsp; <span onclick="gestorToggleAtencao()" style="cursor:pointer;color:#8fd0f5;text-decoration:underline">${escondidos > 0 ? `mostrar todos (${total})` : 'mostrar menos'}</span>`
+          : '')
+      : '';
+  }
   const el = document.getElementById('gestor-atencao-body');
   if (!linhas.length) { el.innerHTML = `<tr><td colspan="6" style="color:#7186ab">Nenhum chamado em aberto no filtro atual — tudo em dia.</td></tr>`; return; }
   el.innerHTML = linhas.map(c => `
