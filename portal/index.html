@@ -510,11 +510,11 @@ footer.foot{border-top:1px solid rgba(255,255,255,.07);background:rgba(10,16,36,
             <div id="gestor-evo-legenda" style="display:flex;gap:16px;flex-wrap:wrap">
               <span style="display:flex;align-items:center;gap:7px;font:500 12px Manrope;color:#b3c4e0"><span style="width:10px;height:3px;border-radius:2px;background:#5db4e6"></span>Recebidos</span>
               <span style="display:flex;align-items:center;gap:7px;font:500 12px Manrope;color:#b3c4e0"><span style="width:10px;height:3px;border-radius:2px;background:#3fa08c"></span>Resolvidos</span>
-              <span style="display:flex;align-items:center;gap:7px;font:500 12px Manrope;color:#b3c4e0"><span style="width:10px;height:3px;border-radius:2px;background:#a992e0"></span>Backlog</span>
+              <span style="display:flex;align-items:center;gap:7px;font:500 12px Manrope;color:#b3c4e0"><span style="width:10px;height:3px;border-radius:2px;background:#a992e0"></span>Pendências</span>
             </div>
           </div>
           <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:16px">
-            <span style="font:600 11.5px Manrope;color:#7186ab">Backlog dia a dia nos últimos:</span>
+            <span style="font:600 11.5px Manrope;color:#7186ab">Pendências dia a dia nos últimos:</span>
             <button class="chip" data-gcoorte="7" onclick="setGestorCoorte(7)" style="height:30px;padding:0 12px;font-size:11.5px">7 dias</button>
             <button class="chip" data-gcoorte="15" onclick="setGestorCoorte(15)" style="height:30px;padding:0 12px;font-size:11.5px">15 dias</button>
             <button class="chip" data-gcoorte="30" onclick="setGestorCoorte(30)" style="height:30px;padding:0 12px;font-size:11.5px">30 dias</button>
@@ -551,7 +551,7 @@ footer.foot{border-top:1px solid rgba(255,255,255,.07);background:rgba(10,16,36,
           <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:22px">
             <div style="display:flex;align-items:center;gap:10px">
               <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="#7fd4c0" stroke-width="1.9" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
-              <h3 style="font:700 17px Outfit,sans-serif;color:#f2f7ff;margin:0">Idade do backlog</h3>
+              <h3 style="font:700 17px Outfit,sans-serif;color:#f2f7ff;margin:0">Idade das pendências</h3>
             </div>
             <span id="gestor-mais-antigo" style="font:600 12px Manrope;color:#93a6c4"></span>
           </div>
@@ -2195,7 +2195,7 @@ function gestorRenderKPIs(baseSemPeriodo, janela) {
       badge: anteriores ? gestorBadge(atuais.recebidos, anteriores.recebidos, {modo:'neutro', sufixo}) : '' },
     { label:'Resolvidos <span style="font-weight:500;color:#5c7095">· fluxo</span>', val: atuais.resolvidos, click:`setGestorStatus('resolvido')`, cor:'#3fa08c',
       badge: anteriores ? gestorBadge(atuais.resolvidos, anteriores.resolvidos, {modo:'sobe-bom', sufixo}) : '' },
-    { label:'Backlog do período <span style="font-weight:500;color:#5c7095">· fluxo</span>', val: atuais.backlog, click:`setGestorStatus('aberto')`, cor:'#a992e0',
+    { label:'Pendências do período <span style="font-weight:500;color:#5c7095">· fluxo</span>', val: atuais.backlog, click:`setGestorStatus('aberto')`, cor:'#a992e0',
       badge: (anteriores ? gestorBadge(atuais.backlog, anteriores.backlog, {modo:'desce-bom', sufixo}) : '') + `<div style="margin-top:6px;font:600 11px Manrope;color:#7186ab" title="Passivo total acumulado ate agora, independente do periodo selecionado.">Total atual: <span style="color:#dbe6fb;font-weight:700">${backlogTotalAtual}</span> <span style="color:${variacaoCor}">(${variacaoTxt})</span></div>` },
     { label:'Pendentes <span style="font-weight:500;color:#5c7095">· estoque</span>', val: atuais.pendentes, click:`setGestorStatus('pendente')`, cor:'#c15c5c',
       badge: anteriores ? gestorBadge(atuais.pendentes, anteriores.pendentes, {modo:'desce-bom', sufixo}) : '' },
@@ -2268,9 +2268,9 @@ function gestorRenderEvolucaoCoorte(baseSemPeriodo, dias) {
   const corVar = variacao > 0 ? '#e0955f' : (variacao < 0 ? '#5abfa0' : '#93a6c4');
   const nota = document.getElementById('gestor-evo-coorte-nota');
   nota.style.display = 'block';
-  nota.innerHTML = `Backlog (chamados em aberto) dia a dia nos últimos ${dias} dias: de <strong style="color:#dbe6fb">${primeiro.backlog}</strong> em ${primeiro.data.toLocaleDateString('pt-BR')} para <strong style="color:#dbe6fb">${ultimo.backlog}</strong> hoje <span style="color:${corVar};font-weight:700">(${variacao>0?'+':''}${variacao})</span>.`;
+  nota.innerHTML = `Pendências (chamados em aberto) dia a dia nos últimos ${dias} dias: de <strong style="color:#dbe6fb">${primeiro.backlog}</strong> em ${primeiro.data.toLocaleDateString('pt-BR')} para <strong style="color:#dbe6fb">${ultimo.backlog}</strong> hoje <span style="color:${corVar};font-weight:700">(${variacao>0?'+':''}${variacao})</span>.`;
   document.getElementById('gestor-evo-legenda').innerHTML = `
-    <span style="display:flex;align-items:center;gap:7px;font:500 12px Manrope;color:#b3c4e0"><span style="width:10px;height:3px;border-radius:2px;background:#a992e0"></span>Backlog no dia</span>
+    <span style="display:flex;align-items:center;gap:7px;font:500 12px Manrope;color:#b3c4e0"><span style="width:10px;height:3px;border-radius:2px;background:#a992e0"></span>Pendências no dia</span>
     <span style="display:flex;align-items:center;gap:7px;font:500 12px Manrope;color:#5abfa0">● caiu vs. dia anterior</span>
     <span style="display:flex;align-items:center;gap:7px;font:500 12px Manrope;color:#e0955f">● subiu vs. dia anterior</span>`;
   const max = Math.max(1, ...pontos.map(p => p.backlog));
@@ -2328,7 +2328,7 @@ function gestorRenderEvolucao(baseSemPeriodo) {
   document.getElementById('gestor-evo-legenda').innerHTML = `
     <span style="display:flex;align-items:center;gap:7px;font:500 12px Manrope;color:#b3c4e0"><span style="width:10px;height:3px;border-radius:2px;background:#5db4e6"></span>Recebidos</span>
     <span style="display:flex;align-items:center;gap:7px;font:500 12px Manrope;color:#b3c4e0"><span style="width:10px;height:3px;border-radius:2px;background:#3fa08c"></span>Resolvidos</span>
-    <span style="display:flex;align-items:center;gap:7px;font:500 12px Manrope;color:#b3c4e0"><span style="width:10px;height:3px;border-radius:2px;background:#a992e0"></span>Backlog</span>`;
+    <span style="display:flex;align-items:center;gap:7px;font:500 12px Manrope;color:#b3c4e0"><span style="width:10px;height:3px;border-radius:2px;background:#a992e0"></span>Pendências</span>`;
   const pontos = gestorSerieEvolucao(baseSemPeriodo, gestorState.periodo);
   // Recebidos/resolvidos (fluxo diario, escala pequena) e backlog (estoque
   // acumulado, escala bem maior) usam eixos Y SEPARADOS -- senao o backlog
@@ -2352,7 +2352,7 @@ function gestorRenderEvolucao(baseSemPeriodo) {
     i % passo === 0 || i === pontos.length-1
       ? `<span style="font:500 10.5px Manrope;color:#7186ab">${p.data.toLocaleDateString('pt-BR',{day:'2-digit',month:'2-digit'})}</span>`
       : ''
-  ).join('') + `<span style="font:500 10px Manrope;color:#a992e0;margin-left:auto">Backlog em escala própria (linha tracejada)</span>`;
+  ).join('') + `<span style="font:500 10px Manrope;color:#a992e0;margin-left:auto">Pendências em escala própria (linha tracejada)</span>`;
 }
 
 // ---- LINHA 2 (direita): situação atual -- leitura automática do
@@ -2368,8 +2368,8 @@ function gestorRenderSituacao(baseSemPeriodo, metricas, idadeBacklog) {
 
   if (anteriores && anteriores.backlog > 0) {
     const variacao = ((atuais.backlog - anteriores.backlog)/anteriores.backlog)*100;
-    if (variacao > 5) itens.push({ cor:'#e0955f', texto:`Backlog aumentou ${Math.abs(variacao).toFixed(0)}% no período` });
-    else if (variacao < -5) itens.push({ cor:'#5abfa0', texto:`Backlog reduziu ${Math.abs(variacao).toFixed(0)}% no período` });
+    if (variacao > 5) itens.push({ cor:'#e0955f', texto:`Pendências aumentaram ${Math.abs(variacao).toFixed(0)}% no período` });
+    else if (variacao < -5) itens.push({ cor:'#5abfa0', texto:`Pendências reduziram ${Math.abs(variacao).toFixed(0)}% no período` });
   }
   if (anteriores && anteriores.tempoMedio > 0) {
     const variacaoTempo = ((atuais.tempoMedio - anteriores.tempoMedio)/anteriores.tempoMedio)*100;
@@ -2401,10 +2401,11 @@ function gestorRenderSetores(filtrados) {
     const pe = lista.filter(c=>c.balde==='pendente').length;
     const pct = v => total ? (v/total*100) : 0;
     return `<div onclick="setGestorSetor('${setor}')" style="cursor:pointer">
-      <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:7px">
+      <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:3px">
         <span style="font:600 13.5px Manrope;color:#eaf1ff">${setor}</span>
         <span style="font:500 11.5px Manrope;color:#93a6c4">${total} total · <span style="color:#3fa08c">${res} resolv.</span> · <span style="color:#e0955f">${ab} abertos</span> · <span style="color:#c15c5c">${pe} pend.</span></span>
       </div>
+      <div style="font:600 11px Manrope;color:#a992e0;margin-bottom:7px">Pendente ${setor}: ${ab+pe}</div>
       <div style="display:flex;height:10px;border-radius:6px;overflow:hidden;background:rgba(255,255,255,.06)">
         <span style="width:${pct(res)}%;background:#3fa08c"></span>
         <span style="width:${pct(ab)}%;background:#e0955f"></span>
