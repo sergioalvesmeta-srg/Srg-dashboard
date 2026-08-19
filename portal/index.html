@@ -411,7 +411,20 @@ footer.foot{border-top:1px solid rgba(255,255,255,.07);background:rgba(10,16,36,
         </div>
         <div class="glass" style="padding:28px">
           <h3 style="font:700 17px Outfit,sans-serif;color:#f2f7ff;margin-bottom:6px">Conta</h3>
-          <p style="font:400 13px Manrope;color:#b3c4e0;margin-bottom:18px">Dados de acesso vindos do sistema central (Cloudflare KV). Unidade e permissões só o administrador altera — a senha você mesmo pode trocar aqui.</p>
+          <p style="font:400 13px Manrope;color:#b3c4e0;margin-bottom:18px">Dados de acesso vindos do sistema central (Cloudflare KV). Unidade e permissões só o administrador altera — nome de exibição e senha você mesmo pode trocar aqui.</p>
+
+          <div style="padding:18px 18px 20px;border-radius:14px;background:rgba(255,255,255,.035);border:1px solid rgba(255,255,255,.08);margin-bottom:16px">
+            <div style="display:flex;align-items:center;gap:13px;margin-bottom:16px">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#7fd4c0" stroke-width="1.8" stroke-linecap="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+              <div><div style="font:600 14px Manrope;color:#eaf1ff">Nome de exibição</div><div style="font:400 12px Manrope;color:#b3c4e0">Como seu nome aparece no portal (o login <span id="nome-login-atual" style="font-weight:600"></span> não muda)</div></div>
+            </div>
+            <div style="display:flex;gap:10px;flex-wrap:wrap;max-width:460px">
+              <input type="text" id="nome-exibicao" placeholder="Seu nome" onkeydown="if(event.key==='Enter')salvarNomeExibicao()" style="flex:1;min-width:200px;height:44px;padding:0 15px;border-radius:11px;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.22);color:#eaf1ff;font:500 13.5px Manrope">
+              <button onclick="salvarNomeExibicao()" id="nome-btn" class="btn-primary" style="height:44px;padding:0 22px">Salvar nome</button>
+            </div>
+            <div id="nome-msg" style="display:none;margin-top:8px;font:500 12.5px Manrope"></div>
+          </div>
+
           <div style="padding:18px 18px 20px;border-radius:14px;background:rgba(255,255,255,.035);border:1px solid rgba(255,255,255,.08)">
             <div style="display:flex;align-items:center;gap:13px;margin-bottom:16px">
               <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#7fd4c0" stroke-width="1.8" stroke-linecap="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
@@ -726,6 +739,44 @@ async function apiValidate(token) {
 async function apiLogout(token) {
   return fetch(`${PROXY}/auth/logout`, { method:'POST', headers:{'Authorization':`Bearer ${token}`} }).catch(()=>{});
 }
+async function apiUpdateProfile(token, nome) {
+  const r = await fetch(`${PROXY}/auth/update-profile`, {
+    method: 'POST',
+    headers: { 'Content-Type':'application/json', 'Authorization':`Bearer ${token}` },
+    body: JSON.stringify({ nome }),
+  });
+  return r.json();
+}
+async function salvarNomeExibicao() {
+  const nome = document.getElementById('nome-exibicao').value.trim();
+  const msg = document.getElementById('nome-msg');
+  const btn = document.getElementById('nome-btn');
+  const mostrarMsg = (texto, cor) => { msg.style.display = 'block'; msg.style.color = cor; msg.textContent = texto; };
+
+  if (!nome) { mostrarMsg('Digite um nome.', '#fc8181'); return; }
+
+  btn.disabled = true;
+  const textoOriginal = btn.textContent;
+  btn.textContent = 'Salvando...';
+  try {
+    const data = await apiUpdateProfile(currentUser.token, nome);
+    if (!data.ok) { mostrarMsg(data.error || 'Não foi possível salvar o nome.', '#fc8181'); return; }
+    currentUser = { ...currentUser, nome };
+    sessionStorage.setItem('srg_user', JSON.stringify(currentUser));
+    // Atualiza tudo que exibe o nome na hora, sem precisar recarregar a pagina
+    const nomeExibido = nome || currentUser.username;
+    document.getElementById('dash-greeting').textContent = `Olá, ${nomeExibido}! 👋`;
+    document.getElementById('avatar-btn').textContent = initials(nomeExibido);
+    document.getElementById('profile-avatar').textContent = initials(nomeExibido);
+    document.getElementById('profile-name').textContent = nomeExibido;
+    mostrarMsg('Nome atualizado!', '#7fe0c0');
+  } catch(e) {
+    mostrarMsg('Erro de conexão. Tenta de novo em instantes.', '#fc8181');
+  } finally {
+    btn.disabled = false;
+    btn.textContent = textoOriginal;
+  }
+}
 async function apiChangePassword(token, currentPassword, newPassword) {
   const r = await fetch(`${PROXY}/auth/change-password`, {
     method: 'POST',
@@ -953,6 +1004,8 @@ function renderProfile() {
   document.getElementById('profile-avatar').style.background = avatarGradient(currentUser.username);
   document.getElementById('profile-name').textContent = nomeExibido;
   document.getElementById('profile-unit').textContent = currentUser.atendenteSRG ? 'Solicitante: '+currentUser.atendenteSRG : (currentUser.unidades && currentUser.unidades.length ? 'Telefone(s): '+currentUser.unidades.join(', ') : 'Acesso a todos os chamados');
+  document.getElementById('nome-exibicao').value = currentUser.nome || '';
+  document.getElementById('nome-login-atual').textContent = `"${currentUser.username}"`;
   const roleEl = document.getElementById('profile-role');
   if (currentUser.role === 'admin') {
     roleEl.textContent = 'Administrador';
