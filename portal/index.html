@@ -15,6 +15,11 @@ a:hover{color:#8fd0f5}
 input::placeholder,textarea::placeholder{color:#93a6c4}
 input:focus,textarea:focus{outline:none;border-color:rgba(115,200,245,0.9)!important;box-shadow:0 0 0 4px rgba(70,160,220,0.38)}
 textarea{resize:vertical;font-family:Manrope,sans-serif}
+/* Sem isso, o menu nativo do <select> (Posto, Setor, filtros do Gestor)
+   abre com fundo branco do sistema mas texto claro (herdado do input) --
+   fica ilegivel/"em branco" ate passar o mouse. Forca o popup nativo a
+   renderizar no esquema escuro, igual o resto do portal. */
+select{color-scheme:dark}
 button{font-family:inherit}
 ::-webkit-scrollbar{width:9px;height:9px}
 ::-webkit-scrollbar-track{background:transparent}
@@ -741,6 +746,8 @@ let currentStatusFiltro = ['Em Andamento','Aguardando Meta','Pendente SRG','Pend
 let currentProto = '';
 let ultimosResultados = [];
 let ultimosGertec = [];
+let gertecCardsRaw = []; // cards ja filtrados por telefone do usuario, ANTES do filtro Finalizados/ativos
+let gertecMostrarFinalizados = false; // por padrao esconde "Finalizados" -- so mostra clicando no filtro
 let usuarioEmEdicao = null; // username do usuario sendo editado, ou null = modo "criar"
 
 function initials(name) {
@@ -1325,7 +1332,6 @@ function stripHtml(html) {
 async function carregarGertecCards() {
   const wrap = document.getElementById('gertec-wrap');
   const body = document.getElementById('gertec-body');
-  const count = document.getElementById('gertec-count');
   body.innerHTML = '<div style="text-align:center;padding:2rem"><div class="spinner"></div></div>';
   try {
     const r = await fetch(`${PROXY}/digisac/gertec-cards`);
@@ -1343,29 +1349,44 @@ async function carregarGertecCards() {
       return;
     }
     wrap.style.display = 'block';
+    gertecCardsRaw = cards;
+    renderGertecCards();
+  } catch(e) {
+    document.getElementById('gertec-wrap').style.display = 'block';
+    body.innerHTML = `<div class="glass" style="padding:2rem;text-align:center;font:500 13px Manrope;color:#fc8181">Erro ao carregar equipamentos: ${e.message}</div>`;
+  }
+}
+function gertecToggleFinalizados() {
+  gertecMostrarFinalizados = !gertecMostrarFinalizados;
+  renderGertecCards();
+}
+function renderGertecCards() {
+  const body = document.getElementById('gertec-body');
+  const count = document.getElementById('gertec-count');
 
-    // Ordena: ativos (fora de "Finalizados") primeiro, mais parados primeiro;
-    // "Finalizados" limitado aos 10 mais recentes, igual fizemos com
-    // "Resolvido" nos chamados.
-    cards.sort((a, b) => new Date(b.dataEntradaEtapa) - new Date(a.dataEntradaEtapa));
-    let finalizadosContados = 0;
-    cards = cards.filter(c => {
-      if (c.stageName === 'Finalizados') {
-        finalizadosContados++;
-        return finalizadosContados <= 10;
-      }
-      return true;
-    });
-    cards.sort((a, b) => {
-      const aAtivo = a.stageName !== 'Finalizados';
-      const bAtivo = b.stageName !== 'Finalizados';
-      if (aAtivo !== bAtivo) return aAtivo ? -1 : 1;
-      return new Date(a.dataEntradaEtapa) - new Date(b.dataEntradaEtapa);
-    });
+  const ativos = gertecCardsRaw.filter(c => c.stageName !== 'Finalizados');
+  const finalizadosTodos = gertecCardsRaw.filter(c => c.stageName === 'Finalizados');
+  // "Finalizados" so entra na lista se o filtro estiver ligado -- e mesmo
+  // assim limitado aos 10 mais recentes, igual fazemos com "Resolvido" nos
+  // chamados (a lista pode crescer muito e nao tem por que mostrar tudo).
+  const finalizadosMostrados = gertecMostrarFinalizados ? finalizadosTodos.slice(0, 10) : [];
 
-    count.textContent = cards.length + (cards.length===1?' equipamento':' equipamentos');
-    ultimosGertec = cards;
-    body.innerHTML = cards.map((c, i) => {
+  let cards = [...ativos, ...finalizadosMostrados];
+  cards.sort((a, b) => {
+    const aAtivo = a.stageName !== 'Finalizados';
+    const bAtivo = b.stageName !== 'Finalizados';
+    if (aAtivo !== bAtivo) return aAtivo ? -1 : 1;
+    return new Date(a.dataEntradaEtapa) - new Date(b.dataEntradaEtapa);
+  });
+
+  const toggleTexto = gertecMostrarFinalizados
+    ? 'ocultar finalizados'
+    : `mostrar finalizados (${finalizadosTodos.length})`;
+  count.innerHTML = `${ativos.length} ${ativos.length===1?'ativo':'ativos'}`
+    + (finalizadosTodos.length ? ` &nbsp;·&nbsp; <span onclick="gertecToggleFinalizados()" style="cursor:pointer;color:#8fd0f5;text-decoration:underline">${toggleTexto}</span>` : '');
+
+  ultimosGertec = cards;
+  body.innerHTML = cards.map((c, i) => {
       const finalizado = c.stageName === 'Finalizados';
       const dias = diasDesde(c.dataEntradaEtapa);
       const paradoMuito = !finalizado && dias !== null && dias >= 10;
@@ -1388,10 +1409,6 @@ async function carregarGertecCards() {
         <div id="gertec-detalhe-${i}" style="display:none;padding:0 22px 20px;border-top:1px solid rgba(255,255,255,.07)"></div>
       </div>`;
     }).join('');
-  } catch(e) {
-    document.getElementById('gertec-wrap').style.display = 'block';
-    body.innerHTML = `<div class="glass" style="padding:2rem;text-align:center;font:500 13px Manrope;color:#fc8181">Erro ao carregar equipamentos: ${e.message}</div>`;
-  }
 }
 function toggleGertecCard(i) {
   const painel = document.getElementById(`gertec-detalhe-${i}`);
