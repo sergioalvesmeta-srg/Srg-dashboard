@@ -2270,7 +2270,9 @@ function gestorRenderEvolucaoCoorte(baseSemPeriodo, dias) {
   nota.style.display = 'block';
   nota.innerHTML = `Backlog (chamados em aberto) dia a dia nos últimos ${dias} dias: de <strong style="color:#dbe6fb">${primeiro.backlog}</strong> em ${primeiro.data.toLocaleDateString('pt-BR')} para <strong style="color:#dbe6fb">${ultimo.backlog}</strong> hoje <span style="color:${corVar};font-weight:700">(${variacao>0?'+':''}${variacao})</span>.`;
   document.getElementById('gestor-evo-legenda').innerHTML = `
-    <span style="display:flex;align-items:center;gap:7px;font:500 12px Manrope;color:#b3c4e0"><span style="width:10px;height:3px;border-radius:2px;background:#a992e0"></span>Backlog no dia</span>`;
+    <span style="display:flex;align-items:center;gap:7px;font:500 12px Manrope;color:#b3c4e0"><span style="width:10px;height:3px;border-radius:2px;background:#a992e0"></span>Backlog no dia</span>
+    <span style="display:flex;align-items:center;gap:7px;font:500 12px Manrope;color:#5abfa0">● caiu vs. dia anterior</span>
+    <span style="display:flex;align-items:center;gap:7px;font:500 12px Manrope;color:#e0955f">● subiu vs. dia anterior</span>`;
   const max = Math.max(1, ...pontos.map(p => p.backlog));
   // Datas TODAS visiveis (uma por dia, sem pular nenhuma) -- e o valor
   // exato de cada dia fica sempre a mostra, num quadradinho logo acima
@@ -2287,13 +2289,22 @@ function gestorRenderEvolucaoCoorte(baseSemPeriodo, dias) {
     const txt = String(p.backlog);
     const largura = 14 + txt.length*7;
     const dataLabel = p.data.toLocaleDateString('pt-BR',{day:'2-digit',month:'2-digit'});
+    // Cor do quadrado compara com o dia ANTERIOR (mesma semantica do
+    // resto do painel: backlog caiu = bom = verde; subiu = ruim =
+    // laranja). O primeiro ponto nao tem "anterior" dentro da janela,
+    // entao fica neutro (roxo, cor da linha).
+    let corCaixa = '#a992e0', bgCaixa = 'rgba(169,146,224,.2)';
+    if (i > 0) {
+      if (p.backlog < pontos[i-1].backlog) { corCaixa = '#5abfa0'; bgCaixa = 'rgba(63,190,140,.18)'; }
+      else if (p.backlog > pontos[i-1].backlog) { corCaixa = '#e0955f'; bgCaixa = 'rgba(224,149,95,.18)'; }
+    }
     return `
     <line x1="${cx}" y1="${cy+10}" x2="${cx}" y2="${yData-9}" stroke="#a992e0" stroke-width="1" stroke-dasharray="2 3" opacity=".45"/>
     <circle cx="${cx}" cy="${cy}" r="9" fill="transparent"><title>${p.data.toLocaleDateString('pt-BR')} — backlog: ${p.backlog}</title></circle>
     <circle cx="${cx}" cy="${cy}" r="3.5" fill="#a992e0" style="pointer-events:none"/>
     <g style="pointer-events:none">
-      <rect x="${cx-largura/2}" y="${cy-27}" width="${largura}" height="19" rx="6" fill="rgba(169,146,224,.2)" stroke="#a992e0" stroke-width="1"/>
-      <text x="${cx}" y="${cy-14}" text-anchor="middle" font-size="11" font-weight="700" fill="#dbe6fb" font-family="Manrope">${txt}</text>
+      <rect x="${cx-largura/2}" y="${cy-27}" width="${largura}" height="19" rx="6" fill="${bgCaixa}" stroke="${corCaixa}" stroke-width="1"/>
+      <text x="${cx}" y="${cy-14}" text-anchor="middle" font-size="11" font-weight="700" fill="${corCaixa}" font-family="Manrope">${txt}</text>
     </g>
     <text x="${cx}" y="${yData}" text-anchor="${rotarDatas?'end':'middle'}" font-size="10" fill="#7186ab" font-family="Manrope" ${rotarDatas?`transform="rotate(-40 ${cx} ${yData})"`:''}>${dataLabel}</text>`;
   }).join('');
