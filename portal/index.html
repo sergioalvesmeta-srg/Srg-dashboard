@@ -504,12 +504,20 @@ footer.foot{border-top:1px solid rgba(255,255,255,.07);background:rgba(10,16,36,
               <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="#7fd4c0" stroke-width="1.9" stroke-linecap="round"><path d="M3 3v18h18"/><path d="m19 9-5 5-4-4-3 3"/></svg>
               <h3 style="font:700 17px Outfit,sans-serif;color:#f2f7ff;margin:0">Evolução dos chamados</h3>
             </div>
-            <div style="display:flex;gap:16px;flex-wrap:wrap">
+            <div id="gestor-evo-legenda" style="display:flex;gap:16px;flex-wrap:wrap">
               <span style="display:flex;align-items:center;gap:7px;font:500 12px Manrope;color:#b3c4e0"><span style="width:10px;height:3px;border-radius:2px;background:#5db4e6"></span>Recebidos</span>
               <span style="display:flex;align-items:center;gap:7px;font:500 12px Manrope;color:#b3c4e0"><span style="width:10px;height:3px;border-radius:2px;background:#3fa08c"></span>Resolvidos</span>
               <span style="display:flex;align-items:center;gap:7px;font:500 12px Manrope;color:#b3c4e0"><span style="width:10px;height:3px;border-radius:2px;background:#a992e0"></span>Backlog</span>
             </div>
           </div>
+          <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:16px">
+            <span style="font:600 11.5px Manrope;color:#7186ab">Acompanhar quem estava aberto há:</span>
+            <button class="chip" data-gcoorte="7" onclick="setGestorCoorte(7)" style="height:30px;padding:0 12px;font-size:11.5px">7 dias</button>
+            <button class="chip" data-gcoorte="15" onclick="setGestorCoorte(15)" style="height:30px;padding:0 12px;font-size:11.5px">15 dias</button>
+            <button class="chip" data-gcoorte="30" onclick="setGestorCoorte(30)" style="height:30px;padding:0 12px;font-size:11.5px">30 dias</button>
+            <button class="chip active" data-gcoorte="" onclick="setGestorCoorte(null)" style="height:30px;padding:0 12px;font-size:11.5px">Visão padrão</button>
+          </div>
+          <div id="gestor-evo-coorte-nota" style="display:none;font:500 12.5px Manrope;color:#93a6c4;margin-bottom:10px"></div>
           <svg id="gestor-evo-svg" viewBox="0 0 720 240" style="width:100%;height:240px;display:block"></svg>
           <div id="gestor-evo-labels" style="display:flex;justify-content:space-between;margin-top:8px"></div>
         </div>
@@ -1805,6 +1813,7 @@ const gestorState = {
   ocultarProgramacao: true, // "Todos os chamados": esconde setor Programação na visão inicial (fila tecnica interna da Meta, nao o foco do dia-a-dia do gestor) -- pode reexibir clicando no toggle
   dataDe: null,  // 'YYYY-MM-DD' -- quando preenchido, substitui os chips de periodo por um recorte exato de datas
   dataAte: null,
+  coorteDias: null, // 7 | 15 | 30 | null -- quando preenchido, o grafico de evolucao muda pra visao de coorte (ver gestorRenderEvolucaoCoorte)
 };
 
 // Mapeia o Status real do Notion (4 estados + Resolvido) pro agrupamento
@@ -2230,7 +2239,76 @@ function gestorSerieEvolucao(baseSemPeriodo, periodoDias) {
   }
   return pontos;
 }
+// ---- Visão de coorte: "quem estava aberto ha N dias, e o que aconteceu
+// com ESSE grupo especifico desde entao ate hoje". Diferente do grafico
+// padrao (que mostra fluxo diario recebidos/resolvidos/backlog geral),
+// aqui o grupo e travado no dia de referencia e so acompanhamos ele.
+function gestorSerieCoorte(baseSemPeriodo, dias) {
+  const hoje = new Date(); hoje.setHours(23,59,59,999);
+  const referencia = new Date(hoje); referencia.setDate(referencia.getDate() - dias); referencia.setHours(23,59,59,999);
+  // O grupo = tudo que ja estava aberto (recebido e ainda sem conclusao,
+  // ou concluido DEPOIS da referencia) no fim do dia de referencia --
+  // mesma logica do gestorBacklogEm, so que aqui guardamos a lista, nao
+  // so a contagem, pra poder acompanhar cada um deles dia a dia.
+  const grupo = baseSemPeriodo.filter(c => {
+    const abertura = new Date(c.dataAbertura);
+    if (isNaN(abertura) || abertura > referencia) return false;
+    if (!c.dataConclusao) return true;
+    const conclusao = new Date(c.dataConclusao);
+    return isNaN(conclusao) || conclusao > referencia;
+  });
+  const total = grupo.length;
+  const pontos = [];
+  for (let i = dias; i >= 0; i--) {
+    const dia = new Date(hoje); dia.setDate(dia.getDate() - i); dia.setHours(23,59,59,999);
+    const resolvidos = grupo.filter(c => c.dataConclusao && new Date(c.dataConclusao) <= dia).length;
+    pontos.push({ data: new Date(dia), resolvidos, restam: total - resolvidos });
+  }
+  return { pontos, total, referencia };
+}
+function gestorRenderEvolucaoCoorte(baseSemPeriodo, dias) {
+  const { pontos, total, referencia } = gestorSerieCoorte(baseSemPeriodo, dias);
+  // Monta a data local (dia/mes/ano) na mao, sem passar por toISOString --
+  // isso evita virar o dia errado por causa do fuso (UTC-3 perto da
+  // meia-noite deslocaria a data em 1 dia).
+  const refLabel = referencia.toLocaleDateString('pt-BR');
+  const nota = document.getElementById('gestor-evo-coorte-nota');
+  nota.style.display = 'block';
+  nota.innerHTML = total
+    ? `<strong style="color:#dbe6fb">${total} chamado${total>1?'s':''}</strong> estava${total>1?'m':''} em aberto em <strong style="color:#dbe6fb">${refLabel}</strong> (há ${dias} dias) — acompanhando o que aconteceu com esse grupo desde então.`
+    : `Nenhum chamado estava em aberto em ${refLabel} (há ${dias} dias) — nada pra acompanhar nesse recorte.`;
+  document.getElementById('gestor-evo-legenda').innerHTML = `
+    <span style="display:flex;align-items:center;gap:7px;font:500 12px Manrope;color:#b3c4e0"><span style="width:10px;height:3px;border-radius:2px;background:#c15c5c"></span>Ainda em aberto (do grupo)</span>
+    <span style="display:flex;align-items:center;gap:7px;font:500 12px Manrope;color:#b3c4e0"><span style="width:10px;height:3px;border-radius:2px;background:#3fa08c"></span>Resolvidos (do grupo)</span>`;
+  const max = Math.max(1, total);
+  const W = 720, H = 240, padX = 26, padY = 20;
+  const stepX = pontos.length > 1 ? (W - padX*2) / (pontos.length-1) : 0;
+  const y = v => H - padY - (v/max)*(H - padY*2);
+  const linha = (campo) => pontos.map((p,i) => `${padX+i*stepX},${y(p[campo])}`).join(' ');
+  const pontosHit = (campo, cor) => pontos.map((p,i) => `<circle cx="${padX+i*stepX}" cy="${y(p[campo])}" r="9" fill="transparent"><title>${p.data.toLocaleDateString('pt-BR')} — ${campo==='restam'?'ainda em aberto':'resolvidos'}: ${p[campo]}</title></circle><circle cx="${padX+i*stepX}" cy="${y(p[campo])}" r="3" fill="${cor}" style="pointer-events:none"/>`).join('');
+  document.getElementById('gestor-evo-svg').innerHTML = `
+    <polyline points="${linha('restam')}" fill="none" stroke="#c15c5c" stroke-width="2.4"/>
+    <polyline points="${linha('resolvidos')}" fill="none" stroke="#3fa08c" stroke-width="2.4"/>
+    ${pontosHit('restam','#c15c5c')}${pontosHit('resolvidos','#3fa08c')}`;
+  const passo = Math.max(1, Math.ceil(pontos.length/7));
+  document.getElementById('gestor-evo-labels').innerHTML = pontos.map((p,i) =>
+    i % passo === 0 || i === pontos.length-1
+      ? `<span style="font:500 10.5px Manrope;color:#7186ab">${p.data.toLocaleDateString('pt-BR',{day:'2-digit',month:'2-digit'})}</span>`
+      : ''
+  ).join('');
+}
+function setGestorCoorte(dias) {
+  gestorState.coorteDias = dias;
+  document.querySelectorAll('[data-gcoorte]').forEach(b => b.classList.toggle('active', (b.dataset.gcoorte||null) == (dias||'')));
+  gestorRenderTudo();
+}
 function gestorRenderEvolucao(baseSemPeriodo) {
+  if (gestorState.coorteDias) { gestorRenderEvolucaoCoorte(baseSemPeriodo, gestorState.coorteDias); return; }
+  document.getElementById('gestor-evo-coorte-nota').style.display = 'none';
+  document.getElementById('gestor-evo-legenda').innerHTML = `
+    <span style="display:flex;align-items:center;gap:7px;font:500 12px Manrope;color:#b3c4e0"><span style="width:10px;height:3px;border-radius:2px;background:#5db4e6"></span>Recebidos</span>
+    <span style="display:flex;align-items:center;gap:7px;font:500 12px Manrope;color:#b3c4e0"><span style="width:10px;height:3px;border-radius:2px;background:#3fa08c"></span>Resolvidos</span>
+    <span style="display:flex;align-items:center;gap:7px;font:500 12px Manrope;color:#b3c4e0"><span style="width:10px;height:3px;border-radius:2px;background:#a992e0"></span>Backlog</span>`;
   const pontos = gestorSerieEvolucao(baseSemPeriodo, gestorState.periodo);
   // Recebidos/resolvidos (fluxo diario, escala pequena) e backlog (estoque
   // acumulado, escala bem maior) usam eixos Y SEPARADOS -- senao o backlog
