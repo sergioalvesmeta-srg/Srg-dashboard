@@ -483,17 +483,20 @@ footer.foot{border-top:1px solid rgba(255,255,255,.07);background:rgba(10,16,36,
            status). Clicar em algo e ver o resultado imediatamente embaixo
            do que foi clicado, em vez de precisar rolar a tela toda. -->
       <div class="glass" id="gestor-lista-completa" style="padding:26px 28px;margin-bottom:20px;transition:box-shadow .4s ease">
-        <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:20px">
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;cursor:pointer" onclick="gestorToggleLista()">
           <div style="display:flex;align-items:center;gap:10px">
             <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="#7fd4c0" stroke-width="1.9" stroke-linecap="round"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 9h18M8 4v16"/></svg>
             <h3 style="font:700 17px Outfit,sans-serif;color:#f2f7ff;margin:0">Todos os chamados</h3>
+            <span id="gestor-toggle-lista-seta" style="color:#7fd4c0;transition:transform .2s;display:flex;align-items:center">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="m18 15-6-6-6 6"/></svg>
+            </span>
           </div>
           <div style="display:flex;align-items:center;gap:12px">
-            <span id="gestor-toggle-prog" onclick="gestorToggleProgramacao()" style="font:600 11.5px Manrope;color:#8fb8e0;cursor:pointer;white-space:nowrap"></span>
+            <span id="gestor-toggle-prog" onclick="event.stopPropagation();gestorToggleProgramacao()" style="font:600 11.5px Manrope;color:#8fb8e0;cursor:pointer;white-space:nowrap"></span>
             <span id="gestor-ticket-count" style="font:600 12.5px Manrope;color:#93a6c4"></span>
           </div>
         </div>
-        <div id="gestor-tickets" style="display:flex;flex-direction:column;gap:10px"></div>
+        <div id="gestor-tickets" style="display:flex;flex-direction:column;gap:10px;margin-top:20px"></div>
       </div>
 
       <!-- LINHA 2 — Evolução (70%) + Situação atual (30%) -->
@@ -1814,6 +1817,7 @@ const gestorState = {
   dataDe: null,  // 'YYYY-MM-DD' -- quando preenchido, substitui os chips de periodo por um recorte exato de datas
   dataAte: null,
   coorteDias: null, // 7 | 15 | 30 | null -- quando preenchido, o grafico de evolucao muda pra visao de coorte (ver gestorRenderEvolucaoCoorte)
+  listaAberta: true, // "Todos os chamados" pode ficar muito longa (100+) -- da pra recolher
 };
 
 // Mapeia o Status real do Notion (4 estados + Resolvido) pro agrupamento
@@ -2557,6 +2561,14 @@ function gestorToggleProgramacao() {
   gestorState.ocultarProgramacao = !gestorState.ocultarProgramacao;
   gestorRenderTudo();
 }
+// Recolhe/expande a lista "Todos os chamados" -- pode passar de 100+
+// linhas e empurrar o resto do painel pra baixo. So mexe na exibicao (nao
+// refaz a busca), entao e instantaneo.
+function gestorToggleLista() {
+  gestorState.listaAberta = !gestorState.listaAberta;
+  document.getElementById('gestor-tickets').style.display = gestorState.listaAberta ? 'flex' : 'none';
+  document.getElementById('gestor-toggle-lista-seta').style.transform = gestorState.listaAberta ? 'rotate(0deg)' : 'rotate(-90deg)';
+}
 function gestorRenderTickets(filtrados) {
   // Na visão inicial escondemos o setor "Programação" (fila tecnica
   // interna, especialistas N3 -- nao e o foco do dia-a-dia do gestor).
@@ -2570,6 +2582,8 @@ function gestorRenderTickets(filtrados) {
     ? `Programação oculta (${escondidos}) · mostrar (afeta esta lista e "exigem atenção")`
     : 'Ocultar setor Programação';
   const el = document.getElementById('gestor-tickets');
+  el.style.display = gestorState.listaAberta ? 'flex' : 'none';
+  document.getElementById('gestor-toggle-lista-seta').style.transform = gestorState.listaAberta ? 'rotate(0deg)' : 'rotate(-90deg)';
   if (!ordenados.length) { el.innerHTML = '<div style="font:500 13px Manrope;color:#7186ab;padding:1rem 0">Nenhum chamado no filtro atual.</div>'; return; }
   el.innerHTML = ordenados.map(c => {
     const dias = c.balde !== 'resolvido' ? diasDesde(c.dataAbertura) : null;
