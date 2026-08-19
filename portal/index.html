@@ -2604,10 +2604,20 @@ function gestorAbrirTicket(id) {
   const c = (gestorChamadosCache||[]).find(x => x.id === id);
   if (!c) return;
   const modal = document.getElementById('gestor-modal');
+  // Resolvido: quanto tempo ficou aberto ate a conclusao (fluxo). Ainda
+  // aberto: ha quantos dias esta parado ate agora (estoque, atualiza
+  // sozinho a cada dia).
+  const diasAberto = c.dataConclusao
+    ? Math.round((new Date(c.dataConclusao) - new Date(c.dataAbertura)) / 86400000)
+    : diasDesde(c.dataAbertura);
+  const diasAbertoLabel = diasAberto === null ? '—' : (c.dataConclusao ? `${diasLabel(diasAberto)} até a conclusão` : `${diasLabel(diasAberto)} (em aberto)`);
   document.getElementById('gestor-modal-body').innerHTML = `
-    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px">
+    <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:16px">
       <h3 style="font:700 19px Outfit,sans-serif;color:#f2f7ff;margin:0">${c.cliente}</h3>
-      ${pillHtml(c.status)}
+      <div style="display:flex;align-items:center;gap:10px">
+        <span style="font:700 12px Manrope;padding:6px 12px;border-radius:999px;white-space:nowrap;background:${c.dataConclusao?'rgba(63,160,140,.14)':(diasAberto>=5?'rgba(193,92,92,.16)':'rgba(90,150,220,.14)')};color:${c.dataConclusao?'#7fe0c0':(diasAberto>=5?'#e29a9a':'#8fb0e0')};border:1px solid ${c.dataConclusao?'rgba(90,200,180,.3)':(diasAberto>=5?'rgba(193,92,92,.4)':'rgba(90,150,220,.3)')}">${diasAbertoLabel}</span>
+        ${pillHtml(c.status)}
+      </div>
     </div>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:18px">
       <div><div style="font:600 11.5px Manrope;color:#93a6c4">Protocolo</div><div style="display:flex;align-items:center;gap:8px;margin-top:2px"><span style="font:600 14px Manrope;color:#eaf1ff">${c.protocolo||'—'}</span>${c.protocolo?botaoCopiar(c.protocolo):''}</div></div>
