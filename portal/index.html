@@ -2272,34 +2272,37 @@ function gestorRenderEvolucaoCoorte(baseSemPeriodo, dias) {
   document.getElementById('gestor-evo-legenda').innerHTML = `
     <span style="display:flex;align-items:center;gap:7px;font:500 12px Manrope;color:#b3c4e0"><span style="width:10px;height:3px;border-radius:2px;background:#a992e0"></span>Backlog no dia</span>`;
   const max = Math.max(1, ...pontos.map(p => p.backlog));
-  const W = 720, H = 240, padX = 26, padY = 34;
+  // Datas TODAS visiveis (uma por dia, sem pular nenhuma) -- e o valor
+  // exato de cada dia fica sempre a mostra, num quadradinho logo acima
+  // do ponto, com uma linha pontilhada ligando o quadrado ate a data
+  // embaixo, pra ficar claro que numero e data casam entre si.
+  const W = 720, H = 280, padX = 30, padY = 40, padDatas = 30;
   const stepX = pontos.length > 1 ? (W - padX*2) / (pontos.length-1) : 0;
-  const y = v => H - padY - (v/max)*(H - padY*2);
+  const y = v => (H - padDatas) - padY - (v/max)*((H - padDatas) - padY*2);
+  const yData = H - 12;
   const linha = pontos.map((p,i) => `${padX+i*stepX},${y(p.backlog)}`).join(' ');
-  const pontosHit = pontos.map((p,i) => `<circle cx="${padX+i*stepX}" cy="${y(p.backlog)}" r="9" fill="transparent"><title>${p.data.toLocaleDateString('pt-BR')} — backlog: ${p.backlog}</title></circle><circle cx="${padX+i*stepX}" cy="${y(p.backlog)}" r="3.5" fill="#a992e0" style="pointer-events:none"/>`).join('');
-  // "Quadrado" com o valor exato -- fica sempre visível (nao so no hover),
-  // pra dar o numero de cada dia de cara, como pedido. So nao mostra em
-  // TODOS os pontos quando a janela e grande (30 dias), senao empilha.
-  const passoValor = Math.max(1, Math.ceil(pontos.length/10));
-  const valores = pontos.map((p,i) => {
-    if (i % passoValor !== 0 && i !== pontos.length-1) return '';
+  const rotarDatas = pontos.length > 12;
+  const partes = pontos.map((p,i) => {
     const cx = padX+i*stepX, cy = y(p.backlog);
     const txt = String(p.backlog);
     const largura = 14 + txt.length*7;
-    return `<g style="pointer-events:none">
-      <rect x="${cx-largura/2}" y="${cy-26}" width="${largura}" height="19" rx="6" fill="rgba(169,146,224,.18)" stroke="#a992e0" stroke-width="1"/>
-      <text x="${cx}" y="${cy-13}" text-anchor="middle" font-size="11" font-weight="700" fill="#dbe6fb" font-family="Manrope">${txt}</text>
-    </g>`;
+    const dataLabel = p.data.toLocaleDateString('pt-BR',{day:'2-digit',month:'2-digit'});
+    return `
+    <line x1="${cx}" y1="${cy+10}" x2="${cx}" y2="${yData-9}" stroke="#a992e0" stroke-width="1" stroke-dasharray="2 3" opacity=".45"/>
+    <circle cx="${cx}" cy="${cy}" r="9" fill="transparent"><title>${p.data.toLocaleDateString('pt-BR')} — backlog: ${p.backlog}</title></circle>
+    <circle cx="${cx}" cy="${cy}" r="3.5" fill="#a992e0" style="pointer-events:none"/>
+    <g style="pointer-events:none">
+      <rect x="${cx-largura/2}" y="${cy-27}" width="${largura}" height="19" rx="6" fill="rgba(169,146,224,.2)" stroke="#a992e0" stroke-width="1"/>
+      <text x="${cx}" y="${cy-14}" text-anchor="middle" font-size="11" font-weight="700" fill="#dbe6fb" font-family="Manrope">${txt}</text>
+    </g>
+    <text x="${cx}" y="${yData}" text-anchor="${rotarDatas?'end':'middle'}" font-size="10" fill="#7186ab" font-family="Manrope" ${rotarDatas?`transform="rotate(-40 ${cx} ${yData})"`:''}>${dataLabel}</text>`;
   }).join('');
+  document.getElementById('gestor-evo-svg').setAttribute('viewBox', `0 0 ${W} ${H}`);
+  document.getElementById('gestor-evo-svg').style.height = '280px';
   document.getElementById('gestor-evo-svg').innerHTML = `
     <polyline points="${linha}" fill="none" stroke="#a992e0" stroke-width="2.4"/>
-    ${pontosHit}${valores}`;
-  const passo = Math.max(1, Math.ceil(pontos.length/7));
-  document.getElementById('gestor-evo-labels').innerHTML = pontos.map((p,i) =>
-    i % passo === 0 || i === pontos.length-1
-      ? `<span style="font:500 10.5px Manrope;color:#7186ab">${p.data.toLocaleDateString('pt-BR',{day:'2-digit',month:'2-digit'})}</span>`
-      : ''
-  ).join('');
+    ${partes}`;
+  document.getElementById('gestor-evo-labels').innerHTML = '';
 }
 function setGestorCoorte(dias) {
   gestorState.coorteDias = dias;
@@ -2309,6 +2312,8 @@ function setGestorCoorte(dias) {
 function gestorRenderEvolucao(baseSemPeriodo) {
   if (gestorState.coorteDias) { gestorRenderEvolucaoCoorte(baseSemPeriodo, gestorState.coorteDias); return; }
   document.getElementById('gestor-evo-coorte-nota').style.display = 'none';
+  document.getElementById('gestor-evo-svg').setAttribute('viewBox', '0 0 720 240');
+  document.getElementById('gestor-evo-svg').style.height = '240px';
   document.getElementById('gestor-evo-legenda').innerHTML = `
     <span style="display:flex;align-items:center;gap:7px;font:500 12px Manrope;color:#b3c4e0"><span style="width:10px;height:3px;border-radius:2px;background:#5db4e6"></span>Recebidos</span>
     <span style="display:flex;align-items:center;gap:7px;font:500 12px Manrope;color:#b3c4e0"><span style="width:10px;height:3px;border-radius:2px;background:#3fa08c"></span>Resolvidos</span>
