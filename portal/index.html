@@ -2405,13 +2405,17 @@ function gestorRenderEvolucaoCoorte(baseSemPeriodo, dias) {
   // garantida por ponto, e o wrapper (.gestor-scroll) rola horizontal
   // quando o total passa da largura do card -- assim cada numero sempre
   // tem espaco de sobra, em vez de ficar ilegivel.
-  const H = 280, padX = 30, padY = 40, padDatas = 30;
+  // H-12 deixava so 12px pra data rotacionada (-40deg) -- a ponta de
+  // baixo do texto estourava o limite do SVG e ficava cortada (ainda
+  // mais em cima da barra de rolagem, quando o grafico e mais largo que
+  // o card). Aumentado o H e a folga embaixo pra caber o texto inteiro.
+  const H = 300, padX = 30, padY = 40, padDatas = 30;
   const ESPACO_MIN_POR_PONTO = 54;
   const larguraContainer = document.getElementById('gestor-evo-svg-wrap').clientWidth || 720;
   const W = Math.max(larguraContainer, padX*2 + ESPACO_MIN_POR_PONTO*Math.max(1, pontos.length-1));
   const stepX = pontos.length > 1 ? (W - padX*2) / (pontos.length-1) : 0;
   const y = v => (H - padDatas) - padY - (v/max)*((H - padDatas) - padY*2);
-  const yData = H - 12;
+  const yData = H - 28;
   const linha = pontos.map((p,i) => `${padX+i*stepX},${y(p.backlog)}`).join(' ');
   const rotarDatas = pontos.length > 12;
   const partes = pontos.map((p,i) => {
@@ -2439,7 +2443,7 @@ function gestorRenderEvolucaoCoorte(baseSemPeriodo, dias) {
     <text x="${cx}" y="${yData}" text-anchor="${rotarDatas?'end':'middle'}" font-size="10" fill="#7186ab" font-family="Manrope" ${rotarDatas?`transform="rotate(-40 ${cx} ${yData})"`:''}>${dataLabel}</text>`;
   }).join('');
   document.getElementById('gestor-evo-svg').setAttribute('viewBox', `0 0 ${W} ${H}`);
-  document.getElementById('gestor-evo-svg').style.height = '280px';
+  document.getElementById('gestor-evo-svg').style.height = `${H}px`;
   document.getElementById('gestor-evo-svg').style.width = `${W}px`;
   document.getElementById('gestor-evo-svg').innerHTML = `
     <polyline points="${linha}" fill="none" stroke="#a992e0" stroke-width="2.4"/>
