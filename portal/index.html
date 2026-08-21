@@ -1983,7 +1983,7 @@ async function getChamados({ forcar=false } = {}) {
       balde: gestorBalde(status),
       setor: gp(p,'Setor Suporte','select') || 'Sem setor',
       atendente: gp(p,'Atendente','rich_text') || 'Sem atendente',
-      atendenteSRG: gp(p,'Solicitante','rich_text') || '',
+      atendenteSRG: gestorNormalizarNome(gp(p,'Solicitante','rich_text')),
       nivelAtendimento: gp(p,'Nível de Atendimento','select') || 'N2',
       protocolo: gp(p,'Protocolo Digisac','rich_text') || '',
       dataAbertura,
@@ -2138,6 +2138,23 @@ function gestorAplicarFiltros(lista) {
   return r;
 }
 
+// Solicitante e digitado a mao na planilha, entao a mesma pessoa aparece
+// com grafias diferentes (ex: "Junior" e "junior", "Felipe" e "felipe"),
+// contando como gente diferente no filtro e na tabela "Desempenho da
+// equipe". Normaliza aqui, na entrada dos dados (gestorChamadosCache),
+// pra tudo que usa atendenteSRG rio abaixo (filtro, agrupamento,
+// contagem) ja enxergar como a mesma pessoa.
+function gestorNormalizarNome(nome) {
+  if (!nome) return '';
+  const t = nome.trim();
+  if (!t) return '';
+  const CONECTORES = new Set(['e','de','da','do','das','dos']);
+  return t.split(/\s+/).map(w => {
+    if (w === w.toUpperCase() && w.length <= 3) return w; // sigla (GP, TI, SO...) -- mantem como esta
+    if (CONECTORES.has(w.toLowerCase())) return w.toLowerCase();
+    return w.charAt(0).toUpperCase() + w.slice(1).toLowerCase();
+  }).join(' ');
+}
 function gestorPopularSelects() {
   const todos = gestorChamadosCache || [];
   const setores = [...new Set(todos.map(c => c.setor))].sort();
