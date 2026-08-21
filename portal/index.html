@@ -545,7 +545,9 @@ footer.foot{border-top:1px solid rgba(255,255,255,.07);background:rgba(10,16,36,
             <button class="chip active" data-gcoorte="" onclick="setGestorCoorte(null)" style="height:30px;padding:0 12px;font-size:11.5px">Visão padrão</button>
           </div>
           <div id="gestor-evo-coorte-nota" style="display:none;font:500 12.5px Manrope;color:#93a6c4;margin-bottom:10px"></div>
-          <svg id="gestor-evo-svg" viewBox="0 0 720 240" style="width:100%;height:240px;display:block"></svg>
+          <div id="gestor-evo-svg-wrap" class="gestor-scroll">
+            <svg id="gestor-evo-svg" viewBox="0 0 720 240" style="width:100%;height:240px;display:block"></svg>
+          </div>
           <div id="gestor-evo-labels" style="display:flex;justify-content:space-between;margin-top:8px"></div>
         </div>
         <div class="glass" style="padding:26px 28px">
@@ -2396,7 +2398,17 @@ function gestorRenderEvolucaoCoorte(baseSemPeriodo, dias) {
   // exato de cada dia fica sempre a mostra, num quadradinho logo acima
   // do ponto, com uma linha pontilhada ligando o quadrado ate a data
   // embaixo, pra ficar claro que numero e data casam entre si.
-  const W = 720, H = 280, padX = 30, padY = 40, padDatas = 30;
+  // Com 15/30 dias, espremer tudo num SVG de largura fixa (720) faz os
+  // quadradinhos de valor se sobreporem (nao tem 720/30 = 24px pra cada
+  // numero de 3 digitos). Em vez de encolher tudo pra caber, o SVG usa
+  // 1 unidade = 1px de verdade (sem escalar) com largura minima
+  // garantida por ponto, e o wrapper (.gestor-scroll) rola horizontal
+  // quando o total passa da largura do card -- assim cada numero sempre
+  // tem espaco de sobra, em vez de ficar ilegivel.
+  const H = 280, padX = 30, padY = 40, padDatas = 30;
+  const ESPACO_MIN_POR_PONTO = 54;
+  const larguraContainer = document.getElementById('gestor-evo-svg-wrap').clientWidth || 720;
+  const W = Math.max(larguraContainer, padX*2 + ESPACO_MIN_POR_PONTO*Math.max(1, pontos.length-1));
   const stepX = pontos.length > 1 ? (W - padX*2) / (pontos.length-1) : 0;
   const y = v => (H - padDatas) - padY - (v/max)*((H - padDatas) - padY*2);
   const yData = H - 12;
@@ -2428,6 +2440,7 @@ function gestorRenderEvolucaoCoorte(baseSemPeriodo, dias) {
   }).join('');
   document.getElementById('gestor-evo-svg').setAttribute('viewBox', `0 0 ${W} ${H}`);
   document.getElementById('gestor-evo-svg').style.height = '280px';
+  document.getElementById('gestor-evo-svg').style.width = `${W}px`;
   document.getElementById('gestor-evo-svg').innerHTML = `
     <polyline points="${linha}" fill="none" stroke="#a992e0" stroke-width="2.4"/>
     ${partes}`;
@@ -2443,6 +2456,7 @@ function gestorRenderEvolucao(baseSemPeriodo) {
   document.getElementById('gestor-evo-coorte-nota').style.display = 'none';
   document.getElementById('gestor-evo-svg').setAttribute('viewBox', '0 0 720 240');
   document.getElementById('gestor-evo-svg').style.height = '240px';
+  document.getElementById('gestor-evo-svg').style.width = '100%';
   document.getElementById('gestor-evo-legenda').innerHTML = `
     <span style="display:flex;align-items:center;gap:7px;font:500 12px Manrope;color:#b3c4e0"><span style="width:10px;height:3px;border-radius:2px;background:#5db4e6"></span>Recebidos</span>
     <span style="display:flex;align-items:center;gap:7px;font:500 12px Manrope;color:#b3c4e0"><span style="width:10px;height:3px;border-radius:2px;background:#3fa08c"></span>Resolvidos</span>
