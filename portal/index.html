@@ -2162,7 +2162,7 @@ function gestorFiltrarPeriodo(lista) {
 // entao filtra por c.melhoria em vez de c.balde quando selecionado.
 function gestorFiltrarStatus(lista) {
   if (gestorState.statusFiltro === 'todos') return lista;
-  if (gestorState.statusFiltro === 'melhorias') return lista.filter(c => c.melhoria);
+  if (gestorState.statusFiltro === 'melhorias') return lista.filter(c => c.melhoria && c.balde !== 'resolvido');
   return lista.filter(c => c.balde === gestorState.statusFiltro);
 }
 function gestorAplicarFiltros(lista) {
