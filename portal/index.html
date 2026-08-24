@@ -483,6 +483,7 @@ footer.foot{border-top:1px solid rgba(255,255,255,.07);background:rgba(10,16,36,
           <button class="chip" data-gstatus="aberto" onclick="setGestorStatus('aberto')">Em aberto</button>
           <button class="chip" data-gstatus="pendente" onclick="setGestorStatus('pendente')">Pendente</button>
           <button class="chip" data-gstatus="resolvido" onclick="setGestorStatus('resolvido')">Resolvido</button>
+          <button class="chip" data-gstatus="melhorias" onclick="setGestorStatus('melhorias')" style="color:#c3aef0">Melhorias pendentes</button>
         </div>
         <div style="display:flex;gap:14px;flex-wrap:wrap;margin-top:18px">
           <div style="flex:1;min-width:200px">
@@ -615,26 +616,7 @@ footer.foot{border-top:1px solid rgba(255,255,255,.07);background:rgba(10,16,36,
         </div>
       </div>
 
-      <!-- LINHA 5 — Chamados que exigem atenção -->
-      <div class="glass" style="padding:26px 28px;margin-bottom:20px">
-        <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-bottom:20px">
-          <div style="display:flex;align-items:center;gap:10px">
-            <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="#e0a888" stroke-width="1.9" stroke-linecap="round"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0Z"/><path d="M12 9v4M12 17h.01"/></svg>
-            <h3 style="font:700 17px Outfit,sans-serif;color:#f2f7ff;margin:0">Chamados que exigem atenção</h3>
-          </div>
-          <span id="gestor-atencao-count" style="font:600 12.5px Manrope;color:#93a6c4"></span>
-        </div>
-        <div class="gestor-scroll">
-          <table class="gestor-table" id="gestor-atencao">
-            <thead><tr>
-              <th>Chamado</th><th>Cliente</th><th>Setor</th><th>Responsável</th><th>Aberto há</th><th>Status</th>
-            </tr></thead>
-            <tbody id="gestor-atencao-body"></tbody>
-          </table>
-        </div>
-      </div>
-
-      <!-- LINHA 5.5 — Melhorias pendentes de desenvolvimento -->
+      <!-- LINHA 5 — Melhorias pendentes de desenvolvimento -->
       <div class="glass" style="padding:26px 28px;margin-bottom:20px">
         <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-bottom:8px">
           <div style="display:flex;align-items:center;gap:10px">
@@ -650,6 +632,25 @@ footer.foot{border-top:1px solid rgba(255,255,255,.07);background:rgba(10,16,36,
               <th>Chamado</th><th>Cliente</th><th>Setor</th><th>Ticket/SO</th><th>Aberto há</th><th>Status</th>
             </tr></thead>
             <tbody id="gestor-melhorias-body"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- LINHA 5.5 — Chamados que exigem atenção -->
+      <div class="glass" style="padding:26px 28px;margin-bottom:20px">
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-bottom:20px">
+          <div style="display:flex;align-items:center;gap:10px">
+            <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="#e0a888" stroke-width="1.9" stroke-linecap="round"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0Z"/><path d="M12 9v4M12 17h.01"/></svg>
+            <h3 style="font:700 17px Outfit,sans-serif;color:#f2f7ff;margin:0">Chamados que exigem atenção</h3>
+          </div>
+          <span id="gestor-atencao-count" style="font:600 12.5px Manrope;color:#93a6c4"></span>
+        </div>
+        <div class="gestor-scroll">
+          <table class="gestor-table" id="gestor-atencao">
+            <thead><tr>
+              <th>Chamado</th><th>Cliente</th><th>Setor</th><th>Responsável</th><th>Aberto há</th><th>Status</th>
+            </tr></thead>
+            <tbody id="gestor-atencao-body"></tbody>
           </table>
         </div>
       </div>
@@ -2156,9 +2157,17 @@ function gestorFiltrarPeriodo(lista) {
   if (!ini) return lista;
   return lista.filter(c => { const d = new Date(c.dataAbertura); return !isNaN(d) && d >= ini && d <= fim; });
 }
+// "melhorias" nao e um balde normal (aberto/pendente/resolvido) -- e um
+// recorte a parte (categoria "Solicitação" ou status "Pendente PO"),
+// entao filtra por c.melhoria em vez de c.balde quando selecionado.
+function gestorFiltrarStatus(lista) {
+  if (gestorState.statusFiltro === 'todos') return lista;
+  if (gestorState.statusFiltro === 'melhorias') return lista.filter(c => c.melhoria);
+  return lista.filter(c => c.balde === gestorState.statusFiltro);
+}
 function gestorAplicarFiltros(lista) {
   let r = gestorFiltrarPeriodo(lista);
-  if (gestorState.statusFiltro !== 'todos') r = r.filter(c => c.balde === gestorState.statusFiltro);
+  r = gestorFiltrarStatus(r);
   if (gestorState.setor !== 'todos') r = r.filter(c => c.setor === gestorState.setor);
   if (gestorState.atendente !== 'todos') r = r.filter(c => c.atendenteSRG === gestorState.atendente);
   return r;
@@ -2206,7 +2215,7 @@ function gestorRenderCrumbs() {
   if (gestorState.setor !== 'todos') crumbs.push({ label:`Setor: ${gestorState.setor}`, campo:'setor' });
   if (gestorState.atendente !== 'todos') crumbs.push({ label:`Solicitante: ${gestorState.atendente}`, campo:'atendente' });
   if (gestorState.statusFiltro !== 'todos') {
-    const nomes = { aberto:'Em aberto', pendente:'Pendente', resolvido:'Resolvido' };
+    const nomes = { aberto:'Em aberto', pendente:'Pendente', resolvido:'Resolvido', melhorias:'Melhorias pendentes' };
     crumbs.push({ label:`Status: ${nomes[gestorState.statusFiltro]}`, campo:'status' });
   }
   if (!crumbs.length) { wrap.style.display = 'none'; wrap.innerHTML=''; return; }
@@ -2266,8 +2275,7 @@ function gestorBacklogEm(lista, instante) {
 // base pra tudo que precisa enxergar chamados abertos ANTES do periodo
 // selecionado (backlog, idade do backlog, chamados que exigem atencao).
 function gestorAplicarFiltrosSemPeriodo(lista) {
-  let r = lista;
-  if (gestorState.statusFiltro !== 'todos') r = r.filter(c => c.balde === gestorState.statusFiltro);
+  let r = gestorFiltrarStatus(lista);
   if (gestorState.setor !== 'todos') r = r.filter(c => c.setor === gestorState.setor);
   if (gestorState.atendente !== 'todos') r = r.filter(c => c.atendenteSRG === gestorState.atendente);
   return r;
@@ -2897,8 +2905,8 @@ function gestorRenderTudo() {
   gestorRenderEquipe(gestorCalcularDesempenhoEquipe(baseSemPeriodo, janela));
   gestorRenderN2N3(metricas);
 
-  gestorRenderAtencao(gestorCalcularAtencao(baseSemPeriodo));
   gestorRenderMelhorias(gestorCalcularMelhorias(baseSemPeriodo));
+  gestorRenderAtencao(gestorCalcularAtencao(baseSemPeriodo));
   gestorRenderTickets(filtrados);
 
   const nota = document.getElementById('gestor-fonte-nota');
