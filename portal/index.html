@@ -183,6 +183,7 @@ footer.foot{border-top:1px solid rgba(255,255,255,.07);background:rgba(10,16,36,
       <nav style="display:flex;gap:6px">
         <a href="#" onclick="goHome();return false" id="nav-chamados" style="font:600 13.5px Manrope;color:#bcccea;padding:8px 14px;border-radius:10px;cursor:pointer">Chamados</a>
         <a href="#" onclick="goGestor();return false" id="nav-gestor" style="display:none;font:600 13.5px Manrope;color:#bcccea;padding:8px 14px;border-radius:10px;cursor:pointer">Painel do Gestor</a>
+        <a href="#" onclick="goKPIs();return false" id="nav-kpis" style="display:none;font:600 13.5px Manrope;color:#bcccea;padding:8px 14px;border-radius:10px;cursor:pointer">KPIs de Atendimento</a>
       </nav>
     </div>
     <div style="display:flex;align-items:center;gap:10px">
@@ -660,6 +661,64 @@ footer.foot{border-top:1px solid rgba(255,255,255,.07);background:rgba(10,16,36,
       </div>
     </div>
 
+    <!-- ---- KPIS DE ATENDIMENTO ---- -->
+    <div id="view-kpis" style="display:none;animation:riseIn .45s ease both">
+      <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:16px;flex-wrap:wrap;margin-bottom:18px">
+        <div>
+          <span style="font:600 12px Manrope;letter-spacing:.14em;text-transform:uppercase;color:#7fd4c0">Atendimento (Digisac)</span>
+          <h1 style="font:700 32px Outfit,sans-serif;color:#f4f8ff;margin:6px 0 6px">KPIs de Atendimento</h1>
+          <p style="font:400 15.5px Manrope;color:#bcccea;margin:0 0 4px" id="kpis-subtitulo">Carregando...</p>
+        </div>
+        <div class="chip-row" id="kpis-periodo-chips" style="display:flex;gap:8px;flex-wrap:wrap">
+          <button class="chip" data-kperiodo="7" onclick="setKPIsPeriodo(7)">7 dias</button>
+          <button class="chip active" data-kperiodo="15" onclick="setKPIsPeriodo(15)">15 dias</button>
+          <button class="chip" data-kperiodo="30" onclick="setKPIsPeriodo(30)">30 dias</button>
+          <button class="chip" data-kperiodo="90" onclick="setKPIsPeriodo(90)">90 dias</button>
+        </div>
+      </div>
+
+      <div id="kpis-loading" style="font:400 14px Manrope;color:#7186ab;padding:20px 0">Carregando dados do Digisac...</div>
+      <div id="kpis-erro" style="display:none;font:500 14px Manrope;color:#e08a8a;padding:16px 0"></div>
+
+      <div id="kpis-conteudo" style="display:none">
+        <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin-bottom:20px" class="kpis-cards-grid">
+          <div class="glass" style="padding:20px 22px">
+            <div style="font:600 12px Manrope;color:#7fd4c0;text-transform:uppercase;letter-spacing:.08em">Atendimentos</div>
+            <div id="kpi-card-total" style="font:700 30px Outfit,sans-serif;color:#f4f8ff;margin-top:6px">--</div>
+          </div>
+          <div class="glass" style="padding:20px 22px">
+            <div style="font:600 12px Manrope;color:#7fd4c0;text-transform:uppercase;letter-spacing:.08em">Tempo médio atendimento</div>
+            <div id="kpi-card-tempo" style="font:700 30px Outfit,sans-serif;color:#f4f8ff;margin-top:6px">--</div>
+          </div>
+          <div class="glass" style="padding:20px 22px">
+            <div style="font:600 12px Manrope;color:#7fd4c0;text-transform:uppercase;letter-spacing:.08em">Tempo médio de espera</div>
+            <div id="kpi-card-espera" style="font:700 30px Outfit,sans-serif;color:#f4f8ff;margin-top:6px">--</div>
+          </div>
+          <div class="glass" style="padding:20px 22px">
+            <div style="font:600 12px Manrope;color:#7fd4c0;text-transform:uppercase;letter-spacing:.08em">Taxa de transferência</div>
+            <div id="kpi-card-transf" style="font:700 30px Outfit,sans-serif;color:#f4f8ff;margin-top:6px">--</div>
+          </div>
+        </div>
+
+        <div class="glass" id="kpis-ranking-wrap" style="padding:26px 28px;margin-bottom:20px;display:none">
+          <h3 style="font:700 18px Outfit,sans-serif;color:#f4f8ff;margin:0 0 14px">Atendimentos por colaborador</h3>
+          <div class="gestor-scroll">
+            <table class="gestor-table" id="kpis-ranking-table">
+              <thead><tr><th>Colaborador</th><th>Atendimentos</th><th>Tempo médio</th><th>Espera média</th><th>Transferências</th></tr></thead>
+              <tbody id="kpis-ranking-body"></tbody>
+            </table>
+          </div>
+        </div>
+
+        <div class="glass" style="padding:26px 28px">
+          <h3 style="font:700 18px Outfit,sans-serif;color:#f4f8ff;margin:0 0 14px">Atendimentos por dia</h3>
+          <div class="gestor-scroll">
+            <div id="kpis-dia-lista" style="display:flex;gap:8px;align-items:flex-end;min-height:120px"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
   </main>
 
   <div id="gestor-modal" onclick="if(event.target===this) gestorFecharModal()" style="display:none;position:fixed;inset:0;z-index:200;background:rgba(4,8,20,.65);backdrop-filter:blur(6px);align-items:flex-start;justify-content:center;padding:60px 16px;overflow-y:auto">
@@ -725,6 +784,10 @@ footer.foot{border-top:1px solid rgba(255,255,255,.07);background:rgba(10,16,36,
       <label style="display:flex;align-items:center;gap:9px;height:40px;padding:0 4px;margin-bottom:11px;cursor:pointer">
         <input type="checkbox" id="new-gestor" style="width:16px;height:16px;accent-color:#3fa08c">
         <span style="font:500 13px Manrope;color:#bcccea">Gestor (acesso ao Painel do Gestor / BI)</span>
+      </label>
+      <label style="display:flex;align-items:center;gap:9px;height:40px;padding:0 4px;margin-bottom:11px;cursor:pointer">
+        <input type="checkbox" id="new-kpis" style="width:16px;height:16px;accent-color:#3fa08c">
+        <span style="font:500 13px Manrope;color:#bcccea">KPIs de Atendimento (Digisac) -- gestor ve de todos, colaborador ve so o proprio</span>
       </label>
       <div style="display:flex;gap:9px">
         <button onclick="addUser()" id="btn-salvar-usuario" class="btn-primary" style="flex:1;height:46px;font-size:13.5px">
@@ -845,8 +908,8 @@ async function apiListUsers(token) {
   const r = await fetch(`${PROXY}/auth/users`, { headers:{'Authorization':`Bearer ${token}`} });
   return r.json();
 }
-async function apiCreateUser(token, username, password, unidades, role, nome, gestor, atendenteSRG) {
-  const r = await fetch(`${PROXY}/auth/users`, { method:'POST', headers:{'Content-Type':'application/json','Authorization':`Bearer ${token}`}, body:JSON.stringify({username,password,unidades,role,nome,gestor,atendenteSRG}) });
+async function apiCreateUser(token, username, password, unidades, role, nome, gestor, atendenteSRG, verKPIs) {
+  const r = await fetch(`${PROXY}/auth/users`, { method:'POST', headers:{'Content-Type':'application/json','Authorization':`Bearer ${token}`}, body:JSON.stringify({username,password,unidades,role,nome,gestor,atendenteSRG,verKPIs}) });
   return r.json();
 }
 async function apiUpdateUser(token, username, campos) {
@@ -923,13 +986,21 @@ function goGestor() {
   window.scrollTo(0,0);
   carregarPainelGestor();
 }
+function goKPIs() {
+  showView('kpis');
+  atualizarNavAtiva('kpis');
+  window.scrollTo(0,0);
+  carregarKPIsAtendimento();
+}
 function atualizarNavAtiva(view) {
   const chamados = document.getElementById('nav-chamados');
   const gestor = document.getElementById('nav-gestor');
+  const kpis = document.getElementById('nav-kpis');
   const ativo = 'color:#eaf1ff;background:linear-gradient(135deg,rgba(47,95,176,.4),rgba(63,160,140,.4));border:1px solid rgba(255,255,255,.14)';
   const inativo = 'color:#bcccea;background:transparent;border:1px solid transparent';
   chamados.style.cssText += view==='dashboard' ? ativo : inativo;
   gestor.style.cssText += view==='gestor' ? ativo : inativo;
+  kpis.style.cssText += view==='kpis' ? ativo : inativo;
 }
 function goNew() {
   buildNewTicketChips();
@@ -946,6 +1017,7 @@ function showView(name) {
   document.getElementById('view-newticket').style.display = name==='newticket' ? 'block' : 'none';
   document.getElementById('view-profile').style.display = name==='profile' ? 'block' : 'none';
   document.getElementById('view-gestor').style.display = name==='gestor' ? 'block' : 'none';
+  document.getElementById('view-kpis').style.display = name==='kpis' ? 'block' : 'none';
 }
 
 // ---- Login / Logout ----
@@ -988,6 +1060,7 @@ function enterApp() {
   showView('dashboard');
   atualizarNavAtiva('dashboard');
   document.getElementById('nav-gestor').style.display = (currentUser.gestor || currentUser.role === 'admin') ? 'inline-block' : 'none';
+  document.getElementById('nav-kpis').style.display = (currentUser.verKPIs || currentUser.gestor || currentUser.role === 'admin') ? 'inline-block' : 'none';
   limpar();
   carregarGertecCards();
 }
@@ -1013,9 +1086,10 @@ async function revalidarSessao() {
   try {
     const data = await apiValidate(currentUser.token);
     if (!data.ok) { doLogout(); return; } // sessao expirada ou usuario removido
-    currentUser = { ...currentUser, nome:data.nome||'', role:data.role, unidades:data.unidades||[], gestor:!!data.gestor, atendenteSRG:data.atendenteSRG||'' };
+    currentUser = { ...currentUser, nome:data.nome||'', role:data.role, unidades:data.unidades||[], gestor:!!data.gestor, verHistorico:!!data.verHistorico, verKPIs:!!data.verKPIs, atendenteSRG:data.atendenteSRG||'' };
     sessionStorage.setItem('srg_user', JSON.stringify(currentUser));
     document.getElementById('nav-gestor').style.display = (currentUser.gestor || currentUser.role === 'admin') ? 'inline-block' : 'none';
+    document.getElementById('nav-kpis').style.display = (currentUser.verKPIs || currentUser.gestor || currentUser.role === 'admin') ? 'inline-block' : 'none';
     document.getElementById('admin-btn').style.display = currentUser.role === 'admin' ? 'inline-flex' : 'none';
   } catch(e) { /* falha de rede na revalidacao -- mantem sessao local, tenta de novo no proximo load */ }
 }
@@ -1061,6 +1135,7 @@ async function renderUsersList() {
       </div>
       <span style="font:600 11.5px Manrope;color:#a9bcda;padding:5px 11px;border-radius:8px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);white-space:nowrap">${u.role==='admin'?'Administrador':'Cliente'}</span>
       ${u.gestor ? `<span style="font:600 11.5px Manrope;color:#7fe0c0;padding:5px 11px;border-radius:8px;background:rgba(63,190,140,.14);border:1px solid rgba(90,200,150,.3);white-space:nowrap">Gestor</span>` : ''}
+      ${u.verKPIs ? `<span style="font:600 11.5px Manrope;color:#c3aef0;padding:5px 11px;border-radius:8px;background:rgba(169,146,224,.16);border:1px solid rgba(169,146,224,.35);white-space:nowrap">KPIs</span>` : ''}
       ${u.atendenteSRG ? `<span style="font:600 11.5px Manrope;color:#8fb0e0;padding:5px 11px;border-radius:8px;background:rgba(47,95,176,.16);border:1px solid rgba(90,150,220,.3);white-space:nowrap">${u.atendenteSRG}</span>` : ''}
       <button onclick='iniciarEdicaoUsuario(${JSON.stringify(u).replace(/'/g,"&#39;")})' style="width:34px;height:34px;border-radius:9px;cursor:pointer;display:flex;align-items:center;justify-content:center;background:transparent;border:1px solid rgba(255,255,255,.1);flex-shrink:0">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#8fb0e0" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.12 2.12 0 0 1 3 3L12 15l-4 1 1-4Z"/></svg>
@@ -1081,6 +1156,7 @@ function iniciarEdicaoUsuario(u) {
   document.getElementById('new-filter').value = (u.unidades||[]).join(', ');
   document.getElementById('new-atendente').value = u.atendenteSRG || '';
   document.getElementById('new-gestor').checked = !!u.gestor;
+  document.getElementById('new-kpis').checked = !!u.verKPIs;
   document.getElementById('form-usuario-titulo').textContent = 'Editando usuário: ' + u.username;
   document.getElementById('btn-salvar-usuario').innerHTML = 'Salvar alterações';
   document.getElementById('btn-cancelar-edicao').style.display = 'inline-flex';
@@ -1095,6 +1171,7 @@ function cancelarEdicaoUsuario() {
   document.getElementById('new-filter').value = '';
   document.getElementById('new-atendente').value = '';
   document.getElementById('new-gestor').checked = false;
+  document.getElementById('new-kpis').checked = false;
   document.getElementById('form-usuario-titulo').textContent = 'Novo usuário';
   document.getElementById('btn-salvar-usuario').innerHTML = '<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.1" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg> Adicionar';
   document.getElementById('btn-cancelar-edicao').style.display = 'none';
@@ -1107,11 +1184,12 @@ async function addUser() {
   const filterVal = document.getElementById('new-filter').value.trim();
   const unidades = filterVal ? filterVal.split(',').map(s=>s.trim()).filter(Boolean) : [];
   const gestor = document.getElementById('new-gestor').checked;
+  const verKPIs = document.getElementById('new-kpis').checked;
   const atendenteSRG = document.getElementById('new-atendente').value.trim();
 
   if (usuarioEmEdicao) {
     // ---- modo edição ----
-    const campos = { unidades, nome, gestor, atendenteSRG };
+    const campos = { unidades, nome, gestor, verKPIs, atendenteSRG };
     if (pass) campos.password = pass;
     const data = await apiUpdateUser(currentUser.token, usuarioEmEdicao, campos);
     if (!data.ok) { msg.style.display='block'; msg.style.color='#fc8181'; msg.textContent=data.error||'Erro ao salvar usuário.'; return; }
@@ -1124,7 +1202,7 @@ async function addUser() {
 
   // ---- modo criação ----
   if (!login || !pass) { msg.style.display='block'; msg.style.color='#fc8181'; msg.textContent='Preencha usuário e senha.'; return; }
-  const data = await apiCreateUser(currentUser.token, login, pass, unidades, 'cliente', nome, gestor, atendenteSRG);
+  const data = await apiCreateUser(currentUser.token, login, pass, unidades, 'cliente', nome, gestor, atendenteSRG, verKPIs);
   if (!data.ok) { msg.style.display='block'; msg.style.color='#fc8181'; msg.textContent=data.error||'Erro ao criar usuário.'; return; }
   cancelarEdicaoUsuario();
   msg.style.display='block'; msg.style.color='#7fe0c0'; msg.textContent='Usuário adicionado!';
@@ -2053,6 +2131,85 @@ function gestorAtualizarAgo() {
   else if (s < 86400) txt = `Atualizado há ${Math.floor(s/3600)}h`;
   else txt = `Atualizado há ${Math.floor(s/86400)}d`;
   el.textContent = txt;
+}
+
+// ══════════════════════════════════════════
+// KPIS DE ATENDIMENTO (Digisac)
+// ══════════════════════════════════════════
+let kpisPeriodoAtual = 15;
+
+function setKPIsPeriodo(p) {
+  kpisPeriodoAtual = p;
+  document.querySelectorAll('[data-kperiodo]').forEach(b => b.classList.toggle('active', +b.dataset.kperiodo === p));
+  carregarKPIsAtendimento();
+}
+
+function fmtSegundos(seg) {
+  if (seg === null || seg === undefined) return '--';
+  const min = Math.round(seg / 60);
+  if (min < 60) return `${min} min`;
+  const h = Math.floor(min / 60), m = min % 60;
+  return `${h}h${m ? ` ${m}min` : ''}`;
+}
+
+async function carregarKPIsAtendimento() {
+  document.querySelectorAll('[data-kperiodo]').forEach(b => b.classList.toggle('active', +b.dataset.kperiodo === kpisPeriodoAtual));
+  const loading = document.getElementById('kpis-loading');
+  const erroBox = document.getElementById('kpis-erro');
+  const conteudo = document.getElementById('kpis-conteudo');
+  loading.style.display = 'block';
+  erroBox.style.display = 'none';
+  conteudo.style.display = 'none';
+  try {
+    const r = await fetch(`${PROXY}/digisac/kpis-atendimento?periodo=${kpisPeriodoAtual}`, {
+      headers: { 'Authorization': `Bearer ${currentUser.token}` }
+    });
+    const data = await r.json();
+    if (!data.ok) throw new Error(data.error || 'Falha ao carregar KPIs');
+
+    document.getElementById('kpis-subtitulo').textContent = data.escopo === 'todos'
+      ? `Visão geral de todos os colaboradores -- últimos ${data.periodo} dias.`
+      : `Seus atendimentos -- últimos ${data.periodo} dias.`;
+
+    document.getElementById('kpi-card-total').textContent = data.resumo.totalAtendimentos;
+    document.getElementById('kpi-card-tempo').textContent = fmtSegundos(data.resumo.tempoMedioSeg);
+    document.getElementById('kpi-card-espera').textContent = fmtSegundos(data.resumo.esperaMediaSeg);
+    document.getElementById('kpi-card-transf').textContent = `${data.resumo.taxaTransferencia}%`;
+
+    const rankingWrap = document.getElementById('kpis-ranking-wrap');
+    const rankingBody = document.getElementById('kpis-ranking-body');
+    if (data.escopo === 'todos' && data.ranking.length) {
+      rankingWrap.style.display = 'block';
+      rankingBody.innerHTML = data.ranking.map(c => `
+        <tr>
+          <td>${c.nome}</td>
+          <td>${c.atendimentos}</td>
+          <td>${fmtSegundos(c.tempoMedioSeg)}</td>
+          <td>${fmtSegundos(c.esperaMediaSeg)}</td>
+          <td>${c.transferencias}</td>
+        </tr>
+      `).join('');
+    } else {
+      rankingWrap.style.display = 'none';
+    }
+
+    const listaDia = document.getElementById('kpis-dia-lista');
+    const maxDia = Math.max(1, ...data.porDia.map(d => d.total));
+    listaDia.innerHTML = data.porDia.map(d => `
+      <div style="display:flex;flex-direction:column;align-items:center;gap:6px;min-width:34px">
+        <div style="font:600 12px Manrope;color:#bcccea">${d.total}</div>
+        <div style="width:22px;border-radius:6px 6px 0 0;background:linear-gradient(180deg,#3fa08c,#2f5fb0);height:${Math.max(6, d.total/maxDia*90)}px"></div>
+        <div style="font:400 10.5px Manrope;color:#7186ab;writing-mode:vertical-rl;transform:rotate(180deg)">${d.dia.slice(5).split('-').reverse().join('/')}</div>
+      </div>
+    `).join('') || '<div style="font:400 13px Manrope;color:#7186ab">Sem atendimentos no período.</div>';
+
+    loading.style.display = 'none';
+    conteudo.style.display = 'block';
+  } catch (e) {
+    loading.style.display = 'none';
+    erroBox.style.display = 'block';
+    erroBox.textContent = `Não foi possível carregar os KPIs: ${e.message}`;
+  }
 }
 
 async function carregarPainelGestor(forcar=false) {
