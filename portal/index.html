@@ -29,6 +29,9 @@ button{font-family:inherit}
 @keyframes pulseDot{0%,100%{opacity:1;box-shadow:0 0 0 0 rgba(90,191,160,.5)}50%{opacity:.7;box-shadow:0 0 0 8px rgba(90,191,160,0)}}
 @keyframes riseIn{from{opacity:0;transform:translateY(18px)}to{opacity:1;transform:translateY(0)}}
 @keyframes spin{to{transform:rotate(360deg)}}
+.kpis-spinner{display:inline-block;width:9px;height:9px;border-radius:50%;border:2px solid rgba(127,212,192,.3);border-top-color:#7fd4c0;animation:spin .7s linear infinite;vertical-align:middle}
+.kpis-chip{font:600 12.5px Manrope;color:#bcccea;padding:7px 13px;border-radius:10px;cursor:pointer;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);transition:all .15s ease}
+.kpis-chip.active{color:#eaf1ff;background:linear-gradient(135deg,rgba(47,95,176,.4),rgba(63,160,140,.4));border:1px solid rgba(255,255,255,.14)}
 
 .bg-fixed{position:fixed;inset:0;z-index:0;pointer-events:none}
 .bg-gradient{background:radial-gradient(900px 600px at 15% 10%,rgba(47,95,176,.28),transparent 60%),radial-gradient(800px 700px at 88% 85%,rgba(63,160,140,.22),transparent 60%),radial-gradient(700px 500px at 50% 50%,rgba(26,42,110,.35),transparent 70%),linear-gradient(160deg,#070c1f,#0b1230 55%,#0a1428)}
@@ -667,20 +670,31 @@ footer.foot{border-top:1px solid rgba(255,255,255,.07);background:rgba(10,16,36,
         <div>
           <span style="font:600 12px Manrope;letter-spacing:.14em;text-transform:uppercase;color:#7fd4c0">Atendimento (Digisac)</span>
           <h1 style="font:700 32px Outfit,sans-serif;color:#f4f8ff;margin:6px 0 6px">KPIs de Atendimento</h1>
-          <p style="font:400 15.5px Manrope;color:#bcccea;margin:0 0 4px" id="kpis-subtitulo">Carregando...</p>
+          <p style="font:400 15.5px Manrope;color:#bcccea;margin:0 0 4px" id="kpis-subtitulo">Carregando...
+            <span id="kpis-atualizando-badge" style="display:none;margin-left:8px;font:600 11px Manrope;color:#7fd4c0"><span class="kpis-spinner"></span> atualizando...</span>
+          </p>
         </div>
-        <div class="chip-row" id="kpis-periodo-chips" style="display:flex;gap:8px;flex-wrap:wrap">
-          <button class="chip" data-kperiodo="7" onclick="setKPIsPeriodo(7)">7 dias</button>
-          <button class="chip active" data-kperiodo="15" onclick="setKPIsPeriodo(15)">15 dias</button>
-          <button class="chip" data-kperiodo="30" onclick="setKPIsPeriodo(30)">30 dias</button>
-          <button class="chip" data-kperiodo="90" onclick="setKPIsPeriodo(90)">90 dias</button>
+        <div style="display:flex;flex-direction:column;align-items:flex-end;gap:10px">
+          <div class="chip-row" id="kpis-periodo-chips" style="display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end">
+            <button class="chip" data-kperiodo="7" onclick="setKPIsPeriodo(7)">Esta semana</button>
+            <button class="chip active" data-kperiodo="15" onclick="setKPIsPeriodo(15)">15 dias</button>
+            <button class="chip" data-kperiodo="30" onclick="setKPIsPeriodo(30)">30 dias</button>
+            <button class="chip" data-kperiodo="90" onclick="setKPIsPeriodo(90)">90 dias</button>
+          </div>
+          <div style="display:flex;gap:8px;align-items:center">
+            <input type="date" id="kpis-data-de" onchange="setKPIsDataExata()" style="height:34px;padding:0 10px;border-radius:9px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.12);color:#dbe6fb;font:500 12.5px Manrope">
+            <span style="font:400 12px Manrope;color:#7186ab">até</span>
+            <input type="date" id="kpis-data-ate" onchange="setKPIsDataExata()" style="height:34px;padding:0 10px;border-radius:9px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.12);color:#dbe6fb;font:500 12.5px Manrope">
+          </div>
         </div>
       </div>
+
+      <div id="kpis-colaborador-chips" style="display:none;gap:8px;flex-wrap:wrap;margin-bottom:18px"></div>
 
       <div id="kpis-loading" style="font:400 14px Manrope;color:#7186ab;padding:20px 0">Carregando dados do Digisac...</div>
       <div id="kpis-erro" style="display:none;font:500 14px Manrope;color:#e08a8a;padding:16px 0"></div>
 
-      <div id="kpis-conteudo" style="display:none">
+      <div id="kpis-conteudo" style="display:none;transition:opacity .25s ease">
         <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin-bottom:20px" class="kpis-cards-grid">
           <div class="glass" style="padding:20px 22px">
             <div style="font:600 12px Manrope;color:#7fd4c0;text-transform:uppercase;letter-spacing:.08em">Atendimentos</div>
@@ -2137,11 +2151,40 @@ function gestorAtualizarAgo() {
 // KPIS DE ATENDIMENTO (Digisac)
 // ══════════════════════════════════════════
 let kpisPeriodoAtual = 15;
+let kpisDataDeAtual = null;
+let kpisDataAteAtual = null;
+let kpisColaboradorAtual = 'todos';
+let kpisUltimoResultado = null; // cache do ultimo fetch -- filtrar por colaborador nao refaz a chamada
+let kpisPrimeiraCarga = true;
 
 function setKPIsPeriodo(p) {
   kpisPeriodoAtual = p;
+  kpisDataDeAtual = null; kpisDataAteAtual = null; // chip pronto cancela o recorte de data exata
+  document.getElementById('kpis-data-de').value = '';
+  document.getElementById('kpis-data-ate').value = '';
+  kpisColaboradorAtual = 'todos'; // periodo novo -> reseta o recorte por colaborador
   document.querySelectorAll('[data-kperiodo]').forEach(b => b.classList.toggle('active', +b.dataset.kperiodo === p));
   carregarKPIsAtendimento();
+}
+
+// Campo de data exata ("De"/"Até"): assim que "De" e preenchido, ja
+// dispara a busca (com "Até" = hoje se ainda nao preenchido). Cancela
+// qualquer chip de periodo pronto ativo (sao mutuamente exclusivos).
+function setKPIsDataExata() {
+  const de = document.getElementById('kpis-data-de').value;
+  const ate = document.getElementById('kpis-data-ate').value;
+  if (!de) return;
+  kpisDataDeAtual = de;
+  kpisDataAteAtual = ate || null;
+  kpisColaboradorAtual = 'todos';
+  document.querySelectorAll('[data-kperiodo]').forEach(b => b.classList.remove('active'));
+  carregarKPIsAtendimento();
+}
+
+function setKPIsColaborador(nome) {
+  kpisColaboradorAtual = nome;
+  document.querySelectorAll('#kpis-colaborador-chips [data-kcolab]').forEach(b => b.classList.toggle('active', b.dataset.kcolab === nome));
+  if (kpisUltimoResultado) kpisRenderizar(kpisUltimoResultado); // dado ja esta em memoria, so re-renderiza
 }
 
 function fmtSegundos(seg) {
@@ -2153,63 +2196,124 @@ function fmtSegundos(seg) {
 }
 
 async function carregarKPIsAtendimento() {
-  document.querySelectorAll('[data-kperiodo]').forEach(b => b.classList.toggle('active', +b.dataset.kperiodo === kpisPeriodoAtual));
+  if (!kpisDataDeAtual) {
+    document.querySelectorAll('[data-kperiodo]').forEach(b => b.classList.toggle('active', +b.dataset.kperiodo === kpisPeriodoAtual));
+  }
   const loading = document.getElementById('kpis-loading');
   const erroBox = document.getElementById('kpis-erro');
   const conteudo = document.getElementById('kpis-conteudo');
-  loading.style.display = 'block';
+  const badge = document.getElementById('kpis-atualizando-badge');
+
   erroBox.style.display = 'none';
-  conteudo.style.display = 'none';
+
+  if (kpisPrimeiraCarga) {
+    // primeira vez: mostra o loading grande, ainda nao ha nada na tela
+    loading.style.display = 'block';
+    conteudo.style.display = 'none';
+  } else {
+    // troca de periodo com dado ja na tela: mantem tudo visivel, so
+    // esmaece um pouco e mostra o selo "atualizando..." -- evita o
+    // "sumiu e voltou" e da a sensacao de busca em tempo real.
+    loading.style.display = 'none';
+    conteudo.style.opacity = '0.4';
+    badge.style.display = 'inline-block';
+  }
+
   try {
-    const r = await fetch(`${PROXY}/digisac/kpis-atendimento?periodo=${kpisPeriodoAtual}`, {
+    const qs = kpisDataDeAtual
+      ? `dataDe=${kpisDataDeAtual}${kpisDataAteAtual ? `&dataAte=${kpisDataAteAtual}` : ''}`
+      : `periodo=${kpisPeriodoAtual}`;
+    const r = await fetch(`${PROXY}/digisac/kpis-atendimento?${qs}`, {
       headers: { 'Authorization': `Bearer ${currentUser.token}` }
     });
     const data = await r.json();
     if (!data.ok) throw new Error(data.error || 'Falha ao carregar KPIs');
 
-    document.getElementById('kpis-subtitulo').textContent = data.escopo === 'todos'
-      ? `Visão geral de todos os colaboradores -- últimos ${data.periodo} dias.`
-      : `Seus atendimentos -- últimos ${data.periodo} dias.`;
-
-    document.getElementById('kpi-card-total').textContent = data.resumo.totalAtendimentos;
-    document.getElementById('kpi-card-tempo').textContent = fmtSegundos(data.resumo.tempoMedioSeg);
-    document.getElementById('kpi-card-espera').textContent = fmtSegundos(data.resumo.esperaMediaSeg);
-    document.getElementById('kpi-card-transf').textContent = `${data.resumo.taxaTransferencia}%`;
-
-    const rankingWrap = document.getElementById('kpis-ranking-wrap');
-    const rankingBody = document.getElementById('kpis-ranking-body');
-    if (data.escopo === 'todos' && data.ranking.length) {
-      rankingWrap.style.display = 'block';
-      rankingBody.innerHTML = data.ranking.map(c => `
-        <tr>
-          <td>${c.nome}</td>
-          <td>${c.atendimentos}</td>
-          <td>${fmtSegundos(c.tempoMedioSeg)}</td>
-          <td>${fmtSegundos(c.esperaMediaSeg)}</td>
-          <td>${c.transferencias}</td>
-        </tr>
-      `).join('');
-    } else {
-      rankingWrap.style.display = 'none';
-    }
-
-    const listaDia = document.getElementById('kpis-dia-lista');
-    const maxDia = Math.max(1, ...data.porDia.map(d => d.total));
-    listaDia.innerHTML = data.porDia.map(d => `
-      <div style="display:flex;flex-direction:column;align-items:center;gap:6px;min-width:34px">
-        <div style="font:600 12px Manrope;color:#bcccea">${d.total}</div>
-        <div style="width:22px;border-radius:6px 6px 0 0;background:linear-gradient(180deg,#3fa08c,#2f5fb0);height:${Math.max(6, d.total/maxDia*90)}px"></div>
-        <div style="font:400 10.5px Manrope;color:#7186ab;writing-mode:vertical-rl;transform:rotate(180deg)">${d.dia.slice(5).split('-').reverse().join('/')}</div>
-      </div>
-    `).join('') || '<div style="font:400 13px Manrope;color:#7186ab">Sem atendimentos no período.</div>';
+    kpisUltimoResultado = data;
+    kpisRenderizar(data);
 
     loading.style.display = 'none';
     conteudo.style.display = 'block';
+    requestAnimationFrame(() => { conteudo.style.opacity = '1'; });
+    badge.style.display = 'none';
+    kpisPrimeiraCarga = false;
   } catch (e) {
     loading.style.display = 'none';
+    badge.style.display = 'none';
+    conteudo.style.opacity = '1';
     erroBox.style.display = 'block';
     erroBox.textContent = `Não foi possível carregar os KPIs: ${e.message}`;
   }
+}
+
+// Renderiza a tela inteira a partir de um payload ja carregado --
+// separado do fetch pra poder re-renderizar so trocando o filtro de
+// colaborador, sem bater na API de novo.
+function kpisRenderizar(data) {
+  const chipsWrap = document.getElementById('kpis-colaborador-chips');
+
+  if (data.escopo === 'todos' && data.ranking.length) {
+    chipsWrap.style.display = 'flex';
+    chipsWrap.innerHTML = ['<button class="kpis-chip' + (kpisColaboradorAtual === 'todos' ? ' active' : '') + '" data-kcolab="todos" onclick="setKPIsColaborador(\'todos\')">Todos</button>']
+      .concat(data.ranking.map(c => `<button class="kpis-chip${kpisColaboradorAtual === c.nome ? ' active' : ''}" data-kcolab="${c.nome}" onclick="setKPIsColaborador('${c.nome.replace(/'/g,"\\'")}')">${c.nome}</button>`))
+      .join('');
+  } else {
+    chipsWrap.style.display = 'none';
+  }
+
+  // Se um colaborador especifico estiver selecionado, os cards de
+  // resumo e o grafico por dia passam a refletir so ele; senao, o
+  // agregado geral (comportamento anterior).
+  const colabSelecionado = kpisColaboradorAtual !== 'todos'
+    ? data.ranking.find(c => c.nome === kpisColaboradorAtual)
+    : null;
+
+  const resumo = colabSelecionado
+    ? { totalAtendimentos: colabSelecionado.atendimentos, tempoMedioSeg: colabSelecionado.tempoMedioSeg, esperaMediaSeg: colabSelecionado.esperaMediaSeg, taxaTransferencia: colabSelecionado.atendimentos ? +(colabSelecionado.transferencias / colabSelecionado.atendimentos * 100).toFixed(1) : 0 }
+    : data.resumo;
+
+  const faixaTexto = data.dataDe
+    ? `de ${data.dataDe.split('-').reverse().join('/')} até ${data.dataAte.split('-').reverse().join('/')}`
+    : `últimos ${data.periodo} dias`;
+  document.getElementById('kpis-subtitulo').childNodes[0].textContent = data.escopo === 'todos'
+    ? (colabSelecionado ? `Atendimentos de ${colabSelecionado.nome} -- ${faixaTexto}. ` : `Visão geral de todos os colaboradores -- ${faixaTexto}. `)
+    : `Seus atendimentos -- ${faixaTexto}. `;
+
+  document.getElementById('kpi-card-total').textContent = resumo.totalAtendimentos;
+  document.getElementById('kpi-card-tempo').textContent = fmtSegundos(resumo.tempoMedioSeg);
+  document.getElementById('kpi-card-espera').textContent = fmtSegundos(resumo.esperaMediaSeg);
+  document.getElementById('kpi-card-transf').textContent = `${resumo.taxaTransferencia}%`;
+
+  const rankingWrap = document.getElementById('kpis-ranking-wrap');
+  const rankingBody = document.getElementById('kpis-ranking-body');
+  if (data.escopo === 'todos' && data.ranking.length && !colabSelecionado) {
+    rankingWrap.style.display = 'block';
+    rankingBody.innerHTML = data.ranking.map(c => `
+      <tr>
+        <td>${c.nome}</td>
+        <td>${c.atendimentos}</td>
+        <td>${fmtSegundos(c.tempoMedioSeg)}</td>
+        <td>${fmtSegundos(c.esperaMediaSeg)}</td>
+        <td>${c.transferencias}</td>
+      </tr>
+    `).join('');
+  } else {
+    rankingWrap.style.display = 'none';
+  }
+
+  const porDiaUsado = colabSelecionado && data.porDiaPorColaborador
+    ? (data.porDiaPorColaborador[colabSelecionado.nome] || [])
+    : data.porDia;
+
+  const listaDia = document.getElementById('kpis-dia-lista');
+  const maxDia = Math.max(1, ...porDiaUsado.map(d => d.total));
+  listaDia.innerHTML = porDiaUsado.map(d => `
+    <div style="display:flex;flex-direction:column;align-items:center;gap:6px;min-width:34px">
+      <div style="font:600 12px Manrope;color:#bcccea">${d.total}</div>
+      <div style="width:22px;border-radius:6px 6px 0 0;background:linear-gradient(180deg,#3fa08c,#2f5fb0);height:${Math.max(6, d.total/maxDia*90)}px"></div>
+      <div style="font:400 10.5px Manrope;color:#7186ab;writing-mode:vertical-rl;transform:rotate(180deg)">${d.dia.slice(5).split('-').reverse().join('/')}</div>
+    </div>
+  `).join('') || '<div style="font:400 13px Manrope;color:#7186ab">Sem atendimentos no período.</div>';
 }
 
 async function carregarPainelGestor(forcar=false) {
