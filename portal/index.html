@@ -1046,7 +1046,7 @@ async function doLogin() {
   const data = await apiLogin(login, pass);
   btn.disabled = false; btnText.textContent = 'Entrar';
   if (data.ok) {
-    currentUser = { username:data.username, nome:data.nome||'', role:data.role, unidades:data.unidades||[], token:data.token, gestor:!!data.gestor, atendenteSRG:data.atendenteSRG||'' };
+    currentUser = { username:data.username, nome:data.nome||'', role:data.role, unidades:data.unidades||[], token:data.token, gestor:!!data.gestor, verHistorico:!!data.verHistorico, verKPIs:!!data.verKPIs, atendenteSRG:data.atendenteSRG||'' };
     err.style.display = 'none';
     sessionStorage.setItem('srg_user', JSON.stringify(currentUser));
     enterApp();
