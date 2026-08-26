@@ -36,6 +36,9 @@ button{font-family:inherit}
 .kpis-delta.good{color:#7fe0c0}
 .kpis-delta.bad{color:#f0a0a0}
 .kpis-delta.neutral{color:#7186ab}
+.kpis-card-clicavel{transition:all .15s ease;border:1px solid transparent}
+.kpis-card-clicavel:hover{background:rgba(255,255,255,.05)}
+.kpis-card-clicavel.active{border:1px solid rgba(127,212,192,.4);box-shadow:0 0 0 1px rgba(127,212,192,.15) inset}
 
 .bg-fixed{position:fixed;inset:0;z-index:0;pointer-events:none}
 .bg-gradient{background:radial-gradient(900px 600px at 15% 10%,rgba(47,95,176,.28),transparent 60%),radial-gradient(800px 700px at 88% 85%,rgba(63,160,140,.22),transparent 60%),radial-gradient(700px 500px at 50% 50%,rgba(26,42,110,.35),transparent 70%),linear-gradient(160deg,#070c1f,#0b1230 55%,#0a1428)}
@@ -700,22 +703,22 @@ footer.foot{border-top:1px solid rgba(255,255,255,.07);background:rgba(10,16,36,
 
       <div id="kpis-conteudo" style="display:none;transition:opacity .25s ease">
         <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin-bottom:20px" class="kpis-cards-grid">
-          <div class="glass" style="padding:20px 22px">
+          <div class="glass kpis-card-clicavel active" id="kpi-card-wrap-total" onclick="setKPIsMetricaGrafico('total')" style="padding:20px 22px;cursor:pointer">
             <div style="font:600 12px Manrope;color:#7fd4c0;text-transform:uppercase;letter-spacing:.08em">Atendimentos</div>
             <div id="kpi-card-total" style="font:700 30px Outfit,sans-serif;color:#f4f8ff;margin-top:6px">--</div>
             <div id="kpi-delta-total" class="kpis-delta"></div>
           </div>
-          <div class="glass" style="padding:20px 22px">
+          <div class="glass kpis-card-clicavel" id="kpi-card-wrap-tempo" onclick="setKPIsMetricaGrafico('tempo')" style="padding:20px 22px;cursor:pointer">
             <div style="font:600 12px Manrope;color:#7fd4c0;text-transform:uppercase;letter-spacing:.08em">Tempo médio atendimento</div>
             <div id="kpi-card-tempo" style="font:700 30px Outfit,sans-serif;color:#f4f8ff;margin-top:6px">--</div>
             <div id="kpi-delta-tempo" class="kpis-delta"></div>
           </div>
-          <div class="glass" style="padding:20px 22px">
+          <div class="glass kpis-card-clicavel" id="kpi-card-wrap-espera" onclick="setKPIsMetricaGrafico('espera')" style="padding:20px 22px;cursor:pointer">
             <div style="font:600 12px Manrope;color:#7fd4c0;text-transform:uppercase;letter-spacing:.08em">1º tempo de espera</div>
             <div id="kpi-card-espera" style="font:700 30px Outfit,sans-serif;color:#f4f8ff;margin-top:6px">--</div>
             <div id="kpi-delta-espera" class="kpis-delta"></div>
           </div>
-          <div class="glass" style="padding:20px 22px">
+          <div class="glass kpis-card-clicavel" id="kpi-card-wrap-espera-bot" onclick="setKPIsMetricaGrafico('esperaBot')" style="padding:20px 22px;cursor:pointer">
             <div style="font:600 12px Manrope;color:#7fd4c0;text-transform:uppercase;letter-spacing:.08em">1º espera após bot</div>
             <div id="kpi-card-espera-bot" style="font:700 30px Outfit,sans-serif;color:#f4f8ff;margin-top:6px">--</div>
             <div id="kpi-delta-espera-bot" class="kpis-delta"></div>
@@ -734,7 +737,7 @@ footer.foot{border-top:1px solid rgba(255,255,255,.07);background:rgba(10,16,36,
         </div>
 
         <div class="glass" style="padding:26px 28px">
-          <h3 style="font:700 18px Outfit,sans-serif;color:#f4f8ff;margin:0 0 14px">Atendimentos por dia</h3>
+          <h3 id="kpis-dia-titulo" style="font:700 18px Outfit,sans-serif;color:#f4f8ff;margin:0 0 14px">Atendimentos por dia</h3>
           <div class="gestor-scroll">
             <div id="kpis-dia-lista" style="display:flex;gap:8px;align-items:flex-end;min-height:120px"></div>
           </div>
@@ -2166,6 +2169,18 @@ let kpisModo = 'periodo'; // 'periodo' | 'semana' | 'data' -- controla qual chip
 let kpisColaboradorAtual = 'todos';
 let kpisUltimoResultado = null; // cache do ultimo fetch -- filtrar por colaborador nao refaz a chamada
 let kpisPrimeiraCarga = true;
+let kpisMetricaGrafico = 'total'; // 'total' | 'tempo' | 'espera' | 'esperaBot' -- qual card esta "expandido" no grafico por dia
+
+// Clicar num card troca o grafico "por dia" pra mostrar aquela metrica
+// (nao so a contagem de atendimentos) -- reusa o dado ja carregado, sem
+// precisar buscar de novo na API.
+function setKPIsMetricaGrafico(metrica) {
+  kpisMetricaGrafico = metrica;
+  document.querySelectorAll('.kpis-card-clicavel').forEach(el => el.classList.remove('active'));
+  const idMap = { total: 'kpi-card-wrap-total', tempo: 'kpi-card-wrap-tempo', espera: 'kpi-card-wrap-espera', esperaBot: 'kpi-card-wrap-espera-bot' };
+  document.getElementById(idMap[metrica]).classList.add('active');
+  if (kpisUltimoResultado) kpisRenderizar(kpisUltimoResultado);
+}
 
 function setKPIsPeriodo(p) {
   kpisColaboradorAtual = 'todos'; // periodo novo -> reseta o recorte por colaborador
@@ -2364,15 +2379,33 @@ function kpisRenderizar(data) {
     ? (data.porDiaPorColaborador[colabSelecionado.nome] || [])
     : data.porDia;
 
+  // Qual campo/titulo/formatacao o grafico usa depende de qual card foi
+  // clicado por ultimo -- "total" e a contagem de atendimentos (o
+  // grafico original); os outros sao medias de tempo daquele dia
+  // especifico, formatadas como hh:mm igual os cards.
+  const metricaMap = {
+    total: { campo: 'total', titulo: 'Atendimentos por dia', fmt: (v) => String(v) },
+    tempo: { campo: 'tempoMedioSeg', titulo: 'Tempo médio de atendimento por dia', fmt: fmtSegundos },
+    espera: { campo: 'esperaMediaSeg', titulo: '1º tempo de espera por dia', fmt: fmtSegundos },
+    esperaBot: { campo: 'esperaAposBotSeg', titulo: '1º espera após bot por dia', fmt: fmtSegundos },
+  };
+  const metricaAtiva = metricaMap[kpisMetricaGrafico] || metricaMap.total;
+  document.getElementById('kpis-dia-titulo').textContent = metricaAtiva.titulo;
+
   const listaDia = document.getElementById('kpis-dia-lista');
-  const maxDia = Math.max(1, ...porDiaUsado.map(d => d.total));
-  listaDia.innerHTML = porDiaUsado.map(d => `
+  const valores = porDiaUsado.map(d => d[metricaAtiva.campo]).filter(v => typeof v === 'number');
+  const maxDia = Math.max(1, ...valores);
+  listaDia.innerHTML = porDiaUsado.map(d => {
+    const v = d[metricaAtiva.campo];
+    const semDado = v === null || v === undefined;
+    return `
     <div style="display:flex;flex-direction:column;align-items:center;gap:6px;min-width:34px">
-      <div style="font:600 12px Manrope;color:#bcccea">${d.total}</div>
-      <div style="width:22px;border-radius:6px 6px 0 0;background:linear-gradient(180deg,#3fa08c,#2f5fb0);height:${Math.max(6, d.total/maxDia*90)}px"></div>
+      <div style="font:600 12px Manrope;color:#bcccea">${semDado ? '--' : metricaAtiva.fmt(v)}</div>
+      <div style="width:22px;border-radius:6px 6px 0 0;background:${semDado ? 'rgba(255,255,255,.08)' : 'linear-gradient(180deg,#3fa08c,#2f5fb0)'};height:${semDado ? 4 : Math.max(6, v/maxDia*90)}px"></div>
       <div style="font:400 10.5px Manrope;color:#7186ab;writing-mode:vertical-rl;transform:rotate(180deg)">${d.dia.slice(5).split('-').reverse().join('/')}</div>
     </div>
-  `).join('') || '<div style="font:400 13px Manrope;color:#7186ab">Sem atendimentos no período.</div>';
+    `;
+  }).join('') || '<div style="font:400 13px Manrope;color:#7186ab">Sem atendimentos no período.</div>';
 }
 
 async function carregarPainelGestor(forcar=false) {
