@@ -695,7 +695,7 @@ footer.foot{border-top:1px solid rgba(255,255,255,.07);background:rgba(10,16,36,
       <div id="kpis-erro" style="display:none;font:500 14px Manrope;color:#e08a8a;padding:16px 0"></div>
 
       <div id="kpis-conteudo" style="display:none;transition:opacity .25s ease">
-        <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-bottom:20px" class="kpis-cards-grid">
+        <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin-bottom:20px" class="kpis-cards-grid">
           <div class="glass" style="padding:20px 22px">
             <div style="font:600 12px Manrope;color:#7fd4c0;text-transform:uppercase;letter-spacing:.08em">Atendimentos</div>
             <div id="kpi-card-total" style="font:700 30px Outfit,sans-serif;color:#f4f8ff;margin-top:6px">--</div>
@@ -705,8 +705,12 @@ footer.foot{border-top:1px solid rgba(255,255,255,.07);background:rgba(10,16,36,
             <div id="kpi-card-tempo" style="font:700 30px Outfit,sans-serif;color:#f4f8ff;margin-top:6px">--</div>
           </div>
           <div class="glass" style="padding:20px 22px">
-            <div style="font:600 12px Manrope;color:#7fd4c0;text-transform:uppercase;letter-spacing:.08em">Tempo médio de espera</div>
+            <div style="font:600 12px Manrope;color:#7fd4c0;text-transform:uppercase;letter-spacing:.08em">1º tempo de espera</div>
             <div id="kpi-card-espera" style="font:700 30px Outfit,sans-serif;color:#f4f8ff;margin-top:6px">--</div>
+          </div>
+          <div class="glass" style="padding:20px 22px">
+            <div style="font:600 12px Manrope;color:#7fd4c0;text-transform:uppercase;letter-spacing:.08em">1º espera após bot</div>
+            <div id="kpi-card-espera-bot" style="font:700 30px Outfit,sans-serif;color:#f4f8ff;margin-top:6px">--</div>
           </div>
         </div>
 
@@ -714,7 +718,7 @@ footer.foot{border-top:1px solid rgba(255,255,255,.07);background:rgba(10,16,36,
           <h3 style="font:700 18px Outfit,sans-serif;color:#f4f8ff;margin:0 0 14px">Atendimentos por colaborador</h3>
           <div class="gestor-scroll">
             <table class="gestor-table" id="kpis-ranking-table">
-              <thead><tr><th>Colaborador</th><th>Atendimentos</th><th>Tempo médio</th><th>Espera média</th></tr></thead>
+              <thead><tr><th>Colaborador</th><th>Atendimentos</th><th>Tempo médio</th><th>1º espera</th><th>1º espera após bot</th></tr></thead>
               <tbody id="kpis-ranking-body"></tbody>
             </table>
           </div>
@@ -2281,7 +2285,7 @@ function kpisRenderizar(data) {
     : null;
 
   const resumo = colabSelecionado
-    ? { totalAtendimentos: colabSelecionado.atendimentos, tempoMedioSeg: colabSelecionado.tempoMedioSeg, esperaMediaSeg: colabSelecionado.esperaMediaSeg }
+    ? { totalAtendimentos: colabSelecionado.atendimentos, tempoMedioSeg: colabSelecionado.tempoMedioSeg, esperaMediaSeg: colabSelecionado.esperaMediaSeg, esperaAposBotSeg: colabSelecionado.esperaAposBotSeg }
     : data.resumo;
 
   const faixaTexto = data.dataDe
@@ -2294,6 +2298,7 @@ function kpisRenderizar(data) {
   document.getElementById('kpi-card-total').textContent = resumo.totalAtendimentos;
   document.getElementById('kpi-card-tempo').textContent = fmtSegundos(resumo.tempoMedioSeg);
   document.getElementById('kpi-card-espera').textContent = fmtSegundos(resumo.esperaMediaSeg);
+  document.getElementById('kpi-card-espera-bot').textContent = fmtSegundos(resumo.esperaAposBotSeg);
 
   const rankingWrap = document.getElementById('kpis-ranking-wrap');
   const rankingBody = document.getElementById('kpis-ranking-body');
@@ -2305,6 +2310,7 @@ function kpisRenderizar(data) {
         <td>${c.atendimentos}</td>
         <td>${fmtSegundos(c.tempoMedioSeg)}</td>
         <td>${fmtSegundos(c.esperaMediaSeg)}</td>
+        <td>${fmtSegundos(c.esperaAposBotSeg)}</td>
       </tr>
     `).join('');
   } else {
