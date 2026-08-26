@@ -1,0 +1,938 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SRG Tecnologia — Painel de Acesso</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#0f1623;--sidebar:#111827;--surface:#1a2236;--surface2:#1f2d42;--surface3:#243350;
+  --border:#1e2d42;--border2:#263348;
+  --accent:#22c55e;--accent2:#16a34a;--blue:#3b82f6;
+  --text:#f0f4ff;--text2:#8899b4;--text3:#4a5e7a;
+  --green:#22c55e;--green-bg:rgba(34,197,94,.12);
+  --amber:#f59e0b;--amber-bg:rgba(245,158,11,.12);
+  --red:#ef4444;--red-bg:rgba(239,68,68,.12);
+  --orange:#f97316;--orange-bg:rgba(249,115,22,.12);
+  --sans:'Inter',sans-serif;
+}
+*{box-sizing:border-box;margin:0;padding:0;}
+body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:14px;min-height:100vh;line-height:1.5;}
+#login-screen{min-height:100vh;display:flex;align-items:center;justify-content:center;}
+.login-wrap{width:100%;max-width:380px;padding:2rem;}
+.login-logo{display:flex;justify-content:center;margin-bottom:1.75rem;}
+.login-card{background:var(--surface);border:1px solid var(--border2);border-radius:14px;padding:2rem;}
+.login-card h2{font-size:17px;font-weight:600;margin-bottom:.3rem;}
+.login-card p{font-size:13px;color:var(--text2);margin-bottom:1.5rem;}
+.fld{margin-bottom:1rem;}
+.fld label{display:block;font-size:11px;font-weight:500;letter-spacing:.06em;text-transform:uppercase;color:var(--text2);margin-bottom:.4rem;}
+.fld input{width:100%;background:var(--bg);border:1px solid var(--border2);border-radius:8px;padding:.65rem .85rem;color:var(--text);font-family:var(--sans);font-size:14px;outline:none;transition:border-color .15s;}
+.fld input:focus{border-color:var(--accent);}
+.login-error{font-size:12px;color:var(--red);margin-bottom:.75rem;min-height:16px;}
+.btn-green{background:var(--accent);color:#fff;border:none;border-radius:8px;padding:.7rem 1.25rem;font-family:var(--sans);font-size:14px;font-weight:500;cursor:pointer;width:100%;}
+.btn-green:hover{background:var(--accent2);}
+.forgot-link{font-size:12px;color:var(--text3);cursor:pointer;text-align:center;margin-top:.75rem;display:block;}
+.forgot-link:hover{color:var(--accent);}
+#forgot-area{display:none;margin-top:1rem;background:var(--surface2);border:1px solid var(--border2);border-radius:10px;padding:1rem;}
+#forgot-area h4{font-size:13px;font-weight:500;margin-bottom:.75rem;}
+#forgot-area input{width:100%;background:var(--bg);border:1px solid var(--border2);border-radius:7px;padding:.45rem .7rem;color:var(--text);font-family:var(--sans);font-size:13px;outline:none;margin-bottom:.5rem;}
+.forgot-err{font-size:12px;color:var(--red);min-height:16px;margin-bottom:.4rem;}
+.btn-fa{background:var(--accent);color:#fff;border:none;border-radius:7px;padding:.45rem 1rem;font-size:12px;font-family:var(--sans);cursor:pointer;margin-right:6px;}
+.btn-fc{background:transparent;border:1px solid var(--border2);border-radius:7px;padding:.45rem .85rem;font-size:12px;color:var(--text2);font-family:var(--sans);cursor:pointer;}
+#app{display:none;min-height:100vh;}
+.shell{display:flex;min-height:100vh;}
+.sidebar{width:200px;min-width:200px;background:var(--sidebar);border-right:1px solid var(--border);display:flex;flex-direction:column;padding:1.25rem 0;transition:transform .2s;}
+.sb-logo{display:flex;justify-content:center;padding:0 .75rem 1.25rem;}
+.sb-section{font-size:10px;font-weight:600;letter-spacing:.1em;text-transform:uppercase;color:var(--text3);padding:.1rem 1.1rem .5rem;}
+.sb-item{display:flex;align-items:center;gap:9px;padding:.55rem 1.1rem;cursor:pointer;color:var(--text2);font-size:13px;transition:all .15s;border:none;border-left:2px solid transparent;background:transparent;width:100%;text-align:left;}
+.sb-item:hover{color:var(--text);background:var(--surface);}
+.sb-item.active{color:var(--text);background:var(--surface2);border-left-color:var(--accent);}
+.sb-spacer{flex:1;}
+.content{flex:1;display:flex;flex-direction:column;overflow:auto;}
+.topbar{height:54px;background:var(--sidebar);border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;padding:0 1.25rem 0 1.75rem;flex-shrink:0;gap:10px;}
+.topbar-left{display:flex;align-items:center;gap:10px;flex:1;}
+.topbar-title{font-size:15px;font-weight:600;white-space:nowrap;}
+.topbar-right{display:flex;align-items:center;gap:10px;flex-shrink:0;}
+.user-chip{display:flex;align-items:center;gap:8px;font-size:13px;color:var(--text2);}
+.user-avatar{width:28px;height:28px;border-radius:50%;background:var(--surface3);display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:600;color:var(--text);}
+.btn-sm{background:transparent;border:1px solid var(--border2);border-radius:7px;padding:.3rem .7rem;color:var(--text2);font-size:12px;cursor:pointer;font-family:var(--sans);transition:all .15s;}
+.btn-sm:hover{color:var(--text);border-color:var(--text2);}
+.hamburger{display:none;background:transparent;border:none;color:var(--text2);cursor:pointer;padding:4px;font-size:20px;}
+.search-bar{position:relative;flex:1;max-width:400px;}
+.search-bar input{width:100%;background:var(--surface);border:1px solid var(--border2);border-radius:9px;padding:.45rem .85rem .45rem 2.1rem;color:var(--text);font-family:var(--sans);font-size:13px;outline:none;transition:border-color .15s;}
+.search-bar input:focus{border-color:var(--accent);}
+.search-bar svg{position:absolute;left:.6rem;top:50%;transform:translateY(-50%);color:var(--text3);pointer-events:none;}
+.mobile-search-wrap{display:none;padding:.6rem .85rem;background:var(--sidebar);border-bottom:1px solid var(--border);}
+.mobile-search-wrap input{width:100%;background:var(--surface);border:1px solid var(--border2);border-radius:10px;padding:.6rem 1rem;color:var(--text);font-family:var(--sans);font-size:15px;outline:none;}
+.mobile-search-wrap input:focus{border-color:var(--accent);}
+.page-body{padding:1.75rem;flex:1;}
+.page{display:none;}
+.page.active{display:block;}
+.page-header{margin-bottom:1.5rem;}
+.page-header h1{font-size:22px;font-weight:600;}
+.page-header p{font-size:13px;color:var(--text2);margin-top:.2rem;}
+.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:.85rem;margin-bottom:1.5rem;}
+.stat{background:var(--surface);border:1px solid var(--border2);border-radius:12px;padding:.9rem 1.1rem;display:flex;align-items:center;justify-content:space-between;}
+.stat-lbl{font-size:11px;color:var(--text2);margin-bottom:.3rem;}
+.stat-num{font-size:22px;font-weight:600;}
+.stat-icon{width:34px;height:34px;border-radius:9px;display:flex;align-items:center;justify-content:center;flex-shrink:0;}
+.si-blue{background:rgba(59,130,246,.15);color:var(--blue);}
+.si-green{background:var(--green-bg);color:var(--green);}
+.si-orange{background:var(--orange-bg);color:var(--orange);}
+.toolbar{display:flex;gap:8px;margin-bottom:.85rem;flex-wrap:wrap;align-items:center;}
+.tb-select{background:var(--surface);border:1px solid var(--border2);border-radius:9px;padding:.5rem .8rem;color:var(--text);font-size:13px;outline:none;cursor:pointer;font-family:var(--sans);}
+.view-toggle{display:flex;gap:4px;}
+.vt-btn{background:var(--surface);border:1px solid var(--border2);border-radius:7px;color:var(--text2);cursor:pointer;padding:6px 8px;display:flex;align-items:center;transition:all .15s;}
+.vt-btn.active,.vt-btn:hover{color:var(--text);border-color:var(--accent);background:var(--surface2);}
+.counter{font-size:12px;color:var(--text3);margin-bottom:0;}
+.clients-list{display:flex;flex-direction:column;gap:.5rem;}
+.clients-list.compact .client-card{padding:.6rem 1rem;}
+.clients-list.compact .cc-avatar{width:32px;height:32px;}
+.client-card{background:var(--surface);border:1px solid var(--border2);border-radius:12px;padding:.9rem 1.1rem;display:flex;align-items:center;gap:.85rem;transition:background .1s;}
+.client-card:hover{background:var(--surface2);}
+.client-card.em-atendimento{border-color:var(--orange);background:rgba(249,115,22,.05);}
+.cc-avatar{width:38px;height:38px;border-radius:10px;background:var(--surface3);display:flex;align-items:center;justify-content:center;flex-shrink:0;color:var(--text2);}
+.cc-info{flex:1;min-width:0;}
+.cc-name{font-size:14px;font-weight:600;}
+.cc-meta{display:flex;align-items:center;gap:8px;margin-top:.25rem;flex-wrap:wrap;}
+.cc-meta-item{display:flex;align-items:center;gap:3px;font-size:11px;color:var(--text2);}
+.cc-obs-badge{display:inline-flex;align-items:center;gap:3px;font-size:10px;padding:2px 7px;border-radius:10px;background:var(--amber-bg);color:var(--amber);border:1px solid rgba(245,158,11,.25);}
+.cc-atendimento-badge{display:inline-flex;align-items:center;gap:4px;font-size:11px;padding:3px 9px;border-radius:20px;background:var(--orange-bg);color:var(--orange);border:1px solid rgba(249,115,22,.3);font-weight:500;}
+.cc-atendimento-badge::before{content:'';width:5px;height:5px;border-radius:50%;background:var(--orange);display:inline-block;}
+.cc-right{display:flex;align-items:center;gap:.5rem;flex-shrink:0;}
+.cc-quickcopy{background:transparent;border:1px solid var(--border2);border-radius:6px;color:var(--text3);cursor:pointer;padding:4px 7px;font-size:11px;font-family:var(--sans);transition:all .15s;}
+.cc-quickcopy:hover{color:var(--text);border-color:var(--text2);}
+.badge{display:inline-flex;align-items:center;gap:5px;font-size:11px;font-weight:500;padding:3px 9px;border-radius:20px;}
+.badge::before{content:'';width:5px;height:5px;border-radius:50%;}
+.b-disponivel{background:var(--green-bg);color:var(--green);} .b-disponivel::before{background:var(--green);}
+.b-atendimento{background:var(--orange-bg);color:var(--orange);} .b-atendimento::before{background:var(--orange);}
+.btn-conectar{display:inline-flex;align-items:center;gap:5px;font-size:12px;font-weight:500;padding:.4rem .9rem;border-radius:8px;border:none;background:var(--accent);color:#fff;cursor:pointer;transition:background .15s;}
+.btn-conectar:hover{background:var(--accent2);}
+.overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.65);z-index:100;align-items:flex-end;justify-content:center;padding:0;}
+.overlay.open{display:flex;}
+.modal{background:var(--surface);border:1px solid var(--border2);border-radius:16px 16px 0 0;padding:1.6rem;width:100%;max-width:460px;max-height:92vh;overflow-y:auto;}
+@media(min-width:721px){.overlay{align-items:center;padding:1rem;}.modal{border-radius:16px;}}
+.modal-header{display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:1.1rem;}
+.modal-title{font-size:15px;font-weight:600;}
+.modal-sub{font-size:12px;color:var(--text2);margin-top:.2rem;}
+.btn-close{background:transparent;border:none;color:var(--text3);cursor:pointer;font-size:18px;line-height:1;}
+.btn-close:hover{color:var(--text);}
+.sec-lbl{font-size:10px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--text3);margin-bottom:.35rem;}
+.maq-list{display:flex;flex-direction:column;gap:.4rem;margin-bottom:1.1rem;}
+.maq-item{background:var(--bg);border:1px solid var(--border2);border-radius:9px;padding:.65rem .9rem;cursor:pointer;transition:border-color .15s;}
+.maq-item:hover,.maq-item.selected{border-color:var(--accent);}
+.maq-item.selected{background:rgba(34,197,94,.05);}
+.maq-item-head{display:flex;align-items:center;justify-content:space-between;}
+.maq-name{font-size:13px;font-weight:500;}
+.maq-id{font-size:12px;font-family:monospace;color:var(--blue);margin-top:.15rem;}
+.maq-tipo{font-size:11px;padding:2px 7px;border-radius:4px;background:var(--surface2);border:1px solid var(--border2);color:var(--text2);}
+.info-row{background:var(--surface2);border:1px solid var(--border2);border-radius:9px;padding:.65rem .9rem;margin-bottom:.5rem;display:flex;align-items:center;justify-content:space-between;}
+.info-lbl{font-size:11px;color:var(--text3);margin-bottom:.1rem;}
+.info-val{font-size:17px;font-weight:600;font-family:monospace;color:var(--blue);}
+.info-val.pw{color:var(--text);font-size:14px;letter-spacing:.1em;}
+.senha-hidden{color:var(--text3);}
+.row-right{display:flex;align-items:center;gap:6px;}
+.btn-eye{background:transparent;border:none;color:var(--text3);cursor:pointer;font-size:14px;}
+.btn-eye:hover{color:var(--text);}
+.btn-cp{font-size:11px;padding:4px 10px;border-radius:6px;border:1px solid var(--border2);background:transparent;color:var(--text2);cursor:pointer;font-family:var(--sans);transition:all .15s;}
+.btn-cp:hover{color:var(--text);border-color:var(--text2);}
+.ticket-area{background:var(--bg);border:1px solid var(--border2);border-radius:8px;padding:.65rem .9rem;margin-bottom:.6rem;}
+.ticket-area label{font-size:11px;color:var(--text3);text-transform:uppercase;letter-spacing:.06em;display:block;margin-bottom:.35rem;}
+.ticket-area input{width:100%;background:transparent;border:none;color:var(--text);font-family:var(--sans);font-size:13px;outline:none;}
+.modal-actions{display:flex;gap:8px;margin-top:1.1rem;}
+.btn-open{flex:1;background:var(--blue);color:#fff;border:none;border-radius:9px;padding:.6rem;font-size:13px;font-weight:500;cursor:pointer;font-family:var(--sans);}
+.btn-open:hover{background:#2563eb;}
+.btn-fechar{padding:.6rem 1rem;border:1px solid var(--border2);background:transparent;color:var(--text2);border-radius:9px;font-size:13px;cursor:pointer;font-family:var(--sans);}
+.btn-fechar:hover{color:var(--text);}
+.anotacoes-wrap{margin-top:.85rem;border-top:1px solid var(--border);padding-top:.85rem;}
+.anotacoes-wrap label{font-size:11px;color:var(--text3);text-transform:uppercase;letter-spacing:.06em;display:block;margin-bottom:.35rem;}
+.anotacoes-wrap textarea{width:100%;background:var(--bg);border:1px solid var(--border2);border-radius:8px;padding:.55rem .75rem;color:var(--text);font-family:var(--sans);font-size:13px;outline:none;resize:vertical;min-height:60px;}
+.anotacoes-wrap textarea:focus{border-color:var(--accent);}
+.btn-save-ant{font-size:12px;padding:4px 12px;border-radius:6px;border:1px solid var(--border2);background:transparent;color:var(--text2);cursor:pointer;font-family:var(--sans);margin-top:.5rem;}
+.btn-save-ant:hover{color:var(--accent);border-color:var(--accent);}
+.modal-obs{font-size:12px;color:var(--text3);border-top:1px solid var(--border);padding-top:.8rem;margin-top:.8rem;line-height:1.6;}
+.select-hint{font-size:12px;color:var(--text3);text-align:center;padding:.65rem;border:1px dashed var(--border2);border-radius:8px;margin-bottom:.9rem;}
+.hist-toolbar{display:flex;gap:8px;margin-bottom:1rem;flex-wrap:wrap;align-items:center;}
+.hist-toolbar input{flex:1;min-width:180px;background:var(--surface);border:1px solid var(--border2);border-radius:9px;padding:.5rem .85rem;color:var(--text);font-family:var(--sans);font-size:13px;outline:none;}
+.hist-toolbar input:focus{border-color:var(--accent);}
+.hist-list{display:flex;flex-direction:column;gap:.4rem;}
+.hist-row{background:var(--surface);border:1px solid var(--border2);border-radius:10px;padding:.75rem 1rem;display:flex;align-items:center;justify-content:space-between;gap:1rem;}
+.hist-cliente{font-size:13px;font-weight:500;margin-bottom:.2rem;}
+.hist-meta{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--text2);flex-wrap:wrap;}
+.hist-time{font-size:11px;color:var(--text3);font-family:monospace;white-space:nowrap;flex-shrink:0;}
+.cfg-section{background:var(--surface);border:1px solid var(--border2);border-radius:12px;padding:1.4rem;margin-bottom:1.1rem;}
+.cfg-title{font-size:13px;font-weight:600;display:flex;align-items:center;justify-content:space-between;margin-bottom:.9rem;}
+.cfg-sub{font-size:11px;color:var(--text3);}
+.cfg-row{display:flex;gap:8px;align-items:center;padding:.5rem 0;border-bottom:1px solid var(--border);}
+.cfg-row:last-of-type{border-bottom:none;}
+.ci{background:var(--bg);border:1px solid var(--border2);border-radius:7px;padding:.4rem .65rem;color:var(--text);font-family:var(--sans);font-size:13px;outline:none;transition:border-color .15s;}
+.ci:focus{border-color:var(--accent);}
+.ci.wf{flex:1;}.ci.wh{flex:1;}
+.btn-del{background:transparent;border:1px solid var(--border2);border-radius:6px;color:var(--text3);cursor:pointer;padding:4px 8px;font-size:13px;transition:all .15s;line-height:1;}
+.btn-del:hover{color:var(--red);border-color:var(--red);}
+.btn-add-row{display:inline-flex;align-items:center;gap:5px;font-size:12px;padding:.38rem .85rem;border-radius:7px;border:1px solid var(--border2);background:transparent;color:var(--text2);cursor:pointer;transition:all .15s;margin-top:.7rem;font-family:var(--sans);}
+.btn-add-row:hover{color:var(--text);border-color:var(--text2);}
+.btn-save{background:var(--accent);color:#fff;border:none;border-radius:8px;padding:.5rem 1.3rem;font-family:var(--sans);font-size:13px;font-weight:500;cursor:pointer;margin-top:.9rem;}
+.btn-save:hover{background:var(--accent2);}
+.flash-ok{font-size:12px;color:var(--green);margin-left:10px;opacity:0;transition:opacity .3s;}
+.flash-ok.show{opacity:1;}
+.ce{background:var(--surface2);border:1px solid var(--border2);border-radius:10px;margin-bottom:7px;overflow:hidden;}
+.ce-head{display:flex;align-items:center;justify-content:space-between;padding:.65rem .9rem;cursor:pointer;user-select:none;}
+.ce-head-name{font-size:13px;font-weight:500;}
+.ce-body{padding:.7rem .9rem .9rem;border-top:1px solid var(--border);display:none;}
+.ce-body.open{display:block;}
+.ce-grid{display:grid;grid-template-columns:1fr 1fr;gap:7px;margin-bottom:.7rem;}
+.ce-grid .full{grid-column:1/-1;}
+.ae{display:flex;gap:5px;align-items:center;margin-bottom:5px;}
+.ae select{background:var(--bg);border:1px solid var(--border2);border-radius:6px;padding:.35rem .55rem;color:var(--text);font-family:var(--sans);font-size:12px;outline:none;width:105px;}
+.ae input{flex:1;background:var(--bg);border:1px solid var(--border2);border-radius:6px;padding:.35rem .6rem;color:var(--text);font-family:monospace;font-size:13px;outline:none;}
+.ae input:focus,.ae select:focus{border-color:var(--accent);}
+.ae .ae-maq{width:120px;flex:none;font-family:var(--sans);}
+.ae .ae-pw{width:110px;flex:none;}
+.ce-obs{width:100%;background:var(--bg);border:1px solid var(--border2);border-radius:7px;padding:.45rem .65rem;color:var(--text);font-family:var(--sans);font-size:13px;outline:none;resize:vertical;min-height:48px;}
+.chev{color:var(--text3);font-size:14px;transition:transform .2s;}
+.chev.open{transform:rotate(180deg);}
+.sidebar-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:49;}
+.sidebar-overlay.open{display:block;}
+.loading-overlay{display:none;position:fixed;inset:0;background:rgba(15,22,35,.8);z-index:200;align-items:center;justify-content:center;flex-direction:column;gap:1rem;}
+.loading-overlay.show{display:flex;}
+.loading-spinner{width:36px;height:36px;border:3px solid var(--border2);border-top-color:var(--accent);border-radius:50%;animation:spin .7s linear infinite;}
+@keyframes spin{to{transform:rotate(360deg);}}
+.loading-text{font-size:13px;color:var(--text2);}
+.sync-indicator{font-size:11px;color:var(--text3);display:flex;align-items:center;gap:5px;}
+.sync-dot{width:6px;height:6px;border-radius:50%;background:var(--green);}
+.sync-dot.syncing{background:var(--amber);animation:pulse .8s ease-in-out infinite;}
+@keyframes pulse{0%,100%{opacity:1;}50%{opacity:.3;}}
+@media(max-width:720px){
+  .sidebar{position:fixed;left:0;top:0;bottom:0;z-index:50;transform:translateX(-100%);}
+  .sidebar.open{transform:translateX(0);}
+  .hamburger{display:block;}
+  .stats{grid-template-columns:1fr 1fr;gap:.5rem;margin-bottom:1rem;}
+  .stat{padding:.7rem .85rem;}
+  .stat-num{font-size:18px;}
+  .search-bar{display:none;}
+  .mobile-search-wrap{display:block;}
+  .page-body{padding:.85rem;}
+  .cc-quickcopy{display:none;}
+  .client-card{padding:.75rem .9rem;gap:.65rem;}
+  .cc-avatar{width:32px;height:32px;border-radius:8px;}
+  .cc-name{font-size:13px;}
+  .btn-conectar{font-size:11px;padding:.35rem .7rem;}
+  .badge{font-size:10px;padding:2px 7px;}
+  .page-header h1{font-size:18px;}
+  .toolbar{gap:6px;}
+  .topbar{padding:0 .85rem;}
+  .modal{padding:1.25rem 1rem;}
+  .hide-mobile{display:none;}
+  .hist-row{flex-direction:column;align-items:flex-start;gap:.35rem;}
+  .ce-grid{grid-template-columns:1fr;}
+}
+</style>
+</head>
+<body>
+
+<div class="loading-overlay" id="loading-overlay">
+  <div class="loading-spinner"></div>
+  <div class="loading-text" id="loading-text">Carregando...</div>
+</div>
+
+<div id="login-screen">
+  <div class="login-wrap">
+    <div class="login-logo">
+      <svg width="180" height="65" viewBox="0 0 320 116" xmlns="http://www.w3.org/2000/svg">
+        <defs><linearGradient id="sg" x1="0%" y1="0%" x2="100%" y2="0%"><stop offset="0%" style="stop-color:#2d3a8c"/><stop offset="100%" style="stop-color:#2dd4a0"/></linearGradient></defs>
+        <text x="160" y="66" text-anchor="middle" font-family="Arial Black,Arial,sans-serif" font-size="62" font-weight="900" letter-spacing="-3" fill="url(#sg)">SRG</text>
+        <line x1="20" y1="78" x2="300" y2="78" stroke="#4a5e7a" stroke-width="1.2"/>
+        <text x="160" y="100" text-anchor="middle" font-family="Arial,sans-serif" font-size="11" font-weight="400" letter-spacing="6" fill="#8899b4">TECNOLOGIA</text>
+      </svg>
+    </div>
+    <div class="login-card">
+      <h2>Entrar no painel</h2>
+      <p>Acesso restrito à equipe de suporte</p>
+      <div class="fld"><label>Usuário</label><input type="text" id="lu" placeholder="seu.usuario" autocomplete="username"/></div>
+      <div class="fld"><label>Senha</label><input type="password" id="lp" placeholder="••••••••" autocomplete="current-password" onkeydown="if(event.key==='Enter')doLogin()"/></div>
+      <div class="login-error" id="lerr"></div>
+      <button class="btn-green" onclick="doLogin()">Entrar</button>
+      <span class="forgot-link" onclick="showForgot()">Esqueci minha senha</span>
+      <div id="forgot-area">
+        <h4>Recuperar senha</h4>
+        <div id="forgot-step1">
+          <input type="text" id="forgot-codigo" placeholder="Código de recuperação"/>
+          <div class="forgot-err" id="forgot-err"></div>
+          <button class="btn-fa" onclick="checkMaster()">Verificar</button>
+          <button class="btn-fc" onclick="hideForgot()">Cancelar</button>
+        </div>
+        <div id="forgot-step2" style="display:none;">
+          <input type="password" id="forgot-nova" placeholder="Nova senha"/>
+          <input type="password" id="forgot-conf" placeholder="Confirmar nova senha"/>
+          <button class="btn-fa" onclick="resetSenha()">Salvar nova senha</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div id="app">
+<div class="sidebar-overlay" id="sb-overlay" onclick="closeSidebar()"></div>
+<div class="shell">
+  <aside class="sidebar" id="sidebar">
+    <div class="sb-logo">
+      <svg width="140" height="50" viewBox="0 0 320 116" xmlns="http://www.w3.org/2000/svg">
+        <defs><linearGradient id="sg2" x1="0%" y1="0%" x2="100%" y2="0%"><stop offset="0%" style="stop-color:#2d3a8c"/><stop offset="100%" style="stop-color:#2dd4a0"/></linearGradient></defs>
+        <text x="160" y="66" text-anchor="middle" font-family="Arial Black,Arial,sans-serif" font-size="62" font-weight="900" letter-spacing="-3" fill="url(#sg2)">SRG</text>
+        <line x1="20" y1="78" x2="300" y2="78" stroke="#4a5e7a" stroke-width="1.2"/>
+        <text x="160" y="100" text-anchor="middle" font-family="Arial,sans-serif" font-size="11" font-weight="400" letter-spacing="6" fill="#8899b4">TECNOLOGIA</text>
+      </svg>
+    </div>
+    <div class="sb-section">Menu</div>
+    <button class="sb-item active" onclick="showPage('clientes',this)">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></svg> Clientes
+    </button>
+    <button class="sb-item" onclick="showPage('historico',this)">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 8v4l3 3"/><path d="M3.05 11a9 9 0 1 1 .5 4"/><path d="M3 3v5h5"/></svg> Histórico
+    </button>
+    <button class="sb-item" id="sb-config-btn" onclick="showPage('config',this)">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14M4.93 4.93a10 10 0 0 0 0 14.14"/><path d="M12 2v2M12 20v2M2 12h2M20 12h2"/></svg> Configurações
+    </button>
+    <div class="sb-spacer"></div>
+    <div class="sb-section">Conta</div>
+    <button class="sb-item" onclick="doLogout()">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg> Sair
+    </button>
+  </aside>
+
+  <div class="content">
+    <div class="topbar">
+      <div class="topbar-left">
+        <button class="hamburger" onclick="toggleSidebar()">☰</button>
+        <span class="topbar-title" id="topbar-title">Gerenciamento de Acessos</span>
+        <div class="search-bar">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+          <input type="text" id="global-search" placeholder="Buscar cliente, máquina ou ID... (⌘K)" oninput="renderCards()"/>
+        </div>
+      </div>
+      <div class="topbar-right">
+        <div class="sync-indicator" id="sync-indicator">
+          <div class="sync-dot" id="sync-dot"></div>
+          <span id="sync-text" class="hide-mobile">Online</span>
+        </div>
+        <div class="user-chip"><span class="hide-mobile">Olá,&nbsp;</span><strong id="uname" style="color:var(--text);"></strong><div class="user-avatar" id="uavatar"></div></div>
+        <button class="btn-sm hide-mobile" onclick="doLogout()">Sair</button>
+      </div>
+    </div>
+    <div class="mobile-search-wrap">
+      <input type="text" id="mobile-search" placeholder="Buscar cliente, máquina ou ID..." oninput="onMobileSearchInput()"/>
+    </div>
+
+    <div class="page-body">
+      <div class="page active" id="page-clientes">
+        <div class="page-header"><h1>Gerenciamento de Acessos</h1><p>Acesse remotamente os equipamentos dos clientes.</p></div>
+        <div class="stats" id="stats-bar"></div>
+        <div class="toolbar">
+          <select class="tb-select" id="f-status" onchange="renderCards()">
+            <option value="">Todos</option>
+            <option value="disponivel">Disponível</option>
+            <option value="atendimento">Em atendimento</option>
+          </select>
+          <div class="view-toggle">
+            <button class="vt-btn active" id="vt-normal" onclick="setView('normal')" title="Normal">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="5" rx="1"/><rect x="3" y="10" width="18" height="5" rx="1"/><rect x="3" y="17" width="18" height="5" rx="1"/></svg>
+            </button>
+            <button class="vt-btn" id="vt-compact" onclick="setView('compact')" title="Compacto">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+            </button>
+          </div>
+          <span class="counter" id="counter" style="margin-left:auto;"></span>
+        </div>
+        <div class="clients-list" id="clients-list"></div>
+      </div>
+
+      <div class="page" id="page-historico">
+        <div class="page-header"><h1>Histórico de Acessos</h1><p>Registro sincronizado de todas as conexões da equipe.</p></div>
+        <div class="hist-toolbar">
+          <input type="text" id="h-search" placeholder="Buscar por cliente, técnico, ticket..." oninput="renderHistorico()"/>
+          <span class="counter" id="historico-count"></span>
+          <button class="btn-sm" onclick="clearHistorico()">Limpar</button>
+        </div>
+        <div class="hist-list" id="historico-list"></div>
+      </div>
+
+      <div class="page" id="page-config">
+        <div class="page-header"><h1>Configurações</h1><p>Gerencie clientes, usuários e acessos.</p></div>
+        <div class="cfg-section" id="sec-usuarios">
+          <div class="cfg-title">Usuários <span class="cfg-sub">login · nome · senha · perfil</span></div>
+          <div id="cfg-users"></div>
+          <button class="btn-add-row" onclick="addUser()">+ usuário</button><br>
+          <button class="btn-save" onclick="saveUsers()">Salvar usuários</button>
+          <span class="flash-ok" id="fok-usr">salvo!</span>
+        </div>
+        <div class="cfg-section" id="sec-minha-conta">
+          <div class="cfg-title">Minha conta <span class="cfg-sub">alterar nome e senha</span></div>
+          <div class="cfg-row"><input class="ci wf" type="text" id="mc-nome" placeholder="Nome de exibição"/></div>
+          <div class="cfg-row">
+            <input class="ci wf" type="password" id="mc-pw-atual" placeholder="Senha atual"/>
+            <input class="ci wf" type="password" id="mc-pw-nova" placeholder="Nova senha"/>
+            <input class="ci wf" type="password" id="mc-pw-conf" placeholder="Confirmar"/>
+          </div>
+          <div style="font-size:12px;color:var(--red);min-height:16px;margin-top:.4rem;" id="mc-erro"></div>
+          <button class="btn-save" onclick="saveMinhaConta()">Salvar</button>
+          <span class="flash-ok" id="fok-mc">salvo!</span>
+        </div>
+        <div class="cfg-section">
+          <div class="cfg-title">Clientes <span class="cfg-sub" id="cfg-cnt"></span></div>
+          <div id="cfg-clientes"></div>
+          <button class="btn-add-row" onclick="addCliente()">+ cliente</button><br>
+          <button class="btn-save" onclick="saveClientes()">Salvar clientes</button>
+          <span class="flash-ok" id="fok-cli">salvo!</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+</div>
+
+<div class="overlay" id="overlay">
+  <div class="modal">
+    <div class="modal-header">
+      <div><div class="modal-title" id="m-nome"></div><div class="modal-sub" id="m-sub"></div></div>
+      <button class="btn-close" onclick="closeModal()">✕</button>
+    </div>
+    <div class="sec-lbl" style="margin-bottom:.4rem;">Selecione a máquina</div>
+    <div class="maq-list" id="maq-list"></div>
+    <div id="m-detail" style="display:none;">
+      <div class="info-row">
+        <div><div class="info-lbl">ID de acesso</div><div class="info-val" id="m-id"></div></div>
+        <div class="row-right"><button class="btn-cp" id="btn-cp-id" onclick="copyField('id')">copiar</button></div>
+      </div>
+      <div class="info-row" id="senha-row" style="display:none;">
+        <div style="flex:1;"><div class="info-lbl">Senha</div>
+          <div style="display:flex;align-items:center;gap:6px;">
+            <div class="info-val pw senha-hidden" id="m-senha">••••••••</div>
+            <button class="btn-eye" onclick="toggleSenha()">👁</button>
+          </div>
+        </div>
+        <button class="btn-cp" id="btn-cp-pw" onclick="copyField('senha')">copiar</button>
+      </div>
+      <div class="ticket-area" id="ticket-area" style="display:none;">
+        <label>Motivo / Ticket (opcional)</label>
+        <input type="text" id="ticket-input" placeholder="Ex: Impressora, atualização..."/>
+      </div>
+      <div class="modal-actions">
+        <button class="btn-open" id="btn-open" onclick="openRemote()">Abrir no AnyDesk</button>
+        <button class="btn-fechar" onclick="closeModal()">Fechar</button>
+      </div>
+    </div>
+    <div class="select-hint" id="m-hint">← Selecione uma máquina acima</div>
+    <div class="modal-obs" id="m-obs" style="display:none;"></div>
+    <div class="anotacoes-wrap">
+      <label>Anotações do cliente</label>
+      <textarea id="m-anotacoes" placeholder="Notas internas, contatos, pendências..."></textarea>
+      <button class="btn-save-ant" id="btn-save-ant" onclick="saveAnotacoes()">Salvar nota</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const SUPABASE_URL = 'https://btnpiiddrbvifdrcvttt.supabase.co';
+const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJ0bnBpaWRkcmJ2aWZkcmN2dHR0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODA0ODk1MjQsImV4cCI6MjA5NjA2NTUyNH0.b1tv0JfdCFeeDG2A-NEjTlgS_3yixTy4dfs_9aFDnjo';
+const CODIGO_MASTER = 'srg2024master';
+
+// Hash SHA-256 simples para senhas
+async function hashSenha(senha) {
+  const msgBuffer = new TextEncoder().encode(senha);
+  const hashBuffer = await crypto.subtle.digest('SHA-256', msgBuffer);
+  const hashArray = Array.from(new Uint8Array(hashBuffer));
+  return hashArray.map(b => b.toString(16).padStart(2,'0')).join('');
+}
+
+// API Supabase
+async function sbGet(table, params='') {
+  const r = await fetch(`${SUPABASE_URL}/rest/v1/${table}?${params}`, {
+    headers: { 'apikey': SUPABASE_KEY, 'Authorization': `Bearer ${SUPABASE_KEY}` }
+  });
+  return r.json();
+}
+async function sbPost(table, body) {
+  const r = await fetch(`${SUPABASE_URL}/rest/v1/${table}`, {
+    method: 'POST',
+    headers: { 'apikey': SUPABASE_KEY, 'Authorization': `Bearer ${SUPABASE_KEY}`, 'Content-Type': 'application/json', 'Prefer': 'return=representation' },
+    body: JSON.stringify(body)
+  });
+  return r.json();
+}
+async function sbPatch(table, id, body) {
+  const r = await fetch(`${SUPABASE_URL}/rest/v1/${table}?id=eq.${id}`, {
+    method: 'PATCH',
+    headers: { 'apikey': SUPABASE_KEY, 'Authorization': `Bearer ${SUPABASE_KEY}`, 'Content-Type': 'application/json', 'Prefer': 'return=representation' },
+    body: JSON.stringify(body)
+  });
+  return r.json();
+}
+async function sbDelete(table, id) {
+  await fetch(`${SUPABASE_URL}/rest/v1/${table}?id=eq.${id}`, {
+    method: 'DELETE',
+    headers: { 'apikey': SUPABASE_KEY, 'Authorization': `Bearer ${SUPABASE_KEY}` }
+  });
+}
+
+// Estado
+let CLIENTES=[], HISTORICO=[], USUARIOS=[];
+let curClient=null, curMaqIdx=null, senhaVisible=false;
+let viewMode='normal', loggedUser='', loggedNome='', loggedUserObj=null;
+let loginAttempts=0, loginBlocked=false;
+let userIP = '';
+
+function showLoading(txt) { document.getElementById('loading-overlay').classList.add('show'); document.getElementById('loading-text').textContent = txt||'Carregando...'; }
+function hideLoading() { document.getElementById('loading-overlay').classList.remove('show'); }
+function setSyncing(v) { document.getElementById('sync-dot').classList.toggle('syncing',v); const t=document.getElementById('sync-text'); if(t) t.textContent=v?'Sincronizando...':'Online'; }
+
+// Pegar IP do usuário
+async function getIP() {
+  try {
+    const r = await fetch('https://api.ipify.org?format=json');
+    const d = await r.json();
+    userIP = d.ip || '';
+  } catch(e) { userIP = ''; }
+}
+
+// AUTH
+async function doLogin() {
+  if(loginBlocked){document.getElementById('lerr').textContent='Muitas tentativas. Aguarde 1 minuto.';return;}
+  const u=document.getElementById('lu').value.trim().toLowerCase();
+  const p=document.getElementById('lp').value;
+  if(!u||!p){document.getElementById('lerr').textContent='Preencha usuário e senha.';return;}
+  showLoading('Verificando...');
+  try {
+    const hash = await hashSenha(p);
+    // Tenta login com hash primeiro, depois com senha plain (migração)
+    let res = await sbGet('usuarios', `login=eq.${u}&senha_hash=eq.${hash}&select=*`);
+    if(!res || res.length === 0) {
+      // fallback: senha plain (usuários ainda não migrados)
+      res = await sbGet('usuarios', `login=eq.${u}&senha=eq.${encodeURIComponent(p)}&select=*`);
+      if(res && res.length > 0) {
+        // migra para hash
+        await sbPatch('usuarios', res[0].id, { senha_hash: hash, senha: '' });
+      }
+    }
+    if(res && res.length > 0) {
+      loginAttempts=0; loginBlocked=false;
+      loggedUserObj=res[0]; loggedUser=u; loggedNome=res[0].nome||u;
+      document.getElementById('login-screen').style.display='none';
+      document.getElementById('app').style.display='block';
+      document.getElementById('uname').textContent=loggedNome;
+      document.getElementById('uavatar').textContent=loggedNome[0].toUpperCase();
+      await getIP();
+      await initApp();
+    } else {
+      loginAttempts++;
+      if(loginAttempts>=5){loginBlocked=true;setTimeout(()=>{loginBlocked=false;loginAttempts=0;},60000);document.getElementById('lerr').textContent='Muitas tentativas. Aguarde 1 minuto.';}
+      else document.getElementById('lerr').textContent='Usuário ou senha incorretos. ('+loginAttempts+'/5)';
+    }
+  } catch(e) { document.getElementById('lerr').textContent='Erro de conexão. Tente novamente.'; }
+  hideLoading();
+}
+function doLogout() {
+  loggedUser=''; loggedNome=''; loggedUserObj=null;
+  document.getElementById('app').style.display='none';
+  document.getElementById('login-screen').style.display='flex';
+  document.getElementById('lp').value='';
+  document.getElementById('lerr').textContent='';
+  closeModal();
+}
+function showForgot(){document.getElementById('forgot-area').style.display='block';}
+function hideForgot(){document.getElementById('forgot-area').style.display='none';}
+function checkMaster(){
+  const codigo=document.getElementById('forgot-codigo').value.trim();
+  const u=document.getElementById('lu').value.trim().toLowerCase();
+  if(!u){document.getElementById('forgot-err').textContent='Informe o usuário acima.';return;}
+  if(codigo!==CODIGO_MASTER){document.getElementById('forgot-err').textContent='Código incorreto.';return;}
+  document.getElementById('forgot-step1').style.display='none';
+  document.getElementById('forgot-step2').style.display='block';
+}
+async function resetSenha(){
+  const u=document.getElementById('lu').value.trim().toLowerCase();
+  const nova=document.getElementById('forgot-nova').value.trim();
+  const conf=document.getElementById('forgot-conf').value.trim();
+  if(nova.length<4){document.getElementById('forgot-err').textContent='Senha muito curta.';return;}
+  if(nova!==conf){document.getElementById('forgot-err').textContent='Senhas não coincidem.';return;}
+  showLoading('Salvando...');
+  const hash=await hashSenha(nova);
+  const res=await sbGet('usuarios',`login=eq.${u}&select=id`);
+  if(res&&res.length>0){await sbPatch('usuarios',res[0].id,{senha_hash:hash,senha:''});}
+  hideForgot(); hideLoading();
+  alert('Senha alterada! Faça login com a nova senha.');
+}
+
+// NAV
+function toggleSidebar(){document.getElementById('sidebar').classList.toggle('open');document.getElementById('sb-overlay').classList.toggle('open');}
+function closeSidebar(){document.getElementById('sidebar').classList.remove('open');document.getElementById('sb-overlay').classList.remove('open');}
+async function showPage(id,btn){
+  document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
+  document.querySelectorAll('.sb-item').forEach(b=>b.classList.remove('active'));
+  document.getElementById('page-'+id).classList.add('active');
+  btn.classList.add('active');
+  const titles={clientes:'Gerenciamento de Acessos',config:'Configurações',historico:'Histórico de Acessos'};
+  document.getElementById('topbar-title').textContent=titles[id]||'';
+  if(id==='config') await loadConfig();
+  if(id==='historico') await loadHistorico();
+  closeSidebar();
+}
+document.addEventListener('keydown',e=>{
+  if((e.ctrlKey||e.metaKey)&&e.key==='k'){e.preventDefault();const inp=document.getElementById('global-search')||document.getElementById('mobile-search');if(inp){inp.focus();inp.select();}}
+});
+
+// INIT
+async function initApp(){
+  showLoading('Carregando clientes...');
+  await loadClientes();
+  hideLoading();
+  // Auto-refresh a cada 30 segundos
+  setInterval(async()=>{
+    const res=await sbGet('clientes','order=nome.asc&select=*');
+    if(Array.isArray(res)){CLIENTES=res;renderStats();renderCards();}
+  },30000);
+}
+function getSearch(){
+  const gs=document.getElementById('global-search')?document.getElementById('global-search').value:'';
+  const ms=document.getElementById('mobile-search')?document.getElementById('mobile-search').value:'';
+  return(gs||ms).toLowerCase();
+}
+function onMobileSearchInput(){
+  const q=document.getElementById('mobile-search').value;
+  document.getElementById('stats-bar').style.display=q.length>0?'none':'';
+  const tb=document.querySelector('.toolbar');if(tb)tb.style.display=q.length>0?'none':'';
+  renderCards();
+}
+function setView(v){
+  viewMode=v;
+  document.getElementById('vt-normal').classList.toggle('active',v==='normal');
+  document.getElementById('vt-compact').classList.toggle('active',v==='compact');
+  document.getElementById('clients-list').classList.toggle('compact',v==='compact');
+}
+
+// CLIENTES
+async function loadClientes(){
+  setSyncing(true);
+  const res=await sbGet('clientes','order=nome.asc&select=*');
+  if(Array.isArray(res)){CLIENTES=res;renderStats();renderCards();}
+  setSyncing(false);
+}
+function renderStats(){
+  const t=CLIENTES.length;
+  const disp=CLIENTES.filter(c=>c.status==='disponivel'||!c.status).length;
+  const at=CLIENTES.filter(c=>c.status==='atendimento').length;
+  const maq=CLIENTES.reduce((a,c)=>a+(c.maquinas||[]).length,0);
+  document.getElementById('stats-bar').innerHTML=
+    '<div class="stat"><div><div class="stat-lbl">Clientes</div><div class="stat-num">'+t+'</div></div><div class="stat-icon si-blue"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/></svg></div></div>'+
+    '<div class="stat"><div><div class="stat-lbl">Máquinas</div><div class="stat-num">'+maq+'</div></div><div class="stat-icon si-blue"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></svg></div></div>'+
+    '<div class="stat"><div><div class="stat-lbl">Disponíveis</div><div class="stat-num" style="color:var(--green)">'+disp+'</div></div><div class="stat-icon si-green"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg></div></div>'+
+    '<div class="stat"><div><div class="stat-lbl">Em atendimento</div><div class="stat-num" style="color:var(--orange)">'+at+'</div></div><div class="stat-icon si-orange"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.5 19.5 0 0 1 4.99 12a19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 3.9 1.18h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L8.09 8.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 16.92z"/></svg></div></div>';
+}
+function renderCards(){
+  const q=getSearch();
+  const st=document.getElementById('f-status').value;
+  const list=CLIENTES.filter(c=>
+    (!q||c.nome.toLowerCase().includes(q)||(c.maquinas||[]).some(m=>m.nome.toLowerCase().includes(q)||m.id.replace(/\s/g,'').includes(q.replace(/\s/g,''))))&&
+    (!st||c.status===st||(st==='disponivel'&&!c.status))
+  );
+  document.getElementById('counter').textContent=list.length+' cliente'+(list.length!==1?'s':'')+' encontrado'+(list.length!==1?'s':'');
+  document.getElementById('clients-list').innerHTML=list.map(c=>{
+    const emAt=c.status==='atendimento';
+    const mcount=(c.maquinas||[]).length;
+    const firstId=(c.maquinas||[])[0]?(c.maquinas||[])[0].id:'';
+    const hasObs=c.obs&&c.obs.trim();
+    const versao=c.versao?'<span class="cc-meta-item"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg>'+c.versao+'</span>':'';
+    const atBadge=emAt?'<span class="cc-atendimento-badge">Em atendimento · '+esc(c.atendimento_maquina||'')+(c.atendimento_usuario?' · '+esc(c.atendimento_usuario):'')+'</span>':'<span class="badge b-disponivel">Disponível</span>';
+    return '<div class="client-card'+(emAt?' em-atendimento':'')+'">' +
+      '<div class="cc-avatar"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></svg></div>'+
+      '<div class="cc-info"><div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;"><span class="cc-name">'+esc(c.nome)+'</span>'+(hasObs?'<span class="cc-obs-badge">'+esc(c.obs.substring(0,30))+(c.obs.length>30?'…':'')+'</span>':'')+atBadge+'</div>'+
+      '<div class="cc-meta"><span class="cc-meta-item"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></svg>'+mcount+' máquina'+(mcount!==1?'s':'')+'</span>'+versao+
+      (c.acesso&&c.acesso!=='-'?'<span class="cc-meta-item"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>'+esc(c.acesso)+'</span>':'')+'</div></div>'+
+      '<div class="cc-right">'+(firstId?'<button class="cc-quickcopy" onclick="quickCopy(event,\''+firstId.replace(/\s/g,'')+'\')" title="Copiar ID">ID</button>':'')+
+      '<button class="btn-conectar" onclick="openModal(\''+c.id+'\')"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></svg>Conectar</button>'+
+      '</div></div>';
+  }).join('');
+}
+function quickCopy(e,id){
+  e.stopPropagation();
+  navigator.clipboard.writeText(id).then(()=>{const btn=e.target.closest('.cc-quickcopy');const orig=btn.textContent;btn.textContent='OK!';setTimeout(()=>btn.textContent=orig,1500);});
+}
+
+// MODAL
+function openModal(id){
+  curClient=CLIENTES.find(c=>c.id===id);curMaqIdx=null;senhaVisible=false;
+  if(!curClient)return;
+  document.getElementById('m-nome').textContent=curClient.nome;
+  document.getElementById('m-sub').textContent=(curClient.maquinas||[]).length+' máquina(s)';
+  renderMaqList();
+  document.getElementById('m-detail').style.display='none';
+  document.getElementById('m-hint').style.display='block';
+  document.getElementById('ticket-area').style.display='none';
+  const obs=document.getElementById('m-obs');obs.textContent=curClient.obs||'';obs.style.display=curClient.obs?'block':'none';
+  document.getElementById('m-anotacoes').value=curClient.anotacoes||'';
+  document.getElementById('overlay').classList.add('open');
+}
+function renderMaqList(){
+  const mqs=curClient.maquinas||[];
+  document.getElementById('maq-list').innerHTML=mqs.map((m,i)=>
+    '<div class="maq-item'+(curMaqIdx===i?' selected':'')+'" onclick="selMaq('+i+')">'+
+    '<div class="maq-item-head"><div><div class="maq-name">'+esc(m.nome)+'</div><div class="maq-id">'+fmtId(m.id)+'</div></div>'+
+    '<span class="maq-tipo">'+(m.tipo||'AnyDesk')+'</span></div></div>'
+  ).join('');
+}
+async function selMaq(i){
+  curMaqIdx=i;senhaVisible=false;renderMaqList();
+  const m=(curClient.maquinas||[])[i];
+  document.getElementById('m-id').textContent=fmtId(m.id);
+  document.getElementById('btn-open').textContent='Abrir no '+(m.tipo||'AnyDesk');
+  const sr=document.getElementById('senha-row');
+  if(m.senha){sr.style.display='flex';document.getElementById('m-senha').textContent='••••••••';document.getElementById('m-senha').classList.add('senha-hidden');}
+  else sr.style.display='none';
+  document.getElementById('m-detail').style.display='block';
+  document.getElementById('m-hint').style.display='none';
+  document.getElementById('ticket-area').style.display='block';
+  document.getElementById('ticket-input').value='';
+  const now=new Date();
+  const acesso=now.toLocaleDateString('pt-BR')+' '+now.getHours().toString().padStart(2,'0')+':'+now.getMinutes().toString().padStart(2,'0')+' ('+loggedNome+')';
+  curClient.acesso=acesso;
+  setSyncing(true);
+  await sbPatch('clientes',curClient.id,{acesso});
+  setSyncing(false);
+  renderCards();
+}
+function toggleSenha(){
+  const m=(curClient.maquinas||[])[curMaqIdx];if(!m||!m.senha)return;
+  senhaVisible=!senhaVisible;
+  const el=document.getElementById('m-senha');
+  if(senhaVisible){el.textContent=m.senha;el.classList.remove('senha-hidden');}
+  else{el.textContent='••••••••';el.classList.add('senha-hidden');}
+}
+async function closeModal(){
+  // Ao fechar, se estava em atendimento volta para disponivel
+  if(curClient&&curClient.status==='atendimento'){
+    setSyncing(true);
+    await sbPatch('clientes',curClient.id,{status:'disponivel',atendimento_maquina:'',atendimento_usuario:''});
+    curClient.status='disponivel';curClient.atendimento_maquina='';curClient.atendimento_usuario='';
+    renderStats();renderCards();
+    setSyncing(false);
+  }
+  document.getElementById('overlay').classList.remove('open');
+  curClient=null;curMaqIdx=null;
+}
+async function openRemote(){
+  if(curMaqIdx===null||!curClient)return;
+  const m=(curClient.maquinas||[])[curMaqIdx];
+  const ticket=document.getElementById('ticket-input').value.trim();
+  const now=new Date();
+  // Registra atendimento
+  setSyncing(true);
+  await sbPatch('clientes',curClient.id,{
+    status:'atendimento',
+    atendimento_maquina:m.nome,
+    atendimento_usuario:loggedNome
+  });
+  curClient.status='atendimento';
+  curClient.atendimento_maquina=m.nome;
+  curClient.atendimento_usuario=loggedNome;
+  // Registra histórico com IP
+  const reg={
+    cliente:curClient.nome,maquina:m.nome,tipo:m.tipo||'AnyDesk',
+    usuario:loggedNome,ticket:ticket||'-',
+    data:now.toLocaleDateString('pt-BR'),
+    hora:now.toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'}),
+    ip:userIP
+  };
+  await sbPost('historico',reg);
+  setSyncing(false);
+  renderStats();renderCards();
+  // Abre conexão
+  if(window.electronAPI){
+    const result=await window.electronAPI.connectRemote({tipo:m.tipo||'AnyDesk',id:m.id,senha:m.senha||''});
+    if(result&&!result.ok) alert('Não foi possível abrir o '+(m.tipo||'AnyDesk')+'. Verifique se está instalado.');
+  } else {
+    window.location.href=((m.tipo==='RustDesk')?'rustdesk://':'anydesk://')+m.id.replace(/\s/g,'');
+  }
+}
+function copyField(f){
+  if(curMaqIdx===null||!curClient)return;
+  const m=(curClient.maquinas||[])[curMaqIdx];
+  const val=f==='id'?m.id.replace(/\s/g,''):m.senha||'';
+  navigator.clipboard.writeText(val).then(()=>{const btn=document.getElementById(f==='id'?'btn-cp-id':'btn-cp-pw');btn.textContent='copiado!';setTimeout(()=>btn.textContent='copiar',1500);});
+}
+async function saveAnotacoes(){
+  if(!curClient)return;
+  curClient.anotacoes=document.getElementById('m-anotacoes').value.trim();
+  setSyncing(true);
+  await sbPatch('clientes',curClient.id,{anotacoes:curClient.anotacoes});
+  setSyncing(false);
+  const btn=document.getElementById('btn-save-ant');btn.textContent='salvo!';setTimeout(()=>btn.textContent='Salvar nota',1500);
+}
+function fmtId(id){
+  const c=id.replace(/\D/g,'');
+  if(c.length===9)return c.replace(/(\d{3})(\d{3})(\d{3})/,'$1 $2 $3');
+  if(c.length===10)return c.replace(/(\d{3})(\d{3})(\d{4})/,'$1 $2 $3');
+  return id;
+}
+
+// HISTÓRICO
+async function loadHistorico(){
+  showLoading('Carregando histórico...');
+  const res=await sbGet('historico','order=created_at.desc&limit=500&select=*');
+  if(Array.isArray(res)){HISTORICO=res;renderHistorico();}
+  hideLoading();
+}
+function renderHistorico(){
+  const q=document.getElementById('h-search')?document.getElementById('h-search').value.toLowerCase():'';
+  const list=HISTORICO.filter(r=>!q||r.cliente.toLowerCase().includes(q)||r.usuario.toLowerCase().includes(q)||r.maquina.toLowerCase().includes(q)||(r.ticket||'').toLowerCase().includes(q));
+  document.getElementById('historico-count').textContent=list.length+' registro'+(list.length!==1?'s':'');
+  document.getElementById('historico-list').innerHTML=list.length===0
+    ?'<div style="text-align:center;color:var(--text3);padding:2rem;">Nenhum acesso registrado ainda.</div>'
+    :list.map(r=>'<div class="hist-row"><div class="hist-info"><div class="hist-cliente">'+esc(r.cliente)+'</div>'+
+      '<div class="hist-meta"><span>'+esc(r.maquina)+'</span><span style="color:var(--text3)">·</span><span>'+esc(r.tipo)+'</span><span style="color:var(--text3)">·</span>'+
+      '<span style="color:var(--accent)">'+esc(r.usuario)+'</span>'+
+      (r.ticket&&r.ticket!=='-'?'<span style="color:var(--text3)">·</span><span style="color:var(--amber)">🎫 '+esc(r.ticket)+'</span>':'')+
+      (r.ip?'<span style="color:var(--text3)">·</span><span style="color:var(--text3)">📍 '+esc(r.ip)+'</span>':'')+
+      '</div></div><div class="hist-time">'+r.data+' '+r.hora+'</div></div>').join('');
+}
+async function clearHistorico(){
+  if(!confirm('Limpar todo o histórico?'))return;
+  showLoading('Limpando...');
+  await fetch(`${SUPABASE_URL}/rest/v1/historico?id=neq.00000000-0000-0000-0000-000000000000`,{
+    method:'DELETE',headers:{'apikey':SUPABASE_KEY,'Authorization':`Bearer ${SUPABASE_KEY}`}
+  });
+  HISTORICO=[];renderHistorico();hideLoading();
+}
+
+// CONFIG
+async function loadConfig(){
+  showLoading('Carregando...');
+  const isAdmin=loggedUserObj&&loggedUserObj.role==='admin';
+  document.getElementById('sec-usuarios').style.display=isAdmin?'block':'none';
+  document.getElementById('mc-nome').value=loggedUserObj?loggedUserObj.nome:'';
+  document.getElementById('mc-pw-atual').value='';
+  document.getElementById('mc-pw-nova').value='';
+  document.getElementById('mc-pw-conf').value='';
+  document.getElementById('mc-erro').textContent='';
+  if(isAdmin){const res=await sbGet('usuarios','order=login.asc&select=*');if(Array.isArray(res)){USUARIOS=res;renderCfgUsers();}}
+  renderCfgClientes();
+  document.getElementById('cfg-cnt').textContent=CLIENTES.length+' cadastrados';
+  hideLoading();
+}
+async function saveMinhaConta(){
+  const nome=document.getElementById('mc-nome').value.trim();
+  const pwAtual=document.getElementById('mc-pw-atual').value;
+  const pwNova=document.getElementById('mc-pw-nova').value;
+  const pwConf=document.getElementById('mc-pw-conf').value;
+  const errEl=document.getElementById('mc-erro');errEl.textContent='';
+  if(!nome){errEl.textContent='Informe o nome.';return;}
+  const update={nome};
+  if(pwNova||pwAtual||pwConf){
+    const hashAtual=await hashSenha(pwAtual);
+    const senhaOk=hashAtual===loggedUserObj.senha_hash||(loggedUserObj.senha&&pwAtual===loggedUserObj.senha);
+    if(!senhaOk){errEl.textContent='Senha atual incorreta.';return;}
+    if(pwNova.length<4){errEl.textContent='Senha muito curta.';return;}
+    if(pwNova!==pwConf){errEl.textContent='Senhas não coincidem.';return;}
+    update.senha_hash=await hashSenha(pwNova);update.senha='';
+  }
+  setSyncing(true);
+  await sbPatch('usuarios',loggedUserObj.id,update);
+  loggedUserObj={...loggedUserObj,...update};loggedNome=nome;
+  document.getElementById('uname').textContent=nome;
+  document.getElementById('uavatar').textContent=nome[0].toUpperCase();
+  setSyncing(false);flash('fok-mc');
+}
+function renderCfgUsers(){
+  document.getElementById('cfg-users').innerHTML=USUARIOS.map((u,i)=>
+    '<div class="cfg-row">'+
+    '<input class="ci" style="width:120px" type="text" value="'+esc(u.login)+'" id="usr-u-'+i+'" placeholder="login"/>'+
+    '<input class="ci wf" type="text" value="'+esc(u.nome)+'" id="usr-n-'+i+'" placeholder="Nome"/>'+
+    '<input class="ci" style="width:100px" type="password" value="'+esc(u.senha||'••••••••')+'" id="usr-p-'+i+'" placeholder="senha"/>'+
+    '<select class="ci" id="usr-r-'+i+'" style="width:80px"><option value="admin"'+(u.role==='admin'?' selected':'')+'>admin</option><option value="user"'+(u.role!=='admin'?' selected':'')+'>user</option></select>'+
+    '<button class="btn-del" onclick="delUser(\''+u.id+'\')" '+(u.login===loggedUser?'disabled':'')+'>✕</button>'+
+    '</div>'
+  ).join('');
+}
+async function addUser(){
+  showLoading('Criando...');
+  const hash=await hashSenha('senha123');
+  const res=await sbPost('usuarios',{login:'novo'+Date.now(),nome:'Novo Usuário',senha:'',senha_hash:hash,role:'user'});
+  if(Array.isArray(res)&&res.length>0)USUARIOS.push(res[0]);
+  renderCfgUsers();hideLoading();
+}
+async function delUser(id){
+  const u=USUARIOS.find(x=>x.id===id);
+  if(u&&u.login===loggedUser){alert('Não pode remover seu próprio usuário.');return;}
+  if(!confirm('Remover usuário?'))return;
+  setSyncing(true);await sbDelete('usuarios',id);USUARIOS=USUARIOS.filter(x=>x.id!==id);renderCfgUsers();setSyncing(false);
+}
+async function saveUsers(){
+  showLoading('Salvando...');
+  for(let i=0;i<USUARIOS.length;i++){
+    const u=document.getElementById('usr-u-'+i)?document.getElementById('usr-u-'+i).value.trim().toLowerCase():'';
+    const nome=document.getElementById('usr-n-'+i)?document.getElementById('usr-n-'+i).value.trim():'';
+    const pEl=document.getElementById('usr-p-'+i);
+    const rEl=document.getElementById('usr-r-'+i);
+    if(!u)continue;
+    const update={login:u,nome:nome||u,role:rEl?rEl.value:'user'};
+    if(pEl&&pEl.value&&pEl.value!=='••••••••'){update.senha_hash=await hashSenha(pEl.value);update.senha='';}
+    await sbPatch('usuarios',USUARIOS[i].id,update);
+  }
+  hideLoading();flash('fok-usr');
+}
+function renderCfgClientes(){
+  document.getElementById('cfg-cnt').textContent=CLIENTES.length+' cadastrados';
+  document.getElementById('cfg-clientes').innerHTML=CLIENTES.map((c,i)=>ceHTML(c,i)).join('');
+}
+function ceHTML(c,i){
+  const maqHTML=(c.maquinas||[]).map((m,mi)=>maqRow(i,mi,m)).join('');
+  return '<div class="ce" id="ce-'+i+'"><div class="ce-head" onclick="toggleCE('+i+')"><span class="ce-head-name">'+esc(c.nome)+'</span><div style="display:flex;gap:8px;align-items:center;"><button class="btn-del" onclick="event.stopPropagation();delCliente(\''+c.id+'\')">✕</button><span class="chev" id="chev-'+i+'">▾</span></div></div>'+
+    '<div class="ce-body" id="ceb-'+i+'"><div class="ce-grid"><input class="ci full" type="text" value="'+esc(c.nome)+'" id="ce-nome-'+i+'" placeholder="Nome"/><input class="ci" type="text" value="'+esc(c.versao||'')+'" id="ce-ver-'+i+'" placeholder="Versão Meta"/></div>'+
+    '<div class="sec-lbl">Máquinas / Acessos</div><div id="ce-mqs-'+i+'">'+maqHTML+'</div><button class="btn-add-row" onclick="addMaq('+i+')" style="margin-bottom:.7rem;">+ máquina</button>'+
+    '<div class="sec-lbl">Observações</div><textarea class="ce-obs" id="ce-obs-'+i+'">'+esc(c.obs||'')+'</textarea></div></div>';
+}
+function maqRow(ci,mi,m){
+  const tipos=['AnyDesk','RustDesk','TeamViewer','VNC','Outro'];
+  const tOpts=tipos.map(t=>'<option'+((m.tipo||'AnyDesk')===t?' selected':'')+'>'+t+'</option>').join('');
+  return '<div class="ae" id="mq-'+ci+'-'+mi+'"><input class="ae-maq" type="text" value="'+esc(m.nome)+'" id="mq-n-'+ci+'-'+mi+'" placeholder="Máquina"/><select id="mq-t-'+ci+'-'+mi+'">'+tOpts+'</select><input type="text" value="'+esc(m.id)+'" id="mq-i-'+ci+'-'+mi+'" placeholder="ID"/><input class="ae-pw" type="text" value="'+esc(m.senha||'')+'" id="mq-s-'+ci+'-'+mi+'" placeholder="Senha"/><button class="btn-del" onclick="delMaq('+ci+','+mi+')">✕</button></div>';
+}
+function toggleCE(i){const b=document.getElementById('ceb-'+i);const c=document.getElementById('chev-'+i);const o=b.classList.toggle('open');if(c)c.classList.toggle('open',o);}
+async function addCliente(){
+  showLoading('Criando...');
+  const res=await sbPost('clientes',{nome:'Novo Cliente',status:'disponivel',obs:'',versao:'',anotacoes:'',acesso:'',maquinas:[{nome:'Servidor',tipo:'AnyDesk',id:'',senha:''}],atendimento_maquina:'',atendimento_usuario:''});
+  if(Array.isArray(res)&&res.length>0){CLIENTES.push(res[0]);renderCfgClientes();renderCards();const idx=CLIENTES.length-1;toggleCE(idx);setTimeout(()=>{const el=document.getElementById('ce-nome-'+idx);if(el)el.focus();},50);}
+  hideLoading();
+}
+async function delCliente(id){
+  if(!confirm('Remover?'))return;
+  setSyncing(true);await sbDelete('clientes',id);CLIENTES=CLIENTES.filter(c=>c.id!==id);renderCfgClientes();renderStats();renderCards();setSyncing(false);
+}
+function addMaq(ci){const cont=document.getElementById('ce-mqs-'+ci);const mi=cont.querySelectorAll('.ae').length;const d=document.createElement('div');d.innerHTML=maqRow(ci,mi,{nome:'',tipo:'AnyDesk',id:'',senha:''});cont.appendChild(d.firstElementChild);}
+function delMaq(ci,mi){const el=document.getElementById('mq-'+ci+'-'+mi);if(el)el.remove();}
+async function saveClientes(){
+  showLoading('Salvando...');
+  for(let i=0;i<CLIENTES.length;i++){
+    const nomeEl=document.getElementById('ce-nome-'+i);if(!nomeEl)continue;
+    const nome=nomeEl.value.trim();if(!nome)continue;
+    const mqs=[];
+    const cont=document.getElementById('ce-mqs-'+i);
+    if(cont)cont.querySelectorAll('.ae').forEach(ae=>{
+      const inputs=ae.querySelectorAll('input');
+      const n=inputs[0]?inputs[0].value.trim():'';
+      const id=inputs[1]?inputs[1].value.trim():'';
+      const tipo=ae.querySelector('select')?ae.querySelector('select').value:'AnyDesk';
+      const senha=inputs[2]?inputs[2].value.trim():'';
+      if(id)mqs.push({nome:n||'Servidor',tipo,id,senha});
+    });
+    const verEl=document.getElementById('ce-ver-'+i);
+    const obsEl=document.getElementById('ce-obs-'+i);
+    await sbPatch('clientes',CLIENTES[i].id,{nome,versao:verEl?verEl.value.trim():'',obs:obsEl?obsEl.value.trim():'',maquinas:mqs});
+    CLIENTES[i].nome=nome;CLIENTES[i].maquinas=mqs;
+  }
+  hideLoading();flash('fok-cli');renderStats();renderCards();
+}
+function flash(id){const el=document.getElementById(id);if(el){el.classList.add('show');setTimeout(()=>el.classList.remove('show'),2000);}}
+function esc(s){return(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
+</script>
+</body>
+</html>
