@@ -884,6 +884,10 @@ footer.foot{border-top:1px solid rgba(255,255,255,.07);background:rgba(10,16,36,
         <input type="checkbox" id="new-kpis" style="width:16px;height:16px;accent-color:#3fa08c">
         <span style="font:500 13px Manrope;color:#bcccea">KPIs de Atendimento (Digisac) -- gestor ve de todos, colaborador ve so o proprio</span>
       </label>
+      <label style="display:flex;align-items:center;gap:9px;height:40px;padding:0 4px;margin-bottom:11px;cursor:pointer">
+        <input type="checkbox" id="new-acesso-clientes" style="width:16px;height:16px;accent-color:#3fa08c">
+        <span style="font:500 13px Manrope;color:#bcccea">Acesso Clientes (lista de clientes/máquinas + conexão remota)</span>
+      </label>
       <div style="display:flex;gap:9px">
         <button onclick="addUser()" id="btn-salvar-usuario" class="btn-primary" style="flex:1;height:46px;font-size:13.5px">
           <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.1" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
@@ -1003,8 +1007,8 @@ async function apiListUsers(token) {
   const r = await fetch(`${PROXY}/auth/users`, { headers:{'Authorization':`Bearer ${token}`} });
   return r.json();
 }
-async function apiCreateUser(token, username, password, unidades, role, nome, gestor, atendenteSRG, verKPIs) {
-  const r = await fetch(`${PROXY}/auth/users`, { method:'POST', headers:{'Content-Type':'application/json','Authorization':`Bearer ${token}`}, body:JSON.stringify({username,password,unidades,role,nome,gestor,atendenteSRG,verKPIs}) });
+async function apiCreateUser(token, username, password, unidades, role, nome, gestor, atendenteSRG, verKPIs, verAcessoClientes) {
+  const r = await fetch(`${PROXY}/auth/users`, { method:'POST', headers:{'Content-Type':'application/json','Authorization':`Bearer ${token}`}, body:JSON.stringify({username,password,unidades,role,nome,gestor,atendenteSRG,verKPIs,verAcessoClientes}) });
   return r.json();
 }
 async function apiUpdateUser(token, username, campos) {
@@ -1136,7 +1140,7 @@ async function doLogin() {
   const data = await apiLogin(login, pass);
   btn.disabled = false; btnText.textContent = 'Entrar';
   if (data.ok) {
-    currentUser = { username:data.username, nome:data.nome||'', role:data.role, unidades:data.unidades||[], token:data.token, gestor:!!data.gestor, verHistorico:!!data.verHistorico, verKPIs:!!data.verKPIs, atendenteSRG:data.atendenteSRG||'' };
+    currentUser = { username:data.username, nome:data.nome||'', role:data.role, unidades:data.unidades||[], token:data.token, gestor:!!data.gestor, verHistorico:!!data.verHistorico, verKPIs:!!data.verKPIs, verAcessoClientes:!!data.verAcessoClientes, atendenteSRG:data.atendenteSRG||'' };
     err.style.display = 'none';
     sessionStorage.setItem('srg_user', JSON.stringify(currentUser));
     enterApp();
@@ -1165,7 +1169,7 @@ function enterApp() {
   atualizarNavAtiva('dashboard');
   document.getElementById('nav-gestor').style.display = (currentUser.gestor || currentUser.role === 'admin') ? 'inline-block' : 'none';
   document.getElementById('nav-kpis').style.display = (currentUser.verKPIs || currentUser.gestor || currentUser.role === 'admin') ? 'inline-block' : 'none';
-  document.getElementById('nav-acesso-clientes').style.display = (currentUser.gestor || currentUser.role === 'admin') ? 'inline-block' : 'none';
+  document.getElementById('nav-acesso-clientes').style.display = (currentUser.verAcessoClientes || currentUser.gestor || currentUser.role === 'admin') ? 'inline-block' : 'none';
   limpar();
   carregarGertecCards();
 }
@@ -1191,11 +1195,11 @@ async function revalidarSessao() {
   try {
     const data = await apiValidate(currentUser.token);
     if (!data.ok) { doLogout(); return; } // sessao expirada ou usuario removido
-    currentUser = { ...currentUser, nome:data.nome||'', role:data.role, unidades:data.unidades||[], gestor:!!data.gestor, verHistorico:!!data.verHistorico, verKPIs:!!data.verKPIs, atendenteSRG:data.atendenteSRG||'' };
+    currentUser = { ...currentUser, nome:data.nome||'', role:data.role, unidades:data.unidades||[], gestor:!!data.gestor, verHistorico:!!data.verHistorico, verKPIs:!!data.verKPIs, verAcessoClientes:!!data.verAcessoClientes, atendenteSRG:data.atendenteSRG||'' };
     sessionStorage.setItem('srg_user', JSON.stringify(currentUser));
     document.getElementById('nav-gestor').style.display = (currentUser.gestor || currentUser.role === 'admin') ? 'inline-block' : 'none';
     document.getElementById('nav-kpis').style.display = (currentUser.verKPIs || currentUser.gestor || currentUser.role === 'admin') ? 'inline-block' : 'none';
-    document.getElementById('nav-acesso-clientes').style.display = (currentUser.gestor || currentUser.role === 'admin') ? 'inline-block' : 'none';
+    document.getElementById('nav-acesso-clientes').style.display = (currentUser.verAcessoClientes || currentUser.gestor || currentUser.role === 'admin') ? 'inline-block' : 'none';
     document.getElementById('admin-btn').style.display = currentUser.role === 'admin' ? 'inline-flex' : 'none';
   } catch(e) { /* falha de rede na revalidacao -- mantem sessao local, tenta de novo no proximo load */ }
 }
@@ -1242,6 +1246,7 @@ async function renderUsersList() {
       <span style="font:600 11.5px Manrope;color:#a9bcda;padding:5px 11px;border-radius:8px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);white-space:nowrap">${u.role==='admin'?'Administrador':'Cliente'}</span>
       ${u.gestor ? `<span style="font:600 11.5px Manrope;color:#7fe0c0;padding:5px 11px;border-radius:8px;background:rgba(63,190,140,.14);border:1px solid rgba(90,200,150,.3);white-space:nowrap">Gestor</span>` : ''}
       ${u.verKPIs ? `<span style="font:600 11.5px Manrope;color:#c3aef0;padding:5px 11px;border-radius:8px;background:rgba(169,146,224,.16);border:1px solid rgba(169,146,224,.35);white-space:nowrap">KPIs</span>` : ''}
+      ${u.verAcessoClientes ? `<span style="font:600 11.5px Manrope;color:#f0c48f;padding:5px 11px;border-radius:8px;background:rgba(224,180,90,.16);border:1px solid rgba(224,180,90,.35);white-space:nowrap">Acesso Clientes</span>` : ''}
       ${u.atendenteSRG ? `<span style="font:600 11.5px Manrope;color:#8fb0e0;padding:5px 11px;border-radius:8px;background:rgba(47,95,176,.16);border:1px solid rgba(90,150,220,.3);white-space:nowrap">${u.atendenteSRG}</span>` : ''}
       <button onclick='iniciarEdicaoUsuario(${JSON.stringify(u).replace(/'/g,"&#39;")})' style="width:34px;height:34px;border-radius:9px;cursor:pointer;display:flex;align-items:center;justify-content:center;background:transparent;border:1px solid rgba(255,255,255,.1);flex-shrink:0">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#8fb0e0" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.12 2.12 0 0 1 3 3L12 15l-4 1 1-4Z"/></svg>
@@ -1263,6 +1268,7 @@ function iniciarEdicaoUsuario(u) {
   document.getElementById('new-atendente').value = u.atendenteSRG || '';
   document.getElementById('new-gestor').checked = !!u.gestor;
   document.getElementById('new-kpis').checked = !!u.verKPIs;
+  document.getElementById('new-acesso-clientes').checked = !!u.verAcessoClientes;
   document.getElementById('form-usuario-titulo').textContent = 'Editando usuário: ' + u.username;
   document.getElementById('btn-salvar-usuario').innerHTML = 'Salvar alterações';
   document.getElementById('btn-cancelar-edicao').style.display = 'inline-flex';
@@ -1278,6 +1284,7 @@ function cancelarEdicaoUsuario() {
   document.getElementById('new-atendente').value = '';
   document.getElementById('new-gestor').checked = false;
   document.getElementById('new-kpis').checked = false;
+  document.getElementById('new-acesso-clientes').checked = false;
   document.getElementById('form-usuario-titulo').textContent = 'Novo usuário';
   document.getElementById('btn-salvar-usuario').innerHTML = '<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.1" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg> Adicionar';
   document.getElementById('btn-cancelar-edicao').style.display = 'none';
@@ -1291,11 +1298,12 @@ async function addUser() {
   const unidades = filterVal ? filterVal.split(',').map(s=>s.trim()).filter(Boolean) : [];
   const gestor = document.getElementById('new-gestor').checked;
   const verKPIs = document.getElementById('new-kpis').checked;
+  const verAcessoClientes = document.getElementById('new-acesso-clientes').checked;
   const atendenteSRG = document.getElementById('new-atendente').value.trim();
 
   if (usuarioEmEdicao) {
     // ---- modo edição ----
-    const campos = { unidades, nome, gestor, verKPIs, atendenteSRG };
+    const campos = { unidades, nome, gestor, verKPIs, verAcessoClientes, atendenteSRG };
     if (pass) campos.password = pass;
     const data = await apiUpdateUser(currentUser.token, usuarioEmEdicao, campos);
     if (!data.ok) { msg.style.display='block'; msg.style.color='#fc8181'; msg.textContent=data.error||'Erro ao salvar usuário.'; return; }
@@ -1308,7 +1316,7 @@ async function addUser() {
 
   // ---- modo criação ----
   if (!login || !pass) { msg.style.display='block'; msg.style.color='#fc8181'; msg.textContent='Preencha usuário e senha.'; return; }
-  const data = await apiCreateUser(currentUser.token, login, pass, unidades, 'cliente', nome, gestor, atendenteSRG, verKPIs);
+  const data = await apiCreateUser(currentUser.token, login, pass, unidades, 'cliente', nome, gestor, atendenteSRG, verKPIs, verAcessoClientes);
   if (!data.ok) { msg.style.display='block'; msg.style.color='#fc8181'; msg.textContent=data.error||'Erro ao criar usuário.'; return; }
   cancelarEdicaoUsuario();
   msg.style.display='block'; msg.style.color='#7fe0c0'; msg.textContent='Usuário adicionado!';
