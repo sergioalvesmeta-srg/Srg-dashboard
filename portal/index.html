@@ -32,6 +32,10 @@ button{font-family:inherit}
 .kpis-spinner{display:inline-block;width:9px;height:9px;border-radius:50%;border:2px solid rgba(127,212,192,.3);border-top-color:#7fd4c0;animation:spin .7s linear infinite;vertical-align:middle}
 .kpis-chip{font:600 12.5px Manrope;color:#bcccea;padding:7px 13px;border-radius:10px;cursor:pointer;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);transition:all .15s ease}
 .kpis-chip.active{color:#eaf1ff;background:linear-gradient(135deg,rgba(47,95,176,.4),rgba(63,160,140,.4));border:1px solid rgba(255,255,255,.14)}
+.kpis-delta{font:600 12.5px Manrope;margin-top:6px;display:flex;align-items:center;gap:4px}
+.kpis-delta.good{color:#7fe0c0}
+.kpis-delta.bad{color:#f0a0a0}
+.kpis-delta.neutral{color:#7186ab}
 
 .bg-fixed{position:fixed;inset:0;z-index:0;pointer-events:none}
 .bg-gradient{background:radial-gradient(900px 600px at 15% 10%,rgba(47,95,176,.28),transparent 60%),radial-gradient(800px 700px at 88% 85%,rgba(63,160,140,.22),transparent 60%),radial-gradient(700px 500px at 50% 50%,rgba(26,42,110,.35),transparent 70%),linear-gradient(160deg,#070c1f,#0b1230 55%,#0a1428)}
@@ -699,20 +703,25 @@ footer.foot{border-top:1px solid rgba(255,255,255,.07);background:rgba(10,16,36,
           <div class="glass" style="padding:20px 22px">
             <div style="font:600 12px Manrope;color:#7fd4c0;text-transform:uppercase;letter-spacing:.08em">Atendimentos</div>
             <div id="kpi-card-total" style="font:700 30px Outfit,sans-serif;color:#f4f8ff;margin-top:6px">--</div>
+            <div id="kpi-delta-total" class="kpis-delta"></div>
           </div>
           <div class="glass" style="padding:20px 22px">
             <div style="font:600 12px Manrope;color:#7fd4c0;text-transform:uppercase;letter-spacing:.08em">Tempo médio atendimento</div>
             <div id="kpi-card-tempo" style="font:700 30px Outfit,sans-serif;color:#f4f8ff;margin-top:6px">--</div>
+            <div id="kpi-delta-tempo" class="kpis-delta"></div>
           </div>
           <div class="glass" style="padding:20px 22px">
             <div style="font:600 12px Manrope;color:#7fd4c0;text-transform:uppercase;letter-spacing:.08em">1º tempo de espera</div>
             <div id="kpi-card-espera" style="font:700 30px Outfit,sans-serif;color:#f4f8ff;margin-top:6px">--</div>
+            <div id="kpi-delta-espera" class="kpis-delta"></div>
           </div>
           <div class="glass" style="padding:20px 22px">
             <div style="font:600 12px Manrope;color:#7fd4c0;text-transform:uppercase;letter-spacing:.08em">1º espera após bot</div>
             <div id="kpi-card-espera-bot" style="font:700 30px Outfit,sans-serif;color:#f4f8ff;margin-top:6px">--</div>
+            <div id="kpi-delta-espera-bot" class="kpis-delta"></div>
           </div>
         </div>
+        <div id="kpis-comparativo-nota" style="font:400 12px Manrope;color:#7186ab;margin:-10px 0 20px"></div>
 
         <div class="glass" id="kpis-ranking-wrap" style="padding:26px 28px;margin-bottom:20px;display:none">
           <h3 style="font:700 18px Outfit,sans-serif;color:#f4f8ff;margin:0 0 14px">Atendimentos por colaborador</h3>
@@ -2299,6 +2308,40 @@ function kpisRenderizar(data) {
   document.getElementById('kpi-card-tempo').textContent = fmtSegundos(resumo.tempoMedioSeg);
   document.getElementById('kpi-card-espera').textContent = fmtSegundos(resumo.esperaMediaSeg);
   document.getElementById('kpi-card-espera-bot').textContent = fmtSegundos(resumo.esperaAposBotSeg);
+
+  // Comparativo com o periodo anterior equivalente. Se um colaborador
+  // especifico estiver selecionado usa o comparativo dele; senao usa o
+  // agregado geral. "menorEMelhor=true" pinta aumento de vermelho (tempo
+  // e espera pioraram); em atendimentos nao ha julgamento de bom/ruim,
+  // so mostra a direcao.
+  const comparativoUsado = colabSelecionado
+    ? (data.comparativoPorColaborador && data.comparativoPorColaborador[colabSelecionado.nome])
+    : data.comparativo;
+
+  function renderDelta(id, campo, menorEMelhor) {
+    const el = document.getElementById(id);
+    const d = comparativoUsado && comparativoUsado[campo];
+    if (!d || d.deltaPct === null || d.deltaPct === undefined) {
+      el.textContent = data.anteriorInicio ? 'sem dado no período anterior' : '';
+      el.className = 'kpis-delta neutral';
+      return;
+    }
+    const pct = d.deltaPct;
+    const seta = pct > 0 ? '▲' : (pct < 0 ? '▼' : '▬');
+    let cls = 'neutral';
+    if (menorEMelhor !== null && pct !== 0) cls = (pct > 0) === menorEMelhor ? 'bad' : 'good';
+    el.textContent = `${seta} ${Math.abs(pct)}% vs período anterior`;
+    el.className = `kpis-delta ${cls}`;
+  }
+  renderDelta('kpi-delta-total', 'totalAtendimentos', null);
+  renderDelta('kpi-delta-tempo', 'tempoMedioSeg', true);
+  renderDelta('kpi-delta-espera', 'esperaMediaSeg', true);
+  renderDelta('kpi-delta-espera-bot', 'esperaAposBotSeg', true);
+
+  const notaComparativo = document.getElementById('kpis-comparativo-nota');
+  notaComparativo.textContent = data.anteriorInicio
+    ? `Comparado com o período de ${data.anteriorInicio.split('-').reverse().join('/')} até ${data.anteriorFim.split('-').reverse().join('/')}.`
+    : '';
 
   const rankingWrap = document.getElementById('kpis-ranking-wrap');
   const rankingBody = document.getElementById('kpis-ranking-body');
