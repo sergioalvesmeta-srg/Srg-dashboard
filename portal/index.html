@@ -859,8 +859,12 @@ footer.foot{border-top:1px solid rgba(255,255,255,.07);background:rgba(10,16,36,
       </button>
     </div>
 
-    <div style="padding:20px 26px;border-bottom:1px solid rgba(255,255,255,.08)">
-      <label style="display:block;font:600 12.5px Manrope;color:#bcccea;margin-bottom:9px" id="form-usuario-titulo">Novo usuário</label>
+    <div style="padding:16px 26px;border-bottom:1px solid rgba(255,255,255,.08)">
+      <button onclick="toggleFormUsuario()" style="width:100%;display:flex;align-items:center;justify-content:space-between;background:none;border:none;cursor:pointer;padding:4px 0">
+        <span style="font:600 12.5px Manrope;color:#bcccea" id="form-usuario-titulo">+ Novo usuário</span>
+        <svg id="form-usuario-seta" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#8399be" stroke-width="2" stroke-linecap="round" style="transition:transform .2s"><path d="m6 9 6 6 6-6"/></svg>
+      </button>
+      <div id="form-usuario-campos" style="display:none;margin-top:14px">
       <div style="display:flex;gap:9px;flex-wrap:wrap;margin-bottom:9px">
         <div style="flex:1;min-width:150px;display:flex;align-items:center;gap:11px;height:46px;padding:0 15px;border-radius:12px;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.22)">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#8399be" stroke-width="1.8" stroke-linecap="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
@@ -900,9 +904,10 @@ footer.foot{border-top:1px solid rgba(255,255,255,.07);background:rgba(10,16,36,
         <button onclick="cancelarEdicaoUsuario()" id="btn-cancelar-edicao" style="display:none;height:46px;padding:0 18px;border-radius:14px;cursor:pointer;font:600 13.5px Manrope;color:#bcccea;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.12)">Cancelar</button>
       </div>
       <div id="admin-msg" style="font-size:12px;margin-top:8px;display:none"></div>
+      </div>
     </div>
 
-    <div style="padding:16px 26px 24px;overflow-y:auto">
+    <div style="padding:16px 26px 24px;overflow-y:auto;flex:1;min-height:0">
       <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin:6px 0 12px">
         <div style="font:600 11.5px Manrope;letter-spacing:.1em;text-transform:uppercase;color:#a6b8d6">Usuários cadastrados</div>
         <span id="users-contador" style="font:400 12px Manrope;color:#7186ab"></span>
@@ -1289,7 +1294,15 @@ function filtrarUsersList() {
     </div>
   `).join('') || '<div style="font-size:12px;color:#7186ab;padding:10px 0">Nenhum usuário encontrado.</div>';
 }
+function toggleFormUsuario(forcarAberto) {
+  const campos = document.getElementById('form-usuario-campos');
+  const seta = document.getElementById('form-usuario-seta');
+  const abrir = forcarAberto === true ? true : (forcarAberto === false ? false : campos.style.display === 'none');
+  campos.style.display = abrir ? 'block' : 'none';
+  seta.style.transform = abrir ? 'rotate(180deg)' : 'rotate(0deg)';
+}
 function iniciarEdicaoUsuario(u) {
+  toggleFormUsuario(true);
   usuarioEmEdicao = u.username;
   document.getElementById('new-login').value = u.username;
   document.getElementById('new-login').disabled = true;
@@ -1316,9 +1329,10 @@ function cancelarEdicaoUsuario() {
   document.getElementById('new-gestor').checked = false;
   document.getElementById('new-kpis').checked = false;
   document.getElementById('new-acesso-clientes').checked = false;
-  document.getElementById('form-usuario-titulo').textContent = 'Novo usuário';
+  document.getElementById('form-usuario-titulo').textContent = '+ Novo usuário';
   document.getElementById('btn-salvar-usuario').innerHTML = '<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.1" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg> Adicionar';
   document.getElementById('btn-cancelar-edicao').style.display = 'none';
+  toggleFormUsuario(false);
 }
 async function addUser() {
   const login = document.getElementById('new-login').value.trim().toLowerCase();
