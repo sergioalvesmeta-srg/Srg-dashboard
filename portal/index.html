@@ -2690,15 +2690,31 @@ async function acConectar(protocolo) {
   if (!c || !m) return;
   const ticket = document.getElementById('ac-modal-ticket')?.value?.trim() || '';
   const nomeUsuario = (currentUser && currentUser.nome) || (currentUser && currentUser.username) || 'desconhecido';
+
+  if (m.senha) { try { await navigator.clipboard.writeText(m.senha); } catch(e) { /* clipboard pode falhar sem foco/permissao, segue mesmo assim */ } }
+
   try {
-    await acPatch('clientes', `?id=eq.${c.id}`, { status: 'atendimento', atendimento_maquina: m.id||'', atendimento_usuario: nomeUsuario });
+    const atualizado = await acPatch('clientes', `?id=eq.${c.id}`, { status: 'atendimento', atendimento_maquina: m.id||'', atendimento_usuario: nomeUsuario });
+    if (!atualizado || !atualizado.length) {
+      console.error('acConectar: PATCH em clientes não encontrou/atualizou nenhuma linha. id enviado =', c.id, 'resposta =', atualizado);
+      alert('Aviso: não foi possível marcar o cliente como "Em atendimento" (nenhuma linha encontrada no banco). O acesso remoto vai abrir normalmente, mas avise o Sérgio pra checar o log do console.');
+    } else {
+      c.status = 'atendimento';
+      c.atendimento_maquina = m.id||'';
+      c.atendimento_usuario = nomeUsuario;
+    }
     await acPost('historico', {
       cliente: c.nome, maquina: m.id||'', tipo: m.tipo||protocolo, usuario: nomeUsuario,
       ticket, data: new Date().toISOString().slice(0,10), hora: new Date().toTimeString().slice(0,5)
     });
-  } catch(e) { /* segue mesmo se falhar registro */ }
+  } catch(e) {
+    console.error('acConectar: erro ao atualizar status/historico:', e);
+    alert('Aviso: falha ao registrar o atendimento no banco (' + e.message + '). O acesso remoto vai abrir normalmente.');
+  }
   window.location.href = `${protocolo}://${m.id||''}`;
   acFecharModal();
+  acRenderStats();
+  acRenderCards();
   acCarregarClientes();
 }
 
