@@ -2153,16 +2153,31 @@ function gestorAtualizarAgo() {
 let kpisPeriodoAtual = 15;
 let kpisDataDeAtual = null;
 let kpisDataAteAtual = null;
+let kpisModo = 'periodo'; // 'periodo' | 'semana' | 'data' -- controla qual chip fica marcado
 let kpisColaboradorAtual = 'todos';
 let kpisUltimoResultado = null; // cache do ultimo fetch -- filtrar por colaborador nao refaz a chamada
 let kpisPrimeiraCarga = true;
 
 function setKPIsPeriodo(p) {
-  kpisPeriodoAtual = p;
-  kpisDataDeAtual = null; kpisDataAteAtual = null; // chip pronto cancela o recorte de data exata
+  kpisColaboradorAtual = 'todos'; // periodo novo -> reseta o recorte por colaborador
   document.getElementById('kpis-data-de').value = '';
   document.getElementById('kpis-data-ate').value = '';
-  kpisColaboradorAtual = 'todos'; // periodo novo -> reseta o recorte por colaborador
+
+  if (p === 7) {
+    // "Esta semana" = semana corrente de calendario (domingo a hoje),
+    // nao "7 dias corridos pra tras" -- domingo e dia 0 em getDay().
+    kpisModo = 'semana';
+    const hoje = new Date();
+    const domingo = new Date(hoje);
+    domingo.setDate(hoje.getDate() - hoje.getDay());
+    kpisDataDeAtual = domingo.toISOString().slice(0, 10);
+    kpisDataAteAtual = hoje.toISOString().slice(0, 10);
+  } else {
+    kpisModo = 'periodo';
+    kpisPeriodoAtual = p;
+    kpisDataDeAtual = null; kpisDataAteAtual = null;
+  }
+
   document.querySelectorAll('[data-kperiodo]').forEach(b => b.classList.toggle('active', +b.dataset.kperiodo === p));
   carregarKPIsAtendimento();
 }
@@ -2174,6 +2189,7 @@ function setKPIsDataExata() {
   const de = document.getElementById('kpis-data-de').value;
   const ate = document.getElementById('kpis-data-ate').value;
   if (!de) return;
+  kpisModo = 'data';
   kpisDataDeAtual = de;
   kpisDataAteAtual = ate || null;
   kpisColaboradorAtual = 'todos';
@@ -2196,7 +2212,7 @@ function fmtSegundos(seg) {
 }
 
 async function carregarKPIsAtendimento() {
-  if (!kpisDataDeAtual) {
+  if (kpisModo === 'periodo') {
     document.querySelectorAll('[data-kperiodo]').forEach(b => b.classList.toggle('active', +b.dataset.kperiodo === kpisPeriodoAtual));
   }
   const loading = document.getElementById('kpis-loading');
