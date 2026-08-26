@@ -57,6 +57,8 @@ button{font-family:inherit}
 .chip{padding:9px 17px;border-radius:999px;font:600 13px Manrope;cursor:pointer;transition:all .2s;border:1px solid rgba(255,255,255,.12);background:rgba(255,255,255,.04);color:#bcccea}
 .chip.active{border:1px solid rgba(90,180,230,.55);background:linear-gradient(135deg,rgba(47,95,176,.4),rgba(63,160,140,.4));color:#eaf1ff;box-shadow:0 0 16px rgba(63,140,200,.28)}
 .icon-btn{width:42px;height:42px;border-radius:12px;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:transform .18s,background .18s}
+.ac-card-cliente{transition:background .18s,border-color .18s}
+.ac-card-cliente:hover{background:rgba(255,255,255,.07);border-color:rgba(255,255,255,.22)}
 .error-msg{font-size:12px;color:#fc8181;margin-bottom:.75rem;display:none;text-align:center}
 .spinner{width:26px;height:26px;border:3px solid rgba(255,255,255,.15);border-top-color:#5db4e6;border-radius:50%;animation:spin .9s linear infinite;margin:0 auto}
 
@@ -2584,15 +2586,15 @@ function acRenderCards() {
     const emAtendimento = c.status === 'atendimento';
     const nMaq = (c.maquinas||[]).length;
     return `
-    <div class="glass" style="padding:16px 20px;display:flex;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap">
+    <div class="glass ac-card-cliente" style="padding:16px 20px;display:flex;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap;cursor:pointer" onclick="acAbrirModal('${c.id}')">
       <div style="min-width:180px">
         <div style="font:700 15.5px Outfit,sans-serif;color:#f4f8ff">${acEsc(c.nome)}</div>
         <div style="font:400 12.5px Manrope;color:#7186ab;margin-top:2px">${nMaq} máquina(s)${c.versao ? ' · v'+acEsc(c.versao) : ''}${emAtendimento && c.atendimento_usuario ? ' · com '+acEsc(c.atendimento_usuario) : ''}</div>
       </div>
       <div style="display:flex;align-items:center;gap:10px">
         <span class="kpis-delta ${emAtendimento ? 'bad' : 'good'}" style="padding:4px 10px;border-radius:8px">${emAtendimento ? 'Em atendimento' : 'Disponível'}</span>
-        ${emAtendimento ? `<button class="chip" style="height:36px;padding:0 14px;font-size:12.5px" onclick="acFinalizarAtendimento('${c.id}')">Finalizar</button>` : ''}
-        <button class="btn-primary" style="height:36px;padding:0 16px;font-size:12.5px" onclick="acAbrirModal('${c.id}')">Conectar</button>
+        ${emAtendimento ? `<button class="chip" style="height:36px;padding:0 14px;font-size:12.5px" onclick="event.stopPropagation();acFinalizarAtendimento('${c.id}')">Finalizar</button>` : ''}
+        <button class="btn-primary" style="height:36px;padding:0 16px;font-size:12.5px" onclick="event.stopPropagation();acAbrirModal('${c.id}')">Conectar</button>
       </div>
     </div>`;
   }).join('') || '<div style="font:400 13px Manrope;color:#7186ab">Nenhum cliente encontrado.</div>';
