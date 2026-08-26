@@ -692,7 +692,7 @@ footer.foot{border-top:1px solid rgba(255,255,255,.07);background:rgba(10,16,36,
           <p style="font:400 15.5px Manrope;color:#bcccea;margin:0 0 4px" id="kpis-subtitulo">Carregando...
             <span id="kpis-atualizando-badge" style="display:none;margin-left:8px;font:600 11px Manrope;color:#7fd4c0"><span class="kpis-spinner"></span> atualizando...</span>
           </p>
-          <a href="https://srgtecnologia.digisac.co/evaluation-reports" target="_blank" rel="noopener" style="display:inline-flex;align-items:center;gap:7px;margin-top:6px;font:600 12.5px Manrope;color:#7fd4c0;text-decoration:none">
+          <a id="kpis-link-avaliacoes" href="https://srgtecnologia.digisac.co/evaluation-reports" target="_blank" rel="noopener" style="display:none;align-items:center;gap:7px;margin-top:6px;font:600 12.5px Manrope;color:#7fd4c0;text-decoration:none">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#7fd4c0" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><path d="M15 3h6v6"/><path d="M10 14 21 3"/></svg>
             Ver Avaliações (NPS/CSAT) no Digisac
           </a>
@@ -1109,6 +1109,7 @@ function goKPIs() {
   showView('kpis');
   atualizarNavAtiva('kpis');
   window.scrollTo(0,0);
+  document.getElementById('kpis-link-avaliacoes').style.display = (currentUser.gestor || currentUser.role === 'admin') ? 'inline-flex' : 'none';
   carregarKPIsAtendimento();
 }
 function goAcessoClientes() {
