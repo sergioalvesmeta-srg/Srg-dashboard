@@ -199,7 +199,7 @@ footer.foot{border-top:1px solid rgba(255,255,255,.07);background:rgba(10,16,36,
         <a href="#" onclick="goHome();return false" id="nav-chamados" style="font:600 13.5px Manrope;color:#bcccea;padding:8px 14px;border-radius:10px;cursor:pointer">Chamados</a>
         <a href="#" onclick="goGestor();return false" id="nav-gestor" style="display:none;font:600 13.5px Manrope;color:#bcccea;padding:8px 14px;border-radius:10px;cursor:pointer">Painel do Gestor</a>
         <a href="#" onclick="goKPIs();return false" id="nav-kpis" style="display:none;font:600 13.5px Manrope;color:#bcccea;padding:8px 14px;border-radius:10px;cursor:pointer">KPIs de Atendimento</a>
-        <a href="acesso-clientes.html" target="_blank" rel="noopener" id="nav-acesso-clientes" style="display:none;font:600 13.5px Manrope;color:#bcccea;padding:8px 14px;border-radius:10px;cursor:pointer">Acesso Clientes</a>
+        <a href="#" onclick="goAcessoClientes();return false" id="nav-acesso-clientes" style="display:none;font:600 13.5px Manrope;color:#bcccea;padding:8px 14px;border-radius:10px;cursor:pointer">Acesso Clientes</a>
       </nav>
     </div>
     <div style="display:flex;align-items:center;gap:10px">
@@ -751,7 +751,68 @@ footer.foot{border-top:1px solid rgba(255,255,255,.07);background:rgba(10,16,36,
       </div>
     </div>
 
+    <!-- ---- ACESSO CLIENTES ---- -->
+    <div id="view-acesso-clientes" style="display:none;animation:riseIn .45s ease both">
+      <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:16px;flex-wrap:wrap;margin-bottom:18px">
+        <div>
+          <span style="font:600 12px Manrope;letter-spacing:.14em;text-transform:uppercase;color:#7fd4c0">Suporte remoto</span>
+          <h1 style="font:700 32px Outfit,sans-serif;color:#f4f8ff;margin:6px 0 6px">Acesso Clientes</h1>
+          <p style="font:400 15.5px Manrope;color:#bcccea;margin:0 0 4px">Conecte remotamente nos equipamentos dos clientes via AnyDesk/RustDesk.</p>
+        </div>
+        <div style="display:flex;gap:8px">
+          <button class="chip active" data-actab="clientes" onclick="acSetAba('clientes')">Clientes</button>
+          <button class="chip" data-actab="historico" onclick="acSetAba('historico')">Histórico</button>
+          <button class="chip" data-actab="config" onclick="acSetAba('config')">Configurações</button>
+        </div>
+      </div>
+
+      <!-- ABA CLIENTES -->
+      <div id="ac-aba-clientes">
+        <div id="ac-stats" style="display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin-bottom:20px" class="kpis-cards-grid"></div>
+        <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:16px">
+          <input type="text" id="ac-busca" placeholder="Buscar cliente ou ID da máquina..." oninput="acRenderCards()" style="flex:1;min-width:220px;height:42px;padding:0 14px;border-radius:12px;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.16);color:#eaf1ff;font:500 13.5px Manrope">
+          <button class="chip active" data-acstatus="" onclick="acSetStatus('',this)">Todos</button>
+          <button class="chip" data-acstatus="disponivel" onclick="acSetStatus('disponivel',this)">Disponível</button>
+          <button class="chip" data-acstatus="atendimento" onclick="acSetStatus('atendimento',this)">Em atendimento</button>
+        </div>
+        <div id="ac-contador" style="font:400 12.5px Manrope;color:#7186ab;margin-bottom:10px"></div>
+        <div id="ac-clientes-lista" style="display:flex;flex-direction:column;gap:10px"></div>
+      </div>
+
+      <!-- ABA HISTORICO -->
+      <div id="ac-aba-historico" style="display:none">
+        <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:16px">
+          <input type="text" id="ac-hist-busca" placeholder="Buscar por cliente, técnico, ticket..." oninput="acRenderHistorico()" style="flex:1;min-width:220px;height:42px;padding:0 14px;border-radius:12px;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.16);color:#eaf1ff;font:500 13.5px Manrope">
+          <span id="ac-hist-contador" style="font:400 12.5px Manrope;color:#7186ab"></span>
+          <button class="chip" onclick="acLimparHistorico()" style="color:#e29a9a">Limpar histórico</button>
+        </div>
+        <div id="ac-hist-lista" class="gestor-scroll"></div>
+      </div>
+
+      <!-- ABA CONFIGURACOES -->
+      <div id="ac-aba-config" style="display:none">
+        <div class="glass" style="padding:26px 28px">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
+            <h3 style="font:700 18px Outfit,sans-serif;color:#f4f8ff;margin:0">Clientes cadastrados</h3>
+            <span id="ac-cfg-cnt" style="font:400 12.5px Manrope;color:#7186ab"></span>
+          </div>
+          <div id="ac-cfg-lista"></div>
+          <button class="chip" onclick="acAddCliente()" style="margin-top:12px">+ novo cliente</button>
+          <button class="btn-primary" onclick="acSalvarClientes()" style="height:40px;padding:0 20px;font-size:13px;margin-top:12px;margin-left:10px">Salvar alterações</button>
+          <span id="ac-cfg-flash" style="display:none;color:#7fe0c0;font:600 12.5px Manrope;margin-left:10px">salvo!</span>
+        </div>
+      </div>
+    </div>
+
   </main>
+
+  <!-- Modal de conexao remota (Acesso Clientes) -->
+  <div id="ac-modal" onclick="if(event.target===this) acFecharModal()" style="display:none;position:fixed;inset:0;z-index:210;background:rgba(4,8,20,.65);backdrop-filter:blur(6px);align-items:flex-start;justify-content:center;padding:60px 16px;overflow-y:auto">
+    <div class="glass" style="max-width:480px;width:100%;padding:28px 30px;position:relative">
+      <button onclick="acFecharModal()" style="position:absolute;top:18px;right:18px;width:34px;height:34px;border-radius:10px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.14);cursor:pointer;color:#cfe0f5;font:600 16px Manrope">✕</button>
+      <div id="ac-modal-body"></div>
+    </div>
+  </div>
 
   <div id="gestor-modal" onclick="if(event.target===this) gestorFecharModal()" style="display:none;position:fixed;inset:0;z-index:200;background:rgba(4,8,20,.65);backdrop-filter:blur(6px);align-items:flex-start;justify-content:center;padding:60px 16px;overflow-y:auto">
     <div class="glass" style="max-width:560px;width:100%;padding:28px 30px;position:relative">
@@ -1024,15 +1085,23 @@ function goKPIs() {
   window.scrollTo(0,0);
   carregarKPIsAtendimento();
 }
+function goAcessoClientes() {
+  showView('acesso-clientes');
+  atualizarNavAtiva('acesso-clientes');
+  window.scrollTo(0,0);
+  acCarregarClientes();
+}
 function atualizarNavAtiva(view) {
   const chamados = document.getElementById('nav-chamados');
   const gestor = document.getElementById('nav-gestor');
   const kpis = document.getElementById('nav-kpis');
+  const acesso = document.getElementById('nav-acesso-clientes');
   const ativo = 'color:#eaf1ff;background:linear-gradient(135deg,rgba(47,95,176,.4),rgba(63,160,140,.4));border:1px solid rgba(255,255,255,.14)';
   const inativo = 'color:#bcccea;background:transparent;border:1px solid transparent';
   chamados.style.cssText += view==='dashboard' ? ativo : inativo;
   gestor.style.cssText += view==='gestor' ? ativo : inativo;
   kpis.style.cssText += view==='kpis' ? ativo : inativo;
+  acesso.style.cssText += view==='acesso-clientes' ? ativo : inativo;
 }
 function goNew() {
   buildNewTicketChips();
@@ -1050,6 +1119,7 @@ function showView(name) {
   document.getElementById('view-profile').style.display = name==='profile' ? 'block' : 'none';
   document.getElementById('view-gestor').style.display = name==='gestor' ? 'block' : 'none';
   document.getElementById('view-kpis').style.display = name==='kpis' ? 'block' : 'none';
+  document.getElementById('view-acesso-clientes').style.display = name==='acesso-clientes' ? 'block' : 'none';
 }
 
 // ---- Login / Logout ----
@@ -2414,6 +2484,320 @@ function kpisRenderizar(data) {
     </div>
     `;
   }).join('') || '<div style="font:400 13px Manrope;color:#7186ab">Sem atendimentos no período.</div>';
+}
+
+/* ===================== ACESSO CLIENTES ===================== */
+const AC_SUPABASE_URL = 'https://btnpiiddrbvifdrcvttt.supabase.co';
+const AC_SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJ0bnBpaWRkcmJ2aWZkcmN2dHR0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODA0ODk1MjQsImV4cCI6MjA5NjA2NTUyNH0.b1tv0JfdCFeeDG2A-NEjTlgS_3yixTy4dfs_9aFDnjo';
+
+function acEsc(s) {
+  return String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+
+async function acFetch(path, options={}) {
+  const res = await fetch(`${AC_SUPABASE_URL}/rest/v1/${path}`, {
+    ...options,
+    headers: {
+      'apikey': AC_SUPABASE_KEY,
+      'Authorization': `Bearer ${AC_SUPABASE_KEY}`,
+      'Content-Type': 'application/json',
+      'Prefer': options.prefer || 'return=representation',
+      ...(options.headers||{})
+    }
+  });
+  if (!res.ok) { const t = await res.text().catch(()=> ''); throw new Error(`Supabase ${res.status}: ${t}`); }
+  const txt = await res.text();
+  return txt ? JSON.parse(txt) : null;
+}
+const acGet = (table, query='') => acFetch(`${table}${query}`);
+const acPost = (table, body) => acFetch(table, { method:'POST', body: JSON.stringify(body) });
+const acPatch = (table, query, body) => acFetch(`${table}${query}`, { method:'PATCH', body: JSON.stringify(body) });
+const acDelete = (table, query) => acFetch(`${table}${query}`, { method:'DELETE', prefer:'return=minimal' });
+
+let acClientes = [];
+let acHistorico = [];
+let acAbaAtual = 'clientes';
+let acStatusFiltro = '';
+let acModalCliente = null;
+let acModalMaquina = null;
+let acSenhasReveladas = {};
+
+function acSetAba(aba) {
+  acAbaAtual = aba;
+  document.querySelectorAll('[data-actab]').forEach(b => b.classList.toggle('active', b.dataset.actab===aba));
+  document.getElementById('ac-aba-clientes').style.display = aba==='clientes' ? 'block' : 'none';
+  document.getElementById('ac-aba-historico').style.display = aba==='historico' ? 'block' : 'none';
+  document.getElementById('ac-aba-config').style.display = aba==='config' ? 'block' : 'none';
+  if (aba==='historico' && !acHistorico.length) acCarregarHistorico();
+  if (aba==='config') acRenderConfig();
+}
+
+function acSetStatus(status, btn) {
+  acStatusFiltro = status;
+  document.querySelectorAll('[data-acstatus]').forEach(b => b.classList.remove('active'));
+  if (btn) btn.classList.add('active');
+  acRenderCards();
+}
+
+async function acCarregarClientes() {
+  const lista = document.getElementById('ac-clientes-lista');
+  lista.innerHTML = '<div style="font:400 13px Manrope;color:#7186ab">Carregando clientes...</div>';
+  try {
+    acClientes = await acGet('clientes', '?select=*&order=nome.asc') || [];
+    acRenderStats();
+    acRenderCards();
+  } catch(e) {
+    lista.innerHTML = `<div style="color:#e29a9a;font:500 13px Manrope">Erro ao carregar clientes: ${acEsc(e.message)}</div>`;
+  }
+}
+
+function acRenderStats() {
+  const totalClientes = acClientes.length;
+  const totalMaquinas = acClientes.reduce((s,c) => s + ((c.maquinas||[]).length), 0);
+  const disponiveis = acClientes.filter(c => c.status !== 'atendimento').length;
+  const emAtendimento = acClientes.filter(c => c.status === 'atendimento').length;
+  const cards = [
+    ['Clientes', totalClientes, '#3fa08c'],
+    ['Máquinas', totalMaquinas, '#2f5fb0'],
+    ['Disponíveis', disponiveis, '#4fbf8f'],
+    ['Em atendimento', emAtendimento, '#d9a441']
+  ];
+  document.getElementById('ac-stats').innerHTML = cards.map(([label,val,cor]) => `
+    <div class="glass" style="padding:16px 18px">
+      <div style="font:600 11px Manrope;letter-spacing:.08em;text-transform:uppercase;color:#7186ab;margin-bottom:6px">${label}</div>
+      <div style="font:700 26px Outfit,sans-serif;color:${cor}">${val}</div>
+    </div>`).join('');
+}
+
+function acRenderCards() {
+  const termo = (document.getElementById('ac-busca').value || '').toLowerCase().trim();
+  const cont = document.getElementById('ac-clientes-lista');
+  let filtrados = acClientes.filter(c => {
+    if (acStatusFiltro === 'atendimento' && c.status !== 'atendimento') return false;
+    if (acStatusFiltro === 'disponivel' && c.status === 'atendimento') return false;
+    if (!termo) return true;
+    const alvo = [c.nome, ...(c.maquinas||[]).map(m=>m.id), ...(c.maquinas||[]).map(m=>m.nome)].join(' ').toLowerCase();
+    return alvo.includes(termo);
+  });
+  document.getElementById('ac-contador').textContent = `${filtrados.length} cliente(s)`;
+  cont.innerHTML = filtrados.map(c => {
+    const emAtendimento = c.status === 'atendimento';
+    const nMaq = (c.maquinas||[]).length;
+    return `
+    <div class="glass" style="padding:16px 20px;display:flex;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap">
+      <div style="min-width:180px">
+        <div style="font:700 15.5px Outfit,sans-serif;color:#f4f8ff">${acEsc(c.nome)}</div>
+        <div style="font:400 12.5px Manrope;color:#7186ab;margin-top:2px">${nMaq} máquina(s)${c.versao ? ' · v'+acEsc(c.versao) : ''}</div>
+      </div>
+      <div style="display:flex;align-items:center;gap:10px">
+        <span class="kpis-delta ${emAtendimento ? 'bad' : 'good'}" style="padding:4px 10px;border-radius:8px">${emAtendimento ? 'Em atendimento' : 'Disponível'}</span>
+        <button class="btn-primary" style="height:36px;padding:0 16px;font-size:12.5px" onclick="acAbrirModal('${c.id}')">Conectar</button>
+      </div>
+    </div>`;
+  }).join('') || '<div style="font:400 13px Manrope;color:#7186ab">Nenhum cliente encontrado.</div>';
+}
+
+function acAbrirModal(clienteId) {
+  const c = acClientes.find(x => String(x.id) === String(clienteId));
+  if (!c) return;
+  acModalCliente = c;
+  acModalMaquina = (c.maquinas||[]).length === 1 ? c.maquinas[0] : null;
+  acRenderModal();
+  document.getElementById('ac-modal').style.display = 'flex';
+}
+
+function acFecharModal() {
+  document.getElementById('ac-modal').style.display = 'none';
+  acModalCliente = null;
+  acModalMaquina = null;
+  acSenhasReveladas = {};
+}
+
+function acRenderModal() {
+  const c = acModalCliente;
+  if (!c) return;
+  const maquinas = c.maquinas || [];
+  const body = document.getElementById('ac-modal-body');
+
+  if (!acModalMaquina) {
+    body.innerHTML = `
+      <h3 style="font:700 19px Outfit,sans-serif;color:#f4f8ff;margin:0 0 14px">${acEsc(c.nome)}</h3>
+      <div style="font:600 12px Manrope;color:#7186ab;text-transform:uppercase;letter-spacing:.06em;margin-bottom:10px">Selecione a máquina</div>
+      <div style="display:flex;flex-direction:column;gap:8px">
+        ${maquinas.map((m,i) => `
+          <button class="chip" style="text-align:left;justify-content:flex-start" onclick="acSelecionarMaquina(${i})">
+            ${acEsc(m.nome || m.tipo || 'Máquina '+(i+1))} <span style="color:#7186ab">— ${acEsc(m.tipo||'AnyDesk')}</span>
+          </button>`).join('') || '<div style="color:#7186ab;font:400 13px Manrope">Nenhuma máquina cadastrada.</div>'}
+      </div>`;
+    return;
+  }
+
+  const m = acModalMaquina;
+  const idx = maquinas.indexOf(m);
+  const senhaVisivel = !!acSenhasReveladas[idx];
+  const protocolo = (m.tipo||'').toLowerCase().includes('rust') ? 'rustdesk' : 'anydesk';
+
+  body.innerHTML = `
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:14px">
+      ${maquinas.length > 1 ? `<button onclick="acModalMaquina=null;acRenderModal()" style="background:none;border:none;color:#7fd4c0;cursor:pointer;font:600 12px Manrope">‹ voltar</button>` : ''}
+      <h3 style="font:700 19px Outfit,sans-serif;color:#f4f8ff;margin:0">${acEsc(c.nome)} ${maquinas.length>1?'· '+acEsc(m.nome||''):''}</h3>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:10px;margin-bottom:16px">
+      <div style="display:flex;align-items:center;justify-content:space-between;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.1);border-radius:10px;padding:10px 14px">
+        <div><div style="font:600 10.5px Manrope;color:#7186ab;text-transform:uppercase">ID</div><div style="font:600 15px Manrope;color:#eaf1ff">${acEsc(m.id||'—')}</div></div>
+        <button class="chip" style="padding:6px 10px" onclick="acCopiar('${acEsc(m.id||'')}')">Copiar</button>
+      </div>
+      <div style="display:flex;align-items:center;justify-content:space-between;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.1);border-radius:10px;padding:10px 14px">
+        <div><div style="font:600 10.5px Manrope;color:#7186ab;text-transform:uppercase">Senha</div><div style="font:600 15px Manrope;color:#eaf1ff">${senhaVisivel ? acEsc(m.senha||'—') : '••••••••'}</div></div>
+        <div style="display:flex;gap:6px">
+          <button class="chip" style="padding:6px 10px" onclick="acSenhasReveladas[${idx}]=!acSenhasReveladas[${idx}];acRenderModal()">${senhaVisivel?'Ocultar':'Ver'}</button>
+          <button class="chip" style="padding:6px 10px" onclick="acCopiar('${acEsc(m.senha||'')}')">Copiar</button>
+        </div>
+      </div>
+    </div>
+    <label style="font:600 11.5px Manrope;color:#7186ab;text-transform:uppercase">Ticket / motivo</label>
+    <input id="ac-modal-ticket" type="text" placeholder="Nº do ticket ou motivo do atendimento" style="width:100%;height:40px;margin:6px 0 14px;padding:0 12px;border-radius:10px;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.16);color:#eaf1ff;font:500 13px Manrope">
+    <button class="btn-primary" style="width:100%;height:44px;font-size:14px;margin-bottom:14px" onclick="acConectar('${protocolo}')">Abrir no ${protocolo==='rustdesk'?'RustDesk':'AnyDesk'}</button>
+    <label style="font:600 11.5px Manrope;color:#7186ab;text-transform:uppercase">Anotações</label>
+    <textarea id="ac-modal-anot" rows="3" style="width:100%;margin:6px 0 10px;padding:10px 12px;border-radius:10px;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.16);color:#eaf1ff;font:400 13px Manrope;resize:vertical">${acEsc(c.anotacoes||'')}</textarea>
+    <button class="chip" onclick="acSalvarAnotacoes()">Salvar anotações</button>
+  `;
+}
+
+function acCopiar(txt) {
+  navigator.clipboard?.writeText(txt).catch(()=>{});
+}
+
+async function acConectar(protocolo) {
+  const c = acModalCliente, m = acModalMaquina;
+  if (!c || !m) return;
+  const ticket = document.getElementById('ac-modal-ticket')?.value?.trim() || '';
+  const nomeUsuario = (currentUser && currentUser.nome) || (currentUser && currentUser.username) || 'desconhecido';
+  try {
+    await acPatch('clientes', `?id=eq.${c.id}`, { status: 'atendimento', atendimento_maquina: m.id||'', atendimento_usuario: nomeUsuario });
+    await acPost('historico', {
+      cliente: c.nome, maquina: m.id||'', tipo: m.tipo||protocolo, usuario: nomeUsuario,
+      ticket, data: new Date().toISOString().slice(0,10), hora: new Date().toTimeString().slice(0,5)
+    });
+  } catch(e) { /* segue mesmo se falhar registro */ }
+  window.location.href = `${protocolo}://${m.id||''}`;
+  acFecharModal();
+  acCarregarClientes();
+}
+
+async function acSalvarAnotacoes() {
+  const c = acModalCliente;
+  if (!c) return;
+  const val = document.getElementById('ac-modal-anot').value;
+  try {
+    await acPatch('clientes', `?id=eq.${c.id}`, { anotacoes: val });
+    c.anotacoes = val;
+    const flash = document.createElement('span');
+  } catch(e) { alert('Erro ao salvar anotações: ' + e.message); }
+}
+
+function acSelecionarMaquina(i) {
+  acModalMaquina = (acModalCliente.maquinas||[])[i];
+  acRenderModal();
+}
+
+/* ---- Historico ---- */
+async function acCarregarHistorico() {
+  const cont = document.getElementById('ac-hist-lista');
+  cont.innerHTML = '<div style="font:400 13px Manrope;color:#7186ab;padding:12px">Carregando...</div>';
+  try {
+    acHistorico = await acGet('historico', '?select=*&order=data.desc,hora.desc&limit=300') || [];
+    acRenderHistorico();
+  } catch(e) {
+    cont.innerHTML = `<div style="color:#e29a9a;font:500 13px Manrope">Erro: ${acEsc(e.message)}</div>`;
+  }
+}
+
+function acRenderHistorico() {
+  const termo = (document.getElementById('ac-hist-busca').value||'').toLowerCase().trim();
+  const filtrados = acHistorico.filter(h => !termo || [h.cliente,h.usuario,h.ticket,h.maquina].join(' ').toLowerCase().includes(termo));
+  document.getElementById('ac-hist-contador').textContent = `${filtrados.length} registro(s)`;
+  document.getElementById('ac-hist-lista').innerHTML = `
+    <table class="gestor-table" style="width:100%">
+      <thead><tr><th>Data</th><th>Hora</th><th>Cliente</th><th>Máquina</th><th>Técnico</th><th>Ticket</th></tr></thead>
+      <tbody>
+        ${filtrados.map(h => `<tr>
+          <td>${acEsc(h.data||'')}</td><td>${acEsc(h.hora||'')}</td><td>${acEsc(h.cliente||'')}</td>
+          <td>${acEsc(h.maquina||'')}</td><td>${acEsc(h.usuario||'')}</td><td>${acEsc(h.ticket||'')}</td>
+        </tr>`).join('') || '<tr><td colspan="6" style="color:#7186ab">Sem registros.</td></tr>'}
+      </tbody>
+    </table>`;
+}
+
+async function acLimparHistorico() {
+  if (!confirm('Apagar TODO o histórico de acessos? Esta ação não pode ser desfeita.')) return;
+  try {
+    await acDelete('historico', '?id=gt.0');
+    acHistorico = [];
+    acRenderHistorico();
+  } catch(e) { alert('Erro ao limpar histórico: ' + e.message); }
+}
+
+/* ---- Configuracoes (CRUD clientes/maquinas) ---- */
+function acRenderConfig() {
+  document.getElementById('ac-cfg-cnt').textContent = `${acClientes.length} cliente(s)`;
+  document.getElementById('ac-cfg-lista').innerHTML = acClientes.map((c, ci) => `
+    <div class="glass" style="padding:16px 18px;margin-bottom:12px">
+      <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:10px">
+        <input type="text" value="${acEsc(c.nome||'')}" placeholder="Nome do cliente" oninput="acClientes[${ci}].nome=this.value" style="flex:2;min-width:160px;height:38px;padding:0 10px;border-radius:8px;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.16);color:#eaf1ff;font:500 13px Manrope">
+        <input type="text" value="${acEsc(c.versao||'')}" placeholder="Versão" oninput="acClientes[${ci}].versao=this.value" style="flex:1;min-width:90px;height:38px;padding:0 10px;border-radius:8px;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.16);color:#eaf1ff;font:500 13px Manrope">
+        <button class="chip" style="color:#e29a9a" onclick="acRemoverCliente(${ci})">Remover cliente</button>
+      </div>
+      <input type="text" value="${acEsc(c.obs||'')}" placeholder="Observações" oninput="acClientes[${ci}].obs=this.value" style="width:100%;height:36px;margin-bottom:10px;padding:0 10px;border-radius:8px;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.16);color:#eaf1ff;font:400 12.5px Manrope">
+      <div style="font:600 11px Manrope;color:#7186ab;text-transform:uppercase;margin-bottom:6px">Máquinas</div>
+      ${(c.maquinas||[]).map((m,mi) => `
+        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:6px">
+          <input type="text" value="${acEsc(m.nome||'')}" placeholder="Nome" oninput="acClientes[${ci}].maquinas[${mi}].nome=this.value" style="flex:1;min-width:100px;height:34px;padding:0 8px;border-radius:7px;background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.12);color:#eaf1ff;font:400 12px Manrope">
+          <input type="text" value="${acEsc(m.tipo||'')}" placeholder="Tipo (AnyDesk/RustDesk)" oninput="acClientes[${ci}].maquinas[${mi}].tipo=this.value" style="flex:1;min-width:120px;height:34px;padding:0 8px;border-radius:7px;background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.12);color:#eaf1ff;font:400 12px Manrope">
+          <input type="text" value="${acEsc(m.id||'')}" placeholder="ID" oninput="acClientes[${ci}].maquinas[${mi}].id=this.value" style="flex:1;min-width:100px;height:34px;padding:0 8px;border-radius:7px;background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.12);color:#eaf1ff;font:400 12px Manrope">
+          <input type="text" value="${acEsc(m.senha||'')}" placeholder="Senha" oninput="acClientes[${ci}].maquinas[${mi}].senha=this.value" style="flex:1;min-width:100px;height:34px;padding:0 8px;border-radius:7px;background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.12);color:#eaf1ff;font:400 12px Manrope">
+          <button class="chip" style="padding:4px 8px;color:#e29a9a" onclick="acRemoverMaquina(${ci},${mi})">✕</button>
+        </div>`).join('')}
+      <button class="chip" style="padding:6px 10px;margin-top:4px" onclick="acAddMaquina(${ci})">+ máquina</button>
+    </div>`).join('') || '<div style="color:#7186ab;font:400 13px Manrope">Nenhum cliente cadastrado.</div>';
+}
+
+function acAddCliente() {
+  acClientes.push({ nome:'Novo cliente', obs:'', versao:'', anotacoes:'', status:'disponivel', maquinas:[] });
+  acRenderConfig();
+}
+
+function acRemoverCliente(ci) {
+  if (!confirm('Remover este cliente da lista local? Lembre de clicar em "Salvar alterações".')) return;
+  acClientes.splice(ci,1);
+  acRenderConfig();
+}
+
+function acAddMaquina(ci) {
+  (acClientes[ci].maquinas ||= []).push({ nome:'', tipo:'AnyDesk', id:'', senha:'' });
+  acRenderConfig();
+}
+
+function acRemoverMaquina(ci, mi) {
+  acClientes[ci].maquinas.splice(mi,1);
+  acRenderConfig();
+}
+
+async function acSalvarClientes() {
+  try {
+    for (const c of acClientes) {
+      if (c.id) {
+        await acPatch('clientes', `?id=eq.${c.id}`, { nome:c.nome, obs:c.obs||'', versao:c.versao||'', maquinas:c.maquinas||[] });
+      } else {
+        const criado = await acPost('clientes', { nome:c.nome, obs:c.obs||'', versao:c.versao||'', status:'disponivel', maquinas:c.maquinas||[] });
+        if (criado && criado[0]) c.id = criado[0].id;
+      }
+    }
+    const flash = document.getElementById('ac-cfg-flash');
+    flash.style.display = 'inline';
+    setTimeout(()=> flash.style.display='none', 2000);
+    acRenderStats();
+  } catch(e) { alert('Erro ao salvar: ' + e.message); }
 }
 
 async function carregarPainelGestor(forcar=false) {
