@@ -710,7 +710,11 @@ footer.foot{border-top:1px solid rgba(255,255,255,.07);background:rgba(10,16,36,
             <span style="font:400 12px Manrope;color:#7186ab">até</span>
             <input type="date" id="kpis-data-ate" onchange="setKPIsDataExata()" style="height:34px;padding:0 10px;border-radius:9px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.12);color:#dbe6fb;font:500 12.5px Manrope">
             <button class="chip" onclick="setKPIsDataExata()" style="padding:0 14px;height:34px">Buscar</button>
+            <button class="chip" onclick="carregarKPIsAtendimento()" title="Atualizar agora" style="padding:0 10px;height:34px;display:flex;align-items:center;gap:6px">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#bcccea" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 4v6h-6"/><path d="M1 20v-6h6"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
+            </button>
           </div>
+          <div id="kpis-ultima-att" style="font:400 11px Manrope;color:#5c7096"></div>
         </div>
       </div>
 
@@ -1113,6 +1117,7 @@ function goKPIs() {
   window.scrollTo(0,0);
   document.getElementById('kpis-link-avaliacoes').style.display = (currentUser.gestor || currentUser.role === 'admin') ? 'inline-flex' : 'none';
   carregarKPIsAtendimento();
+  kpisIniciarAutoRefresh();
 }
 function goAcessoClientes() {
   showView('acesso-clientes');
@@ -1149,6 +1154,7 @@ function showView(name) {
   document.getElementById('view-gestor').style.display = name==='gestor' ? 'block' : 'none';
   document.getElementById('view-kpis').style.display = name==='kpis' ? 'block' : 'none';
   document.getElementById('view-acesso-clientes').style.display = name==='acesso-clientes' ? 'block' : 'none';
+  if (name !== 'kpis') kpisPararAutoRefresh();
 }
 
 // ---- Login / Logout ----
@@ -2309,6 +2315,36 @@ let kpisModo = 'periodo'; // 'periodo' | 'semana' | 'data' -- controla qual chip
 let kpisColaboradorAtual = 'todos';
 let kpisUltimoResultado = null; // cache do ultimo fetch -- filtrar por colaborador nao refaz a chamada
 let kpisPrimeiraCarga = true;
+let kpisUltimaAtualizacaoEm = null; // timestamp (Date.now()) do ultimo fetch com sucesso
+let kpisIntervalAutoRefresh = null; // setInterval que rebusca os dados sozinho enquanto a tela KPIs esta aberta
+let kpisIntervalRelogio = null; // setInterval que so atualiza o texto "atualizado ha Xmin" (nao rebusca nada)
+
+// Liga a atualizacao automatica dos KPIs: rebusca os dados a cada 2min e
+// atualiza o texto "atualizado ha Xmin" a cada 15s. So roda enquanto a
+// tela de KPIs estiver aberta -- para sozinho quando o usuario sai dela.
+function kpisIniciarAutoRefresh() {
+  kpisPararAutoRefresh();
+  kpisIntervalAutoRefresh = setInterval(() => {
+    if (document.getElementById('view-kpis').style.display === 'block') carregarKPIsAtendimento();
+  }, 120000);
+  kpisIntervalRelogio = setInterval(kpisAtualizarTextoUltimaAtualizacao, 15000);
+}
+function kpisPararAutoRefresh() {
+  if (kpisIntervalAutoRefresh) clearInterval(kpisIntervalAutoRefresh);
+  if (kpisIntervalRelogio) clearInterval(kpisIntervalRelogio);
+  kpisIntervalAutoRefresh = null;
+  kpisIntervalRelogio = null;
+}
+function kpisAtualizarTextoUltimaAtualizacao() {
+  const el = document.getElementById('kpis-ultima-att');
+  if (!el || !kpisUltimaAtualizacaoEm) return;
+  const segundos = Math.round((Date.now() - kpisUltimaAtualizacaoEm) / 1000);
+  let texto;
+  if (segundos < 20) texto = 'atualizado agora mesmo';
+  else if (segundos < 60) texto = `atualizado há ${segundos}s`;
+  else texto = `atualizado há ${Math.round(segundos / 60)}min`;
+  el.textContent = texto + ' · atualiza sozinho a cada 2min';
+}
 let kpisMetricaGrafico = 'total'; // 'total' | 'tempo' | 'espera' | 'esperaBot' -- qual card esta "expandido" no grafico por dia
 
 // Clicar num card troca o grafico "por dia" pra mostrar aquela metrica
@@ -2429,6 +2465,8 @@ async function carregarKPIsAtendimento() {
     requestAnimationFrame(() => { conteudo.style.opacity = '1'; });
     badge.style.display = 'none';
     kpisPrimeiraCarga = false;
+    kpisUltimaAtualizacaoEm = Date.now();
+    kpisAtualizarTextoUltimaAtualizacao();
   } catch (e) {
     loading.style.display = 'none';
     badge.style.display = 'none';
