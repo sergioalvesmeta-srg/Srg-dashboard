@@ -3891,10 +3891,24 @@ function gestorRenderTickets(filtrados) {
   }).join('');
 }
 
-function gestorAbrirTicket(id) {
+async function gestorAbrirTicket(id) {
   const c = (gestorChamadosCache||[]).find(x => x.id === id);
   if (!c) return;
   const modal = document.getElementById('gestor-modal');
+  modal.style.display = 'flex';
+  document.getElementById('gestor-modal-body').innerHTML = '<div style="text-align:center;padding:2rem"><div class="spinner"></div></div>';
+  // O gestorChamadosCache e montado UMA vez, no carregamento da lista --
+  // se outra pessoa (ou o proprio cliente, em outra aba/sessao) editou o
+  // Retorno SRG ou mudou o status nesse meio-tempo, o cache local ainda
+  // mostra a versao antiga. Por isso, toda vez que o modal abre, busca a
+  // pagina fresca direto no Notion antes de renderizar -- so pra esse
+  // chamado (rapido), sem precisar recarregar o Painel do Gestor inteiro.
+  // Se a rede falhar, segue com o que ja tinha em cache.
+  try {
+    const r = await fetch(`${PROXY}/v1/pages/${id}`);
+    const pageFresco = await r.json();
+    if (pageFresco && pageFresco.object === 'page') c.page = pageFresco;
+  } catch (e) { /* mantem o cache antigo se der erro de rede */ }
   // Resolvido: quanto tempo ficou aberto ate a conclusao (fluxo). Ainda
   // aberto: ha quantos dias esta parado ate agora (estoque, atualiza
   // sozinho a cada dia).
@@ -3925,7 +3939,6 @@ function gestorAbrirTicket(id) {
     ${buildRetornoSRGForm(c.id, gp(c.page,'Retorno SRG','rich_text'), gp(c.page,'SRG Data','date'), 'gestor', gp(c.page,'Retorno SRG Autor','rich_text'))}
     <div style="font:600 13px Manrope;color:#bcccea;margin:18px 0 10px">Histórico</div>
     ${buildTimeline(c.page)}`;
-  modal.style.display = 'flex';
 }
 function gestorFecharModal() { document.getElementById('gestor-modal').style.display = 'none'; }
 
