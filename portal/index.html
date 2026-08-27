@@ -3031,10 +3031,9 @@ function setGestorStatus(s) {
   gestorState.statusFiltro = s;
   document.querySelectorAll('[data-gstatus]').forEach(b => b.classList.toggle('active', b.dataset.gstatus === s));
   gestorRenderTudo();
-  gestorScrollParaResultado();
 }
-function setGestorSetor(v) { gestorState.setor = v; gestorRenderTudo(); gestorScrollParaResultado(); }
-function setGestorAtendente(v) { gestorState.atendente = v; gestorRenderTudo(); gestorScrollParaResultado(); }
+function setGestorSetor(v) { gestorState.setor = v; gestorRenderTudo(); }
+function setGestorAtendente(v) { gestorState.atendente = v; gestorRenderTudo(); }
 // Clicar num KPI/setor/responsável muda o filtro, mas o resultado
 // (lista "Todos os chamados") fica la embaixo -- sem isso, dava a
 // sensacao de que o clique nao fez nada. Rola suavemente ate a lista e
