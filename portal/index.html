@@ -699,7 +699,7 @@ footer.foot{border-top:1px solid rgba(255,255,255,.07);background:rgba(10,16,36,
         </div>
         <div style="display:flex;flex-direction:column;align-items:flex-end;gap:10px">
           <div class="chip-row" id="kpis-periodo-chips" style="display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end">
-            <button class="chip" onclick="setKPIsHoje()">Hoje</button>
+            <button class="chip" id="kpis-chip-hoje" onclick="setKPIsHoje()">Hoje</button>
             <button class="chip" data-kperiodo="7" onclick="setKPIsPeriodo(7)">Esta semana</button>
             <button class="chip active" data-kperiodo="15" onclick="setKPIsPeriodo(15)">15 dias</button>
             <button class="chip" data-kperiodo="30" onclick="setKPIsPeriodo(30)">30 dias</button>
@@ -2343,6 +2343,7 @@ function setKPIsPeriodo(p) {
   }
 
   document.querySelectorAll('[data-kperiodo]').forEach(b => b.classList.toggle('active', +b.dataset.kperiodo === p));
+  document.getElementById('kpis-chip-hoje').classList.remove('active');
   carregarKPIsAtendimento();
 }
 
@@ -2350,10 +2351,14 @@ function setKPIsPeriodo(p) {
 // dispara a busca (com "Até" = hoje se ainda nao preenchido). Cancela
 // qualquer chip de periodo pronto ativo (sao mutuamente exclusivos).
 function setKPIsHoje() {
-  const hojeStr = new Date().toISOString().slice(0, 10);
+  // usa data LOCAL do navegador (nao toISOString, que converte pra UTC e
+  // pode voltar um dia perto da meia-noite em horario de Brasilia).
+  const agora = new Date();
+  const hojeStr = agora.getFullYear() + '-' + String(agora.getMonth() + 1).padStart(2, '0') + '-' + String(agora.getDate()).padStart(2, '0');
   document.getElementById('kpis-data-de').value = hojeStr;
   document.getElementById('kpis-data-ate').value = hojeStr;
   setKPIsDataExata();
+  document.getElementById('kpis-chip-hoje').classList.add('active');
 }
 function setKPIsDataExata() {
   const de = document.getElementById('kpis-data-de').value;
@@ -2364,6 +2369,7 @@ function setKPIsDataExata() {
   kpisDataAteAtual = ate || null;
   kpisColaboradorAtual = 'todos';
   document.querySelectorAll('[data-kperiodo]').forEach(b => b.classList.remove('active'));
+  document.getElementById('kpis-chip-hoje').classList.remove('active');
   carregarKPIsAtendimento();
 }
 
