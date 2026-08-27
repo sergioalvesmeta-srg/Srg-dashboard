@@ -489,6 +489,7 @@ footer.foot{border-top:1px solid rgba(255,255,255,.07);background:rgba(10,16,36,
       <div class="glass" style="padding:24px 26px;margin:20px 0 26px">
         <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
           <span style="font:600 12.5px Manrope;color:#b3c4e0;margin-right:2px">Período:</span>
+          <button class="chip" id="gestor-chip-hoje" onclick="setGestorHoje()">Hoje</button>
           <button class="chip" data-gperiodo="7" onclick="setGestorPeriodo(7)">Esta semana</button>
           <button class="chip active" data-gperiodo="30" onclick="setGestorPeriodo(30)">30 dias</button>
           <button class="chip" data-gperiodo="60" onclick="setGestorPeriodo(60)">60 dias</button>
@@ -2969,12 +2970,25 @@ function setGestorPeriodo(p) {
   document.getElementById('gestor-data-de').value = '';
   document.getElementById('gestor-data-ate').value = '';
   document.querySelectorAll('[data-gperiodo]').forEach(b => b.classList.toggle('active', +b.dataset.gperiodo === p));
+  document.getElementById('gestor-chip-hoje').classList.remove('active');
   gestorRenderTudo();
 }
 // Campo de data exata ("De"/"Até"): assim que um dos dois é preenchido,
 // passa a mandar sobre os chips de período (que ficam todos inativos --
 // visualmente deixa claro que o recorte agora é por data, nao por dias).
+function setGestorHoje() {
+  const agora = new Date();
+  const hojeStr = agora.getFullYear() + '-' + String(agora.getMonth() + 1).padStart(2, '0') + '-' + String(agora.getDate()).padStart(2, '0');
+  gestorState.dataDe = hojeStr;
+  gestorState.dataAte = hojeStr;
+  document.getElementById('gestor-data-de').value = hojeStr;
+  document.getElementById('gestor-data-ate').value = hojeStr;
+  document.querySelectorAll('[data-gperiodo]').forEach(b => b.classList.remove('active'));
+  document.getElementById('gestor-chip-hoje').classList.add('active');
+  gestorRenderTudo();
+}
 function setGestorDataCustom(campo, valor) {
+  document.getElementById('gestor-chip-hoje').classList.remove('active');
   gestorState[campo] = valor || null;
   document.querySelectorAll('[data-gperiodo]').forEach(b => b.classList.remove('active'));
   gestorRenderTudo();
@@ -3009,6 +3023,7 @@ function gestorLimparFiltro(campo) {
     document.getElementById('gestor-data-de').value = '';
     document.getElementById('gestor-data-ate').value = '';
     document.querySelectorAll('[data-gperiodo]').forEach(b => b.classList.toggle('active', +b.dataset.gperiodo === gestorState.periodo));
+    document.getElementById('gestor-chip-hoje').classList.remove('active');
   }
   gestorPopularSelects();
   gestorRenderTudo();
@@ -3020,6 +3035,7 @@ function gestorLimparTudo() {
   document.getElementById('gestor-data-ate').value = '';
   document.querySelectorAll('[data-gstatus]').forEach(b => b.classList.toggle('active', b.dataset.gstatus === 'todos'));
   document.querySelectorAll('[data-gperiodo]').forEach(b => b.classList.toggle('active', +b.dataset.gperiodo === gestorState.periodo));
+  document.getElementById('gestor-chip-hoje').classList.remove('active');
   gestorPopularSelects();
   gestorRenderTudo();
 }
