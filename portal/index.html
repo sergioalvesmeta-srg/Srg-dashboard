@@ -2315,9 +2315,9 @@ let kpisModo = 'periodo'; // 'periodo' | 'semana' | 'data' -- controla qual chip
 let kpisColaboradorAtual = 'todos';
 let kpisUltimoResultado = null; // cache do ultimo fetch -- filtrar por colaborador nao refaz a chamada
 let kpisPrimeiraCarga = true;
-let kpisUltimaAtualizacaoEm = null; // timestamp (Date.now()) do ultimo fetch com sucesso
-let kpisIntervalAutoRefresh = null; // setInterval que rebusca os dados sozinho enquanto a tela KPIs esta aberta
-let kpisIntervalRelogio = null; // setInterval que so atualiza o texto "atualizado ha Xmin" (nao rebusca nada)
+var kpisUltimaAtualizacaoEm = null; // timestamp (Date.now()) do ultimo fetch com sucesso
+var kpisIntervalAutoRefresh = null; // setInterval que rebusca os dados sozinho enquanto a tela KPIs esta aberta
+var kpisIntervalRelogio = null; // setInterval que so atualiza o texto "atualizado ha Xmin" (nao rebusca nada)
 
 // Liga a atualizacao automatica dos KPIs: rebusca os dados a cada 2min e
 // atualiza o texto "atualizado ha Xmin" a cada 15s. So roda enquanto a
