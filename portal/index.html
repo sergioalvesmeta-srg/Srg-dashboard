@@ -2517,7 +2517,7 @@ function kpisRenderizar(data) {
     rankingBody.innerHTML = data.ranking.map(c => `
       <tr>
         <td>${c.nome}</td>
-        <td>${c.atendimentos}</td>
+        <td>${c.atendimentos}${c.emAberto ? ` <span style="color:#d9a441;font:600 11.5px Manrope">(${c.emAberto} em aberto)</span>` : ''}</td>
         <td>${fmtSegundos(c.tempoMedioSeg)}</td>
         <td>${fmtSegundos(c.esperaMediaSeg)}</td>
         <td>${fmtSegundos(c.esperaAposBotSeg)}</td>
