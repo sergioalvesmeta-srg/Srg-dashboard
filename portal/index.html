@@ -894,7 +894,7 @@ footer.foot{border-top:1px solid rgba(255,255,255,.07);background:rgba(10,16,36,
         <input type="text" id="new-filter" placeholder="Telefone(s) do contato Digisac (ex: 5586999998888), separar por vírgula — vazio = acesso total" style="flex:1;background:transparent;border:none;color:#eaf1ff;font:500 13px Manrope">
       </div>
       <div style="display:flex;align-items:center;gap:11px;height:46px;padding:0 15px;border-radius:12px;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.22);margin-bottom:11px">
-        <input type="text" id="new-atendente" placeholder="Vincular a um Solicitante (nome exato do campo Solicitante, ex: Felipe) — mostra só os chamados dele" style="flex:1;background:transparent;border:none;color:#eaf1ff;font:500 13px Manrope">
+        <input type="text" id="new-atendente" placeholder="Vincular a um Solicitante (nome do campo Solicitante; pode listar variações separadas por vírgula, ex: Maria Vitoria, Maria Vitória, Vitoria) — mostra só os chamados dele" style="flex:1;background:transparent;border:none;color:#eaf1ff;font:500 13px Manrope">
       </div>
       <label style="display:flex;align-items:center;gap:9px;height:40px;padding:0 4px;margin-bottom:11px;cursor:pointer">
         <input type="checkbox" id="new-gestor" style="width:16px;height:16px;accent-color:#3fa08c">
@@ -1400,6 +1400,17 @@ function gp(page, prop, tipo) {
   if (tipo==='date')      return p.date?.start||'';
   return '';
 }
+// ---- Solicitante/atendenteSRG: nome digitado à mão no Notion varia
+// (acento, "Maria" na frente, etc). Duas ferramentas pra lidar com isso:
+// (1) nomeComparavel() tira acento+caixa pra comparação tolerante no cliente;
+// (2) atendenteSRGAliases() quebra o campo do usuário em várias variações
+//     aceitas (separadas por vírgula), pra montar um filtro OR no Notion.
+function nomeComparavel(s) {
+  return (s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').trim().toLowerCase();
+}
+function atendenteSRGAliases(s) {
+  return (s || '').split(',').map(x => x.trim()).filter(Boolean);
+}
 // ---- Normaliza telefone e compara contato do chamado com os telefones do usuário ----
 function normPhone(s) {
   return (s || '').replace(/\D/g, '');
@@ -1594,10 +1605,16 @@ async function carregarMeusChamados() {
 
     if (currentUser.atendenteSRG) {
       // Colaborador interno vinculado a um Solicitante (ex: Felipe,
-      // Vitoria, Junior): filtra direto no Notion pelo campo
-      // "Solicitante" (equals, nome exato cadastrado no usuário), paginando
-      // ate trazer TODOS os chamados dele -- igual ao filtro por telefone.
-      const filtroSolicitante = { property:'Solicitante', rich_text:{ equals: currentUser.atendenteSRG } };
+      // Vitoria, Junior): filtra direto no Notion pelo campo "Solicitante".
+      // O nome é digitado a mão em cada chamado e varia (com/sem acento,
+      // "Maria" na frente, etc) -- por isso o campo do usuário aceita
+      // várias variações separadas por vírgula, e aqui viram um OR de
+      // "equals" (Notion não faz match sem acento sozinho). Pagina até
+      // trazer TODOS os chamados, igual ao filtro por telefone.
+      const aliases = atendenteSRGAliases(currentUser.atendenteSRG);
+      const filtroSolicitante = aliases.length > 1
+        ? { or: aliases.map(a => ({ property:'Solicitante', rich_text:{ equals: a } })) }
+        : { property:'Solicitante', rich_text:{ equals: aliases[0] } };
       let todos = [];
       let cursor = undefined;
       do {
@@ -1883,7 +1900,10 @@ async function buscar() {
       achados = achados.filter(p => contatoPertenceAoUsuario(p, currentUser.unidades));
     }
     if (currentUser.atendenteSRG) {
-      achados = achados.filter(p => gp(p,'Solicitante','rich_text') === currentUser.atendenteSRG);
+      // Comparação tolerante a acento/caixa, contra qualquer uma das
+      // variações cadastradas (ver atendenteSRGAliases/nomeComparavel).
+      const aliasesComp = atendenteSRGAliases(currentUser.atendenteSRG).map(nomeComparavel);
+      achados = achados.filter(p => aliasesComp.includes(nomeComparavel(gp(p,'Solicitante','rich_text'))));
     }
     if (!achados.length) {
       res.innerHTML = `<div class="glass" style="padding:2rem;text-align:center"><div style="font:700 15px Outfit,sans-serif;color:#f2f7ff;margin-bottom:6px">Chamado não encontrado</div><div style="font:400 13px Manrope;color:#b3c4e0">Verifique o número/palavra informado ou entre em contato com o suporte.</div></div>`;
