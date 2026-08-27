@@ -699,6 +699,7 @@ footer.foot{border-top:1px solid rgba(255,255,255,.07);background:rgba(10,16,36,
         </div>
         <div style="display:flex;flex-direction:column;align-items:flex-end;gap:10px">
           <div class="chip-row" id="kpis-periodo-chips" style="display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end">
+            <button class="chip" onclick="setKPIsHoje()">Hoje</button>
             <button class="chip" data-kperiodo="7" onclick="setKPIsPeriodo(7)">Esta semana</button>
             <button class="chip active" data-kperiodo="15" onclick="setKPIsPeriodo(15)">15 dias</button>
             <button class="chip" data-kperiodo="30" onclick="setKPIsPeriodo(30)">30 dias</button>
@@ -708,6 +709,7 @@ footer.foot{border-top:1px solid rgba(255,255,255,.07);background:rgba(10,16,36,
             <input type="date" id="kpis-data-de" onchange="setKPIsDataExata()" style="height:34px;padding:0 10px;border-radius:9px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.12);color:#dbe6fb;font:500 12.5px Manrope">
             <span style="font:400 12px Manrope;color:#7186ab">até</span>
             <input type="date" id="kpis-data-ate" onchange="setKPIsDataExata()" style="height:34px;padding:0 10px;border-radius:9px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.12);color:#dbe6fb;font:500 12.5px Manrope">
+            <button class="chip" onclick="setKPIsDataExata()" style="padding:0 14px;height:34px">Buscar</button>
           </div>
         </div>
       </div>
@@ -2347,6 +2349,12 @@ function setKPIsPeriodo(p) {
 // Campo de data exata ("De"/"Até"): assim que "De" e preenchido, ja
 // dispara a busca (com "Até" = hoje se ainda nao preenchido). Cancela
 // qualquer chip de periodo pronto ativo (sao mutuamente exclusivos).
+function setKPIsHoje() {
+  const hojeStr = new Date().toISOString().slice(0, 10);
+  document.getElementById('kpis-data-de').value = hojeStr;
+  document.getElementById('kpis-data-ate').value = hojeStr;
+  setKPIsDataExata();
+}
 function setKPIsDataExata() {
   const de = document.getElementById('kpis-data-de').value;
   const ate = document.getElementById('kpis-data-ate').value;
