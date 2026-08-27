@@ -1446,16 +1446,34 @@ function fmtDateTime(d) {
   if (!d) return '—';
   try { const dt = new Date(d); return dt.toLocaleDateString('pt-BR') + ' às ' + dt.toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'}); } catch { return d; }
 }
-// Numero de dias corridos entre uma data/hora e agora (sempre >=0, arredonda pra baixo).
-function diasDesde(d) {
+// Datas do Notion (propriedade tipo "date") frequentemente vem so com o
+// dia, sem horario, tipo "2026-08-27". "new Date('2026-08-27')" (sem "T")
+// e interpretado pelo JS como MEIA-NOITE UTC -- que em Brasilia (UTC-3) ja
+// e 21h do dia ANTERIOR, fazendo chamados abertos hoje "sumirem" de
+// filtros como "Hoje"/"Esta semana". Forcando meio-dia local ("T12:00:00",
+// sem timezone => interpretado como horario local do navegador) evita
+// esse problema pra qualquer fuso do Brasil.
+// Data de HOJE no formato YYYY-MM-DD usando o horario LOCAL do navegador
+// (nunca toISOString(), que converte pra UTC e pode voltar um dia perto
+// da meia-noite em Brasilia).
+function hojeLocalStr() {
+  const d = new Date();
+  return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+}
+function parseDataBR(d) {
   if (!d) return null;
   try {
     const dt = new Date(d.includes && d.includes('T') ? d : d+'T12:00:00');
-    if (isNaN(dt.getTime())) return null;
-    const ms = Date.now() - dt.getTime();
-    if (ms < 0) return 0;
-    return Math.floor(ms / 86400000);
+    return isNaN(dt.getTime()) ? null : dt;
   } catch { return null; }
+}
+// Numero de dias corridos entre uma data/hora e agora (sempre >=0, arredonda pra baixo).
+function diasDesde(d) {
+  const dt = parseDataBR(d);
+  if (!dt) return null;
+  const ms = Date.now() - dt.getTime();
+  if (ms < 0) return 0;
+  return Math.floor(ms / 86400000);
 }
 function diasLabel(n) {
   if (n === null) return '—';
@@ -2065,8 +2083,7 @@ function buildNewTicketChips() {
   document.getElementById('nt-cliente').value = nomeCliente;
   const dataInput = document.getElementById('nt-data');
   if (dataInput && !dataInput.value) {
-    const hoje = new Date();
-    dataInput.value = hoje.toISOString().slice(0,10);
+    dataInput.value = hojeLocalStr();
   }
 }
 
@@ -2384,8 +2401,8 @@ function setKPIsPeriodo(p) {
     const hoje = new Date();
     const domingo = new Date(hoje);
     domingo.setDate(hoje.getDate() - hoje.getDay());
-    kpisDataDeAtual = domingo.toISOString().slice(0, 10);
-    kpisDataAteAtual = hoje.toISOString().slice(0, 10);
+    kpisDataDeAtual = domingo.getFullYear() + '-' + String(domingo.getMonth() + 1).padStart(2, '0') + '-' + String(domingo.getDate()).padStart(2, '0');
+    kpisDataAteAtual = hojeLocalStr();
   } else {
     kpisModo = 'periodo';
     kpisPeriodoAtual = p;
@@ -2829,7 +2846,7 @@ async function acConectar(protocolo) {
     }
     await acPost('historico', {
       cliente: c.nome, maquina: m.id||'', tipo: m.tipo||protocolo, usuario: nomeUsuario,
-      ticket, data: new Date().toISOString().slice(0,10), hora: new Date().toTimeString().slice(0,5)
+      ticket, data: hojeLocalStr(), hora: new Date().toTimeString().slice(0,5)
     });
   } catch(e) {
     console.error('acConectar: erro ao atualizar status/historico:', e);
@@ -3072,7 +3089,7 @@ function gestorRangeAtivo() {
 function gestorFiltrarPeriodo(lista) {
   const { ini, fim } = gestorRangeAtivo();
   if (!ini) return lista;
-  return lista.filter(c => { const d = new Date(c.dataAbertura); return !isNaN(d) && d >= ini && d <= fim; });
+  return lista.filter(c => { const d = parseDataBR(c.dataAbertura); return d && d >= ini && d <= fim; });
 }
 // "melhorias" nao e um balde normal (aberto/pendente/resolvido) -- e um
 // recorte a parte (categoria "Solicitação" ou status "Pendente PO"),
@@ -3168,9 +3185,8 @@ function gestorJanela(periodoDias) {
   return { iniAtual, fimAtual, iniAnterior, fimAnterior };
 }
 function gestorEmJanela(dataStr, ini, fim) {
-  if (!dataStr) return false;
-  const d = new Date(dataStr);
-  if (isNaN(d)) return false;
+  const d = parseDataBR(dataStr);
+  if (!d) return false;
   if (ini && d < ini) return false;
   if (fim && d > fim) return false;
   return true;
@@ -3181,11 +3197,11 @@ function gestorEmJanela(dataStr, ini, fim) {
 // acumulado no grafico de evolucao e comparar inicio x fim do periodo.
 function gestorBacklogEm(lista, instante) {
   return lista.filter(c => {
-    const abertura = new Date(c.dataAbertura);
-    if (isNaN(abertura) || abertura > instante) return false;
+    const abertura = parseDataBR(c.dataAbertura);
+    if (!abertura || abertura > instante) return false;
     if (!c.dataConclusao) return true;
-    const conclusao = new Date(c.dataConclusao);
-    return isNaN(conclusao) || conclusao > instante;
+    const conclusao = parseDataBR(c.dataConclusao);
+    return !conclusao || conclusao > instante;
   }).length;
 }
 // Igual gestorAplicarFiltros, mas SEM o corte de periodo -- usada como
@@ -3213,7 +3229,7 @@ function gestorCalcularMetricas(lista, ini, fim) {
   const pendentes = lista.filter(c => c.balde === 'pendente').length;
   const emAberto = lista.filter(c => c.balde === 'aberto').length;
   const taxaResolucao = recebidos ? (resolvidos / recebidos) * 100 : 0;
-  const temposH = resolvidosLista.map(c => (new Date(c.dataConclusao) - new Date(c.dataAbertura)) / 3600000).filter(h => h >= 0);
+  const temposH = resolvidosLista.map(c => (parseDataBR(c.dataConclusao) - parseDataBR(c.dataAbertura)) / 3600000).filter(h => h >= 0);
   const tempoMedio = temposH.length ? temposH.reduce((a,b)=>a+b,0)/temposH.length : 0;
   // Eficiencia N2/N3 -- tudo calculado sobre a MESMA base (recebidosLista,
   // os chamados que entraram na janela selecionada), em categorias
@@ -3773,7 +3789,7 @@ function gestorAbrirTicket(id) {
   // aberto: ha quantos dias esta parado ate agora (estoque, atualiza
   // sozinho a cada dia).
   const diasAberto = c.dataConclusao
-    ? Math.round((new Date(c.dataConclusao) - new Date(c.dataAbertura)) / 86400000)
+    ? Math.round((parseDataBR(c.dataConclusao) - parseDataBR(c.dataAbertura)) / 86400000)
     : diasDesde(c.dataAbertura);
   const diasAbertoLabel = diasAberto === null ? '—' : (c.dataConclusao ? `${diasLabel(diasAberto)} até a conclusão` : `${diasLabel(diasAberto)} (em aberto)`);
   document.getElementById('gestor-modal-body').innerHTML = `
