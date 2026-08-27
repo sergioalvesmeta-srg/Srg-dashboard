@@ -1997,7 +1997,9 @@ function mostrarDetalhe(found) {
     ['Nível de atendimento', nivelAtd ? `<span style="${nivelAtd==='N3+'?'color:#fc9a6a;font-weight:700':''}">${nivelAtd==='N3+'?'N3+ (escalado)':nivelAtd}</span>` : '—'],
   ].map(([label,value]) => `<div style="display:flex;justify-content:space-between;gap:14px;padding:11px 0;border-bottom:1px solid rgba(255,255,255,.07)"><span style="font:500 13px Manrope;color:#b3c4e0;flex-shrink:0">${label}</span><span style="font:600 13.5px Manrope;color:#e7eefb;text-align:right">${value}</span></div>`).join('');
 
-  document.getElementById('details-body').innerHTML += buildExpandable('desc-expand', 'Descrição completa', descCompleta) + buildExpandable('sol-expand', 'Solução', solucaoTxt) + buildRetornoSRG(found);
+  const ehEquipeSRG = !!(currentUser && (currentUser.atendenteSRG || currentUser.gestor || currentUser.role === 'admin'));
+  document.getElementById('details-body').innerHTML += buildExpandable('desc-expand', 'Descrição completa', descCompleta) + buildExpandable('sol-expand', 'Solução', solucaoTxt)
+    + (ehEquipeSRG ? buildRetornoSRGForm(found.id, gp(found,'Retorno SRG','rich_text'), gp(found,'SRG Data','date')) : buildRetornoSRG(found));
 
   const waMsg = encodeURIComponent(`Olá, gostaria de informações sobre o chamado ${currentProto||''}.`);
   document.getElementById('wa-btn').onclick = () => window.open(`https://wa.me/${WA_NUMBER}?text=${waMsg}`,'_blank');
@@ -2006,6 +2008,54 @@ function mostrarDetalhe(found) {
   window.scrollTo(0,0);
 }
 
+// Igual ao bloco editavel do Painel do Gestor (buildRetornoSRG/gestorSalvarRetorno),
+// mas usado aqui na tela de busca de chamado -- que colaboradores (nao
+// so gestor/admin) tambem usam pra localizar um chamado especifico.
+// Mantem o mesmo padrao visual, so com ids proprios (cli-*) pra nao
+// colidir com o bloco do modal do gestor.
+function buildRetornoSRGForm(pageId, textoAtual, dataAtual) {
+  return `
+    <div class="glass" style="padding:16px 18px;margin-top:14px;background:rgba(90,150,220,.06)">
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:8px">
+        <span style="font:600 13px Manrope;color:#bcccea">Retorno SRG <span style="font:400 11.5px Manrope;color:#7186ab">(o cliente vê isso)</span></span>
+        <span id="cli-retorno-data" style="font:400 11.5px Manrope;color:#7186ab">${dataAtual ? 'Último retorno: ' + fmtDate(dataAtual) : ''}</span>
+      </div>
+      <textarea id="cli-retorno-texto" rows="3" style="width:100%;padding:10px 12px;border-radius:10px;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.16);color:#eaf1ff;font:400 13px Manrope;resize:vertical">${textoAtual||''}</textarea>
+      <div style="display:flex;align-items:center;gap:10px;margin-top:8px">
+        <button class="btn-primary" style="height:38px;padding:0 16px;font-size:12.5px" onclick="cliSalvarRetorno('${pageId}')">Salvar Retorno SRG</button>
+        <span id="cli-retorno-flash" style="display:none;color:#7fe0c0;font:600 12px Manrope">salvo!</span>
+        <span id="cli-retorno-erro" style="display:none;color:#e29a9a;font:600 12px Manrope"></span>
+      </div>
+    </div>`;
+}
+async function cliSalvarRetorno(pageId) {
+  const texto = document.getElementById('cli-retorno-texto').value.trim();
+  const flash = document.getElementById('cli-retorno-flash');
+  const erro = document.getElementById('cli-retorno-erro');
+  erro.style.display = 'none';
+  flash.style.display = 'none';
+  try {
+    const agora = new Date();
+    const r = await fetch(`${PROXY}/v1/pages/${pageId}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        properties: {
+          'Retorno SRG': { rich_text: [{ text: { content: texto } }] },
+          'SRG Data': { date: { start: agora.toISOString() } }
+        }
+      })
+    });
+    const data = await r.json();
+    if (data.object === 'error') throw new Error(data.message || 'Erro ao salvar no Notion');
+    document.getElementById('cli-retorno-data').textContent = 'Último retorno: ' + fmtDate(agora.toISOString());
+    flash.style.display = 'inline';
+    setTimeout(() => { flash.style.display = 'none'; }, 2500);
+  } catch (e) {
+    erro.style.display = 'inline';
+    erro.textContent = 'Erro ao salvar: ' + e.message;
+  }
+}
 function buildRetornoSRG(page) {
   const texto = gp(page,'Retorno SRG','rich_text');
   if (!texto) return '';
