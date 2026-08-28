@@ -2065,16 +2065,27 @@ function retornoSRGChunks(s) {
   for (let i = 0; i < s.length; i += tamanho) partes.push(s.slice(i, i + tamanho));
   return partes.length ? partes.map(t => ({ text: { content: t } })) : [{ text: { content: '' } }];
 }
+// Mesmo padrao visual do Histórico (buildTimeline): bolinha + linha
+// conectando os itens, em vez de cards separados -- pra ficar claro que
+// e uma continuação da mesma linha do tempo do chamado.
 function retornoSRGRenderLista(historico) {
-  if (!historico.length) return '<span style="color:#7186ab">Nenhum retorno registrado ainda.</span>';
-  return historico.map(h => `
-    <div style="padding:12px 15px;background:rgba(255,255,255,.03);border-radius:10px;margin-bottom:8px">
-      <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:4px">
-        <span style="font:600 12.5px Manrope;color:#8fb0e0">${h.autor ? acEsc(h.autor) : 'SRG'}</span>
-        <span style="font:400 11px Manrope;color:#7186ab">${h.data ? fmtDateTime(h.data) : ''}</span>
+  if (!historico.length) return '<div style="font:400 13px Manrope;color:#7186ab;padding:2px 0 4px">Nenhum retorno registrado ainda.</div>';
+  const cor = '#5a96dc';
+  return historico.map((h, i) => {
+    const ultimo = i === historico.length - 1;
+    const lineStyle = ultimo ? 'display:none' : `flex:1;width:2px;margin-top:5px;background:linear-gradient(${cor},rgba(120,150,200,.15))`;
+    return `<div style="display:flex;gap:16px;padding-bottom:18px">
+      <div style="display:flex;flex-direction:column;align-items:center">
+        <span style="width:15px;height:15px;border-radius:50%;background:${cor};box-shadow:0 0 0 4px ${cor}26;flex-shrink:0"></span>
+        <span style="${lineStyle}"></span>
       </div>
-      <div style="font:400 13px Manrope;color:#d6e2f5;line-height:1.55;white-space:pre-wrap">${acEsc(h.texto||'')}</div>
-    </div>`).join('');
+      <div style="flex:1;margin-top:-3px">
+        <div style="font:400 11.5px Manrope;color:#a6b8d6">${h.data ? fmtDateTime(h.data) : ''}</div>
+        <div style="font:700 14.5px Manrope;color:#eaf1ff;margin-top:2px">Retorno SRG${h.autor ? ' — '+acEsc(h.autor) : ''}</div>
+        <div style="font:400 13px Manrope;color:#93a7cb;margin-top:3px;line-height:1.5;white-space:pre-wrap">${acEsc(h.texto||'')}</div>
+      </div>
+    </div>`;
+  }).join('');
 }
 function buildRetornoSRGForm(pageId, textoAtual, dataAtual, prefixo, autorAtual) {
   const p = prefixo || 'cli';
@@ -3994,9 +4005,9 @@ async function gestorAbrirTicket(id) {
     </div>
     ${buildExpandable('gestor-desc-expand', 'Descrição completa', gp(c.page,'Descrição Completa','rich_text'))}
     ${buildExpandable('gestor-sol-expand', 'Solução', gp(c.page,'Solução','rich_text'))}
-    ${buildRetornoSRGForm(c.id, gpTextoCompleto(c.page,'Retorno SRG'), gp(c.page,'SRG Data','date'), 'gestor', gp(c.page,'Retorno SRG Autor','rich_text'))}
     <div style="font:600 13px Manrope;color:#bcccea;margin:18px 0 10px">Histórico</div>
-    ${buildTimeline(c.page)}`;
+    ${buildTimeline(c.page)}
+    ${buildRetornoSRGForm(c.id, gpTextoCompleto(c.page,'Retorno SRG'), gp(c.page,'SRG Data','date'), 'gestor', gp(c.page,'Retorno SRG Autor','rich_text'))}`;
 }
 function gestorFecharModal() { document.getElementById('gestor-modal').style.display = 'none'; }
 
