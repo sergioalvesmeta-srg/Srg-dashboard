@@ -296,10 +296,14 @@ footer.foot{border-top:1px solid rgba(255,255,255,.07);background:rgba(10,16,36,
         <div id="detalhe-header" class="glass" style="margin-top:14px;padding:26px 28px"></div>
         <div class="grid-2" style="display:grid;grid-template-columns:1.1fr 1fr;gap:22px;margin-top:22px">
           <div class="glass" style="padding:26px 28px">
-            <div style="display:flex;align-items:center;gap:10px;margin-bottom:22px">
-              <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="#7fd4c0" stroke-width="1.9" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>
-              <h3 style="font:700 17px Outfit,sans-serif;color:#f2f7ff">Histórico do chamado</h3>
+            <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:8px;flex-wrap:wrap">
+              <div style="display:flex;align-items:center;gap:10px">
+                <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="#7fd4c0" stroke-width="1.9" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>
+                <h3 style="font:700 17px Outfit,sans-serif;color:#f2f7ff">Histórico do chamado</h3>
+              </div>
+              <button onclick="detalheAtualizar()" title="Atualizar agora" style="background:none;border:1px solid rgba(255,255,255,.15);border-radius:8px;width:30px;height:30px;display:flex;align-items:center;justify-content:center;cursor:pointer;color:#93a7cb"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-3-6.7"/><polyline points="21 3 21 9 15 9"/></svg></button>
             </div>
+            <div id="detalhe-ultima-att" style="font:400 11px Manrope;color:#7186ab;margin-bottom:14px"></div>
             <div id="timeline-body"></div>
           </div>
           <div class="glass" style="padding:26px 28px;align-self:start">
@@ -1529,7 +1533,7 @@ function copy(text, btn) {
 }
 
 // ---- Timeline ----
-function buildTimeline(page) {
+function buildTimeline(page, pageId, prefixo) {
   const status   = gp(page,'Status','select');
   const abertura = gp(page,'Data Abertura','date');
   const setor    = gp(page,'Setor Suporte','select');
@@ -1540,10 +1544,11 @@ function buildTimeline(page) {
   if (abertura) etapas.push({ordData: new Date(abertura+'T00:00:00'), done:true, titulo:'Chamado aberto', data:fmtDate(abertura), desc:'Chamado registrado no portal do cliente.'});
   if (setor)    etapas.push({ordData: new Date(abertura+'T00:00:01'), done:true, titulo:`Encaminhado para ${setor}`, data:fmtDate(abertura), desc:`Chamado encaminhado para análise da equipe ${setor}.`});
   // Cada Retorno SRG entra na mesma linha do tempo, na sua propria data --
-  // pedido explicito do usuario, pra nao ficar num bloco separado.
+  // pedido explicito do usuario, pra nao ficar num bloco separado. Guarda
+  // a data original (chave unica de cada retorno) pra permitir excluir.
   const historicoRetorno = retornoSRGHistorico(gpTextoCompleto(page,'Retorno SRG'), gp(page,'SRG Data','date'), gp(page,'Retorno SRG Autor','rich_text'));
   historicoRetorno.forEach(h => {
-    etapas.push({ordData: h.data ? new Date(h.data) : new Date(0), done:true, retorno:true, titulo:`Retorno SRG${h.autor ? ' — '+h.autor : ''}`, data: h.data ? fmtDateTime(h.data) : '', desc: h.texto||''});
+    etapas.push({ordData: h.data ? new Date(h.data) : new Date(0), done:true, retorno:true, chaveRetorno: h.data||'', titulo:`Retorno SRG${h.autor ? ' — '+h.autor : ''}`, data: h.data ? fmtDateTime(h.data) : '', desc: h.texto||''});
   });
   etapas.push({ordData: new Date(editado), done: status==='Resolvido', titulo: label, data: fmtDateTime(editado), desc: status==='Resolvido' ? 'Chamado encerrado com sucesso.' : (solucao || 'Aguardando retorno da equipe responsável.') });
   etapas.sort((a,b) => a.ordData - b.ordData);
@@ -1552,13 +1557,17 @@ function buildTimeline(page) {
     const color = e.retorno ? '#5a96dc' : (e.done ? '#5abfa0' : '#f2b84b');
     const dotStyle = `width:15px;height:15px;border-radius:50%;background:${color};box-shadow:0 0 0 4px ${color}26;flex-shrink:0;` + (e.done?'':'animation:pulseDot 2.2s infinite;');
     const lineStyle = e.last ? 'display:none' : `flex:1;width:2px;margin-top:5px;background:linear-gradient(${color},rgba(120,150,200,.15))`;
+    const lixeira = (e.retorno && pageId) ? `<button onclick="retornoSRGExcluir('${pageId}','${(e.chaveRetorno||'').replace(/'/g,"\\'")}','${prefixo||'cli'}')" title="Excluir este retorno" style="background:none;border:none;cursor:pointer;color:#93a7cb;opacity:.6;padding:2px;flex-shrink:0" onmouseover="this.style.opacity=1;this.style.color='#e29a9a'" onmouseout="this.style.opacity=.6;this.style.color='#93a7cb'"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg></button>` : '';
     return `<div style="display:flex;gap:16px;padding-bottom:22px">
       <div style="display:flex;flex-direction:column;align-items:center">
         <span style="${dotStyle}"></span>
         <span style="${lineStyle}"></span>
       </div>
       <div style="flex:1;margin-top:-3px">
-        <div style="font:400 11.5px Manrope;color:#a6b8d6">${e.data}</div>
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:8px">
+          <div style="font:400 11.5px Manrope;color:#a6b8d6">${e.data}</div>
+          ${lixeira}
+        </div>
         <div style="font:700 14.5px Manrope;color:#eaf1ff;margin-top:2px">${acEsc(e.titulo)}</div>
         <div style="font:400 13px Manrope;color:#93a7cb;margin-top:3px;line-height:1.5;white-space:${e.retorno?'pre-wrap':'normal'}">${e.retorno ? acEsc(e.desc) : e.desc}</div>
       </div>
@@ -1603,6 +1612,7 @@ function limpar() {
   carregarMeusChamados();
 }
 function voltarLista() {
+  detalhePararAutoRefresh();
   document.getElementById('detalhe-wrap').style.display = 'none';
   document.getElementById('lista-wrap').style.display = 'block';
   window.scrollTo(0,0);
@@ -1963,9 +1973,46 @@ function mostrarResultadosBusca(achados, termo) {
     </div>`;
 }
 
-function mostrarDetalhe(found) {
+// id do chamado aberto no momento na tela de detalhe -- usado pelo
+// refresh manual/automatico pra saber o que rebuscar.
+var detalheChamadoId = null;
+var detalheIntervalAutoRefresh = null;
+
+async function mostrarDetalhe(found) {
   document.getElementById('lista-wrap').style.display = 'none';
   document.getElementById('search-result').innerHTML = '';
+  detalheChamadoId = found.id;
+  detalheRenderizar(found);
+  document.getElementById('detalhe-wrap').style.display = 'block';
+  window.scrollTo(0,0);
+  detalheIniciarAutoRefresh();
+}
+
+// Busca a pagina fresca no Notion e re-renderiza -- corrige o mesmo tipo
+// de dado desatualizado que ja existia no modal do gestor (cache local
+// nao pega retorno/status que outra pessoa acabou de salvar). Chamado
+// pelo botao "Atualizar" e por um intervalo automatico enquanto a tela
+// de detalhe estiver aberta.
+async function detalheAtualizar() {
+  if (!detalheChamadoId) return;
+  try {
+    const r = await fetch(`${PROXY}/v1/pages/${detalheChamadoId}`);
+    const pageFresca = await r.json();
+    if (pageFresca && pageFresca.object === 'page') detalheRenderizar(pageFresca);
+  } catch (e) { /* mantem o que ja esta na tela se a rede falhar */ }
+}
+function detalheIniciarAutoRefresh() {
+  detalhePararAutoRefresh();
+  detalheIntervalAutoRefresh = setInterval(() => {
+    if (document.getElementById('detalhe-wrap').style.display === 'block') detalheAtualizar();
+  }, 30000);
+}
+function detalhePararAutoRefresh() {
+  if (detalheIntervalAutoRefresh) { clearInterval(detalheIntervalAutoRefresh); detalheIntervalAutoRefresh = null; }
+}
+
+function detalheRenderizar(found) {
+  document.getElementById('detalhe-ultima-att').textContent = 'atualizado agora mesmo · atualiza sozinho a cada 30s';
   const nome        = gp(found,'Cliente','title');
   const status      = gp(found,'Status','select');
   const setor       = gp(found,'Setor Suporte','select');
@@ -2018,7 +2065,8 @@ function mostrarDetalhe(found) {
       </div>
     </div>`;
 
-  document.getElementById('timeline-body').innerHTML = buildTimeline(found);
+  const ehEquipeSRG = !!(currentUser && (currentUser.atendenteSRG || currentUser.gestor || currentUser.role === 'admin'));
+  document.getElementById('timeline-body').innerHTML = buildTimeline(found, ehEquipeSRG ? found.id : null, 'cli');
   const ultimaInt = gp(found,'Última Interação (Data)','date');
   const resolvido = status === 'Resolvido';
   const diasAberto = diasDesde(dtDigisac || abertura);
@@ -2033,15 +2081,11 @@ function mostrarDetalhe(found) {
     ['Nível de atendimento', nivelAtd ? `<span style="${nivelAtd==='N3+'?'color:#fc9a6a;font-weight:700':''}">${nivelAtd==='N3+'?'N3+ (escalado)':nivelAtd}</span>` : '—'],
   ].map(([label,value]) => `<div style="display:flex;justify-content:space-between;gap:14px;padding:11px 0;border-bottom:1px solid rgba(255,255,255,.07)"><span style="font:500 13px Manrope;color:#b3c4e0;flex-shrink:0">${label}</span><span style="font:600 13.5px Manrope;color:#e7eefb;text-align:right">${value}</span></div>`).join('');
 
-  const ehEquipeSRG = !!(currentUser && (currentUser.atendenteSRG || currentUser.gestor || currentUser.role === 'admin'));
   document.getElementById('details-body').innerHTML += buildExpandable('desc-expand', 'Descrição completa', descCompleta) + buildExpandable('sol-expand', 'Solução', solucaoTxt)
     + (ehEquipeSRG ? buildRetornoSRGAdicionar(found.id, 'cli') : '');
 
   const waMsg = encodeURIComponent(`Olá, gostaria de informações sobre o chamado ${currentProto||''}.`);
   document.getElementById('wa-btn').onclick = () => window.open(`https://wa.me/${WA_NUMBER}?text=${waMsg}`,'_blank');
-
-  document.getElementById('detalhe-wrap').style.display = 'block';
-  window.scrollTo(0,0);
 }
 
 // Igual ao bloco editavel do Painel do Gestor (buildRetornoSRG/gestorSalvarRetorno),
@@ -2140,7 +2184,7 @@ async function retornoSRGSalvar(pageId, prefixo) {
     // "data" e a pagina completa e atualizada (resposta do PATCH) -- usa
     // ela pra re-renderizar o Histórico com o novo retorno já dentro.
     const timelineEl = document.getElementById(retornoSRGTimelineId(p));
-    if (timelineEl) timelineEl.innerHTML = buildTimeline(data);
+    if (timelineEl) timelineEl.innerHTML = buildTimeline(data, pageId, p);
     document.getElementById(`${p}-retorno-texto`).value = '';
     document.getElementById(`${p}-retorno-editor`).style.display = 'none';
     // atualiza tambem o cache local do gestor, pra nao sumir se reabrir o mesmo chamado sem recarregar a pagina
@@ -2153,6 +2197,44 @@ async function retornoSRGSalvar(pageId, prefixo) {
   } catch (e) {
     erro.style.display = 'inline';
     erro.textContent = 'Erro ao salvar: ' + e.message;
+  }
+}
+// Exclui um retorno especifico do historico (ex: comentario duplicado por
+// engano). "chaveData" e o timestamp ISO desse retorno -- unico o
+// suficiente pra identificar qual entrada remover sem depender de indice
+// (que poderia mudar se alguem mais tiver adicionado/removido nesse meio-tempo).
+async function retornoSRGExcluir(pageId, chaveData, prefixo) {
+  const p = prefixo || 'cli';
+  if (!confirm('Excluir este retorno? Essa ação não pode ser desfeita.')) return;
+  try {
+    const rAtual = await fetch(`${PROXY}/v1/pages/${pageId}`);
+    const pageAtual = await rAtual.json();
+    const textoAtualBruto = pageAtual && pageAtual.object === 'page' ? gpTextoCompleto(pageAtual, 'Retorno SRG') : '';
+    const historicoAtual = retornoSRGHistorico(textoAtualBruto, null, null);
+    const novoHistorico = historicoAtual.filter(h => (h.data||'') !== chaveData);
+    const novoTextoBruto = JSON.stringify(novoHistorico);
+    const ultimo = novoHistorico[0];
+    const r = await fetch(`${PROXY}/v1/pages/${pageId}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        properties: {
+          'Retorno SRG': { rich_text: retornoSRGChunks(novoTextoBruto) },
+          'SRG Data': { date: ultimo && ultimo.data ? { start: ultimo.data } : null },
+          'Retorno SRG Autor': { rich_text: [{ text: { content: (ultimo && ultimo.autor) || '' } }] }
+        }
+      })
+    });
+    const data = await r.json();
+    if (data.object === 'error') throw new Error(data.message || 'Erro ao excluir no Notion');
+    const timelineEl = document.getElementById(retornoSRGTimelineId(p));
+    if (timelineEl) timelineEl.innerHTML = buildTimeline(data, pageId, p);
+    if (p === 'gestor') {
+      const c = (gestorChamadosCache||[]).find(x => x.id === pageId);
+      if (c) c.page = data;
+    }
+  } catch (e) {
+    alert('Erro ao excluir retorno: ' + e.message);
   }
 }
 function buildExpandable(id, label, text) {
@@ -3970,7 +4052,7 @@ async function gestorAbrirTicket(id) {
     ${buildExpandable('gestor-desc-expand', 'Descrição completa', gp(c.page,'Descrição Completa','rich_text'))}
     ${buildExpandable('gestor-sol-expand', 'Solução', gp(c.page,'Solução','rich_text'))}
     <div style="font:600 13px Manrope;color:#bcccea;margin:18px 0 10px">Histórico</div>
-    <div id="gestor-timeline-body">${buildTimeline(c.page)}</div>
+    <div id="gestor-timeline-body">${buildTimeline(c.page, c.id, 'gestor')}</div>
     ${buildRetornoSRGAdicionar(c.id, 'gestor')}`;
 }
 function gestorFecharModal() { document.getElementById('gestor-modal').style.display = 'none'; }
