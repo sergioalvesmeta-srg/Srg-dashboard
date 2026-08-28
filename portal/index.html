@@ -2451,7 +2451,7 @@ let gestorAgoTimer = null;
 
 const gestorState = {
   periodo: 30,          // 30 | 60 | 90 | 999
-  statusFiltro: 'todos', // 'todos' | 'aberto' | 'pendente' | 'resolvido'
+  statusFiltro: ['todos'], // array -- 'todos' e exclusivo, os demais combinam entre si (multi-select)
   setor: 'todos',
   atendente: 'todos',
   setorSearch: '',
@@ -3245,9 +3245,20 @@ function setGestorDataCustom(campo, valor) {
   document.querySelectorAll('[data-gperiodo]').forEach(b => b.classList.remove('active'));
   gestorRenderTudo();
 }
+// Status agora aceita multi-select (ex: "Em aberto" + "Pendente SRG" ao
+// mesmo tempo) -- "Todos" continua exclusivo, os demais se combinam.
 function setGestorStatus(s) {
-  gestorState.statusFiltro = s;
-  document.querySelectorAll('[data-gstatus]').forEach(b => b.classList.toggle('active', b.dataset.gstatus === s));
+  let atual = gestorState.statusFiltro;
+  if (s === 'todos') {
+    atual = ['todos'];
+  } else {
+    atual = atual.filter(x => x !== 'todos');
+    if (atual.includes(s)) atual = atual.filter(x => x !== s);
+    else atual = [...atual, s];
+    if (!atual.length) atual = ['todos'];
+  }
+  gestorState.statusFiltro = atual;
+  document.querySelectorAll('[data-gstatus]').forEach(b => b.classList.toggle('active', atual.includes(b.dataset.gstatus)));
   gestorRenderTudo();
 }
 function setGestorSetor(v) { gestorState.setor = v; gestorRenderTudo(); }
@@ -3280,7 +3291,7 @@ function gestorLimparFiltro(campo) {
   gestorRenderTudo();
 }
 function gestorLimparTudo() {
-  gestorState.setor = 'todos'; gestorState.atendente = 'todos'; gestorState.statusFiltro = 'todos';
+  gestorState.setor = 'todos'; gestorState.atendente = 'todos'; gestorState.statusFiltro = ['todos'];
   gestorState.dataDe = null; gestorState.dataAte = null;
   document.getElementById('gestor-data-de').value = '';
   document.getElementById('gestor-data-ate').value = '';
@@ -3316,9 +3327,9 @@ function gestorFiltrarPeriodo(lista) {
 // recorte a parte (categoria "Solicitação" ou status "Pendente PO"),
 // entao filtra por c.melhoria em vez de c.balde quando selecionado.
 function gestorFiltrarStatus(lista) {
-  if (gestorState.statusFiltro === 'todos') return lista;
-  if (gestorState.statusFiltro === 'melhorias') return lista.filter(c => c.melhoria && c.balde !== 'resolvido');
-  return lista.filter(c => c.balde === gestorState.statusFiltro);
+  const sel = gestorState.statusFiltro;
+  if (!sel.length || sel.includes('todos')) return lista;
+  return lista.filter(c => sel.some(s => s === 'melhorias' ? (c.melhoria && c.balde !== 'resolvido') : c.balde === s));
 }
 function gestorAplicarFiltros(lista) {
   let r = gestorFiltrarPeriodo(lista);
@@ -3369,9 +3380,9 @@ function gestorRenderCrumbs() {
   }
   if (gestorState.setor !== 'todos') crumbs.push({ label:`Setor: ${gestorState.setor}`, campo:'setor' });
   if (gestorState.atendente !== 'todos') crumbs.push({ label:`Solicitante: ${gestorState.atendente}`, campo:'atendente' });
-  if (gestorState.statusFiltro !== 'todos') {
-    const nomes = { aberto:'Em aberto', pendente:'Pendente', resolvido:'Resolvido', melhorias:'Melhorias pendentes' };
-    crumbs.push({ label:`Status: ${nomes[gestorState.statusFiltro]}`, campo:'status' });
+  if (gestorState.statusFiltro.length && !gestorState.statusFiltro.includes('todos')) {
+    const nomes = { aberto:'Em aberto', pendenteMeta:'Pendente Meta', pendente:'Pendente SRG', resolvido:'Resolvido', melhorias:'Melhorias pendentes' };
+    crumbs.push({ label:`Status: ${gestorState.statusFiltro.map(s => nomes[s]||s).join(', ')}`, campo:'status' });
   }
   if (!crumbs.length) { wrap.style.display = 'none'; wrap.innerHTML=''; return; }
   wrap.style.display = 'flex';
