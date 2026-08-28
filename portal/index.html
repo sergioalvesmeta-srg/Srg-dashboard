@@ -1400,6 +1400,14 @@ function gp(page, prop, tipo) {
   if (tipo==='date')      return p.date?.start||'';
   return '';
 }
+// gp() so le o primeiro pedaço de um rich_text -- Notion quebra textos
+// longos em varios itens do array (cada um ate 2000 caracteres). Usado
+// pro historico de Retorno SRG, que pode crescer além desse limite.
+function gpTextoCompleto(page, prop) {
+  const p = page.properties?.[prop];
+  if (!p || !p.rich_text) return '';
+  return p.rich_text.map(rt => (rt.text && rt.text.content) || rt.plain_text || '').join('');
+}
 // ---- Solicitante/atendenteSRG: nome digitado à mão no Notion varia
 // (acento, "Maria" na frente, etc). Duas ferramentas pra lidar com isso:
 // (1) nomeComparavel() tira acento+caixa pra comparação tolerante no cliente;
@@ -2019,7 +2027,7 @@ function mostrarDetalhe(found) {
 
   const ehEquipeSRG = !!(currentUser && (currentUser.atendenteSRG || currentUser.gestor || currentUser.role === 'admin'));
   document.getElementById('details-body').innerHTML += buildExpandable('desc-expand', 'Descrição completa', descCompleta) + buildExpandable('sol-expand', 'Solução', solucaoTxt)
-    + (ehEquipeSRG ? buildRetornoSRGForm(found.id, gp(found,'Retorno SRG','rich_text'), gp(found,'SRG Data','date'), 'cli', gp(found,'Retorno SRG Autor','rich_text')) : buildRetornoSRG(found));
+    + (ehEquipeSRG ? buildRetornoSRGForm(found.id, gpTextoCompleto(found,'Retorno SRG'), gp(found,'SRG Data','date'), 'cli', gp(found,'Retorno SRG Autor','rich_text')) : buildRetornoSRG(found));
 
   const waMsg = encodeURIComponent(`Olá, gostaria de informações sobre o chamado ${currentProto||''}.`);
   document.getElementById('wa-btn').onclick = () => window.open(`https://wa.me/${WA_NUMBER}?text=${waMsg}`,'_blank');
@@ -2033,19 +2041,56 @@ function mostrarDetalhe(found) {
 // so gestor/admin) tambem usam pra localizar um chamado especifico.
 // Mantem o mesmo padrao visual, so com ids proprios (cli-*) pra nao
 // colidir com o bloco do modal do gestor.
+// ---- Retorno SRG: historico de varios retornos (nao so o ultimo) ----
+// A propriedade "Retorno SRG" no Notion guarda um JSON (string) de uma
+// lista [{autor,data,texto}, ...], mais recente primeiro. Isso permite
+// registrar 2-3 retornos em dias diferentes no mesmo chamado, em vez de
+// sobrescrever o anterior. Registros antigos (de antes dessa mudanca)
+// eram so texto puro -- retornoSRGHistorico() reconhece esse formato
+// legado e converte pra um historico de 1 item so, usando a data/autor
+// que ja existiam nas propriedades separadas "SRG Data"/"Retorno SRG Autor".
+function retornoSRGHistorico(textoBruto, dataFallback, autorFallback) {
+  if (!textoBruto) return [];
+  try {
+    const parsed = JSON.parse(textoBruto);
+    if (Array.isArray(parsed)) return parsed;
+  } catch (e) { /* nao era JSON -- formato antigo, texto puro */ }
+  return [{ autor: autorFallback || '', data: dataFallback || '', texto: textoBruto }];
+}
+// Notion limita cada item de rich_text a 2000 caracteres -- quebra o JSON
+// do historico em pedaços pra nao estourar isso conforme a lista cresce.
+function retornoSRGChunks(s) {
+  const tamanho = 1900;
+  const partes = [];
+  for (let i = 0; i < s.length; i += tamanho) partes.push(s.slice(i, i + tamanho));
+  return partes.length ? partes.map(t => ({ text: { content: t } })) : [{ text: { content: '' } }];
+}
+function retornoSRGRenderLista(historico) {
+  if (!historico.length) return '<span style="color:#7186ab">Nenhum retorno registrado ainda.</span>';
+  return historico.map(h => `
+    <div style="padding:12px 15px;background:rgba(255,255,255,.03);border-radius:10px;margin-bottom:8px">
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:4px">
+        <span style="font:600 12.5px Manrope;color:#8fb0e0">${h.autor ? acEsc(h.autor) : 'SRG'}</span>
+        <span style="font:400 11px Manrope;color:#7186ab">${h.data ? fmtDateTime(h.data) : ''}</span>
+      </div>
+      <div style="font:400 13px Manrope;color:#d6e2f5;line-height:1.55;white-space:pre-wrap">${acEsc(h.texto||'')}</div>
+    </div>`).join('');
+}
 function buildRetornoSRGForm(pageId, textoAtual, dataAtual, prefixo, autorAtual) {
   const p = prefixo || 'cli';
+  const historico = retornoSRGHistorico(textoAtual, dataAtual, autorAtual);
+  const ultimo = historico[0];
   return `
     <div style="margin-top:14px">
       <button onclick="toggleExpand('${p}-retorno-expand')" style="width:100%;display:flex;align-items:center;justify-content:space-between;background:rgba(90,150,220,.08);border:1px solid rgba(90,150,220,.25);border-radius:12px;padding:11px 15px;cursor:pointer;font:600 13px Manrope;color:#8fb0e0">
-        <span>Retorno SRG <span style="font-weight:400;color:#7186ab;font-size:11.5px">(o cliente vê isso)<span id="${p}-retorno-data-header">${dataAtual ? ' · ' + (autorAtual ? acEsc(autorAtual)+' · ' : '') + fmtDateTime(dataAtual) : ''}</span></span></span>
+        <span>Retorno SRG <span style="font-weight:400;color:#7186ab;font-size:11.5px">(o cliente vê isso)<span id="${p}-retorno-data-header">${ultimo && ultimo.data ? ' · ' + (ultimo.autor ? acEsc(ultimo.autor)+' · ' : '') + fmtDateTime(ultimo.data) : ''}</span></span></span>
         <span id="${p}-retorno-expand-arrow" style="transition:transform .2s">▾</span>
       </button>
-      <div id="${p}-retorno-expand" style="display:${textoAtual ? 'block' : 'none'};margin-top:8px">
-        <div id="${p}-retorno-view" style="padding:13px 15px;background:rgba(255,255,255,.03);border-radius:10px;font:400 13px Manrope;color:#d6e2f5;line-height:1.55;white-space:pre-wrap;margin-bottom:8px">${textoAtual ? acEsc(textoAtual) : '<span style="color:#7186ab">Nenhum retorno registrado ainda.</span>'}</div>
-        <button class="chip" style="padding:6px 14px;font-size:12px" onclick="retornoSRGAbrirEdicao('${pageId}','${p}')">✎ Editar retorno</button>
+      <div id="${p}-retorno-expand" style="display:${historico.length ? 'block' : 'none'};margin-top:8px">
+        <div id="${p}-retorno-view">${retornoSRGRenderLista(historico)}</div>
+        <button class="chip" style="padding:6px 14px;font-size:12px" onclick="retornoSRGAbrirEdicao('${pageId}','${p}')">+ Adicionar retorno</button>
         <div id="${p}-retorno-editor" style="display:none;margin-top:10px">
-          <textarea id="${p}-retorno-texto" rows="3" style="width:100%;padding:10px 12px;border-radius:10px;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.16);color:#eaf1ff;font:400 13px Manrope;resize:vertical">${textoAtual||''}</textarea>
+          <textarea id="${p}-retorno-texto" rows="3" placeholder="Novo retorno..." style="width:100%;padding:10px 12px;border-radius:10px;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.16);color:#eaf1ff;font:400 13px Manrope;resize:vertical"></textarea>
           <div style="display:flex;align-items:center;gap:10px;margin-top:8px">
             <button class="btn-primary" style="height:36px;padding:0 14px;font-size:12.5px" onclick="retornoSRGSalvar('${pageId}','${p}')">Salvar</button>
             <button class="chip" style="padding:6px 14px;font-size:12px" onclick="retornoSRGCancelarEdicao('${p}')">Cancelar</button>
@@ -2073,15 +2118,24 @@ async function retornoSRGSalvar(pageId, prefixo) {
   const erro = document.getElementById(`${p}-retorno-erro`);
   erro.style.display = 'none';
   flash.style.display = 'none';
+  if (!texto) { erro.style.display = 'inline'; erro.textContent = 'Escreva algo antes de salvar.'; return; }
   try {
     const agora = new Date();
     const autor = (currentUser && (currentUser.nome || currentUser.username)) || '';
+    // busca a pagina fresca antes de gravar, pra somar ao historico atual
+    // (e nao perder um retorno que outra pessoa tenha acabado de adicionar).
+    const rAtual = await fetch(`${PROXY}/v1/pages/${pageId}`);
+    const pageAtual = await rAtual.json();
+    const textoAtualBruto = pageAtual && pageAtual.object === 'page' ? gpTextoCompleto(pageAtual, 'Retorno SRG') : '';
+    const historicoAtual = retornoSRGHistorico(textoAtualBruto, null, null);
+    const novoHistorico = [{ autor, data: agora.toISOString(), texto }, ...historicoAtual];
+    const novoTextoBruto = JSON.stringify(novoHistorico);
     const r = await fetch(`${PROXY}/v1/pages/${pageId}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         properties: {
-          'Retorno SRG': { rich_text: [{ text: { content: texto } }] },
+          'Retorno SRG': { rich_text: retornoSRGChunks(novoTextoBruto) },
           'SRG Data': { date: { start: agora.toISOString() } },
           'Retorno SRG Autor': { rich_text: [{ text: { content: autor } }] }
         }
@@ -2089,14 +2143,15 @@ async function retornoSRGSalvar(pageId, prefixo) {
     });
     const data = await r.json();
     if (data.object === 'error') throw new Error(data.message || 'Erro ao salvar no Notion');
-    document.getElementById(`${p}-retorno-view`).innerHTML = texto ? acEsc(texto) : '<span style="color:#7186ab">Nenhum retorno registrado ainda.</span>';
+    document.getElementById(`${p}-retorno-view`).innerHTML = retornoSRGRenderLista(novoHistorico);
     document.getElementById(`${p}-retorno-data-header`).textContent = ' · ' + (autor ? autor+' · ' : '') + fmtDateTime(agora.toISOString());
+    document.getElementById(`${p}-retorno-texto`).value = '';
     document.getElementById(`${p}-retorno-editor`).style.display = 'none';
     // atualiza tambem o cache local do gestor, pra nao sumir se reabrir o mesmo chamado sem recarregar a pagina
     if (p === 'gestor') {
       const c = (gestorChamadosCache||[]).find(x => x.id === pageId);
       if (c && c.page && c.page.properties) {
-        c.page.properties['Retorno SRG'] = { rich_text: [{ text: { content: texto } }] };
+        c.page.properties['Retorno SRG'] = { rich_text: retornoSRGChunks(novoTextoBruto) };
         c.page.properties['SRG Data'] = { date: { start: agora.toISOString() } };
         c.page.properties['Retorno SRG Autor'] = { rich_text: [{ text: { content: autor } }] };
       }
@@ -2109,17 +2164,20 @@ async function retornoSRGSalvar(pageId, prefixo) {
   }
 }
 function buildRetornoSRG(page) {
-  const texto = gp(page,'Retorno SRG','rich_text');
-  if (!texto) return '';
-  const data = gp(page,'SRG Data','date');
-  const autor = gp(page,'Retorno SRG Autor','rich_text');
+  const textoAtual = gpTextoCompleto(page, 'Retorno SRG');
+  const historico = retornoSRGHistorico(textoAtual, gp(page,'SRG Data','date'), gp(page,'Retorno SRG Autor','rich_text'));
+  if (!historico.length) return '';
   return `
     <div style="margin-top:14px;padding:14px 16px;border-radius:12px;background:rgba(63,160,140,.1);border:1px solid rgba(90,200,180,.28)">
-      <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:6px">
-        <span style="font:600 12.5px Manrope;color:#7fd4c0">Retorno SRG</span>
-        ${data ? `<span style="font:400 11px Manrope;color:#7186ab">${autor ? acEsc(autor)+' · ' : ''}${fmtDateTime(data)}</span>` : ''}
-      </div>
-      <div style="font:400 13.5px Manrope;color:#e7eefb;line-height:1.55;white-space:pre-wrap">${texto}</div>
+      <div style="font:600 12.5px Manrope;color:#7fd4c0;margin-bottom:8px">Retorno SRG</div>
+      ${historico.map(h => `
+        <div style="margin-bottom:10px;padding-bottom:10px;border-bottom:1px solid rgba(127,212,192,.15)">
+          <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:4px">
+            <span style="font:600 11.5px Manrope;color:#7fd4c0">${h.autor ? acEsc(h.autor) : 'SRG'}</span>
+            <span style="font:400 11px Manrope;color:#7186ab">${h.data ? fmtDateTime(h.data) : ''}</span>
+          </div>
+          <div style="font:400 13.5px Manrope;color:#e7eefb;line-height:1.55;white-space:pre-wrap">${acEsc(h.texto||'')}</div>
+        </div>`).join('')}
     </div>`;
 }
 function buildExpandable(id, label, text) {
@@ -3936,7 +3994,7 @@ async function gestorAbrirTicket(id) {
     </div>
     ${buildExpandable('gestor-desc-expand', 'Descrição completa', gp(c.page,'Descrição Completa','rich_text'))}
     ${buildExpandable('gestor-sol-expand', 'Solução', gp(c.page,'Solução','rich_text'))}
-    ${buildRetornoSRGForm(c.id, gp(c.page,'Retorno SRG','rich_text'), gp(c.page,'SRG Data','date'), 'gestor', gp(c.page,'Retorno SRG Autor','rich_text'))}
+    ${buildRetornoSRGForm(c.id, gpTextoCompleto(c.page,'Retorno SRG'), gp(c.page,'SRG Data','date'), 'gestor', gp(c.page,'Retorno SRG Autor','rich_text'))}
     <div style="font:600 13px Manrope;color:#bcccea;margin:18px 0 10px">Histórico</div>
     ${buildTimeline(c.page)}`;
 }
