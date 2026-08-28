@@ -3349,7 +3349,14 @@ function gestorFiltrarPeriodo(lista) {
 function gestorFiltrarStatus(lista) {
   const sel = gestorState.statusFiltro;
   if (!sel.length || sel.includes('todos')) return lista;
-  return lista.filter(c => sel.some(s => s === 'melhorias' ? (c.melhoria && c.balde !== 'resolvido') : c.balde === s));
+  return lista.filter(c => sel.some(s => {
+    if (s === 'melhorias') return c.melhoria && c.balde !== 'resolvido';
+    // "Pendente SRG" (chip/card) so deve pegar o status exato "Pendente
+    // SRG" -- "Pendente PO" (mesmo balde 'pendente') e melhoria de
+    // desenvolvimento, ja coberta à parte em "Melhorias pendentes".
+    if (s === 'pendente') return c.status === 'Pendente SRG';
+    return c.balde === s;
+  }));
 }
 function gestorAplicarFiltros(lista) {
   let r = gestorFiltrarPeriodo(lista);
@@ -3482,7 +3489,12 @@ function gestorCalcularMetricas(lista, ini, fim) {
   // antes "Pendentes SRG/Meta" eram "estoque" (total acumulado, ignorava
   // o período); agora contam só dentro de recebidosLista, igual ao
   // "Pendências do período" ao lado.
-  const pendentes = recebidosLista.filter(c => c.balde === 'pendente').length;
+  // "Pendentes SRG" agora conta so o status real "Pendente SRG" -- o
+  // balde 'pendente' ainda agrupa "Pendente SRG" + "Pendente PO" pros
+  // outros widgets (situação/equipe), mas esse card e o chip de filtro
+  // do mesmo nome nao devem misturar "Pendente PO" (que e melhoria de
+  // desenvolvimento, ja mostrado à parte em "Melhorias pendentes").
+  const pendentes = recebidosLista.filter(c => c.status === 'Pendente SRG').length;
   const pendentesMeta = recebidosLista.filter(c => c.balde === 'pendenteMeta').length;
   const emAberto = recebidosLista.filter(c => c.balde === 'aberto').length;
   const taxaResolucao = recebidos ? (resolvidos / recebidos) * 100 : 0;
