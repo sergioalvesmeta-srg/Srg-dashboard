@@ -3256,8 +3256,13 @@ function setGestorDataCustom(campo, valor) {
 // usuario clica nele de novo, o esperado eh continuar em "Em aberto", nao
 // desligar e voltar pra "Todos".
 function gestorFiltrarPorKPI(s) {
-  gestorState.statusFiltro = [s];
-  document.querySelectorAll('[data-gstatus]').forEach(b => b.classList.toggle('active', b.dataset.gstatus === s));
+  // Aceita um status unico ("aberto") ou uma lista (usado pelo card
+  // "Pendências do período", cujo numero soma varios baldes de uma vez --
+  // o clique precisa selecionar TODOS eles, senao o filtro aplicado nao
+  // bate com o numero que o card estava mostrando.
+  const lista = Array.isArray(s) ? s : [s];
+  gestorState.statusFiltro = lista;
+  document.querySelectorAll('[data-gstatus]').forEach(b => b.classList.toggle('active', lista.includes(b.dataset.gstatus)));
   gestorRenderTudo();
 }
 // Status agora aceita multi-select (ex: "Em aberto" + "Pendente SRG" ao
@@ -3551,7 +3556,7 @@ function gestorRenderKPIs(baseSemPeriodo, janela) {
       badge: anteriores ? gestorBadge(atuais.recebidos, anteriores.recebidos, {modo:'neutro', sufixo}) : '' },
     { label:'Resolvidos <span style="font-weight:500;color:#5c7095">· fluxo</span>', val: atuais.resolvidos, click:`gestorFiltrarPorKPI('resolvido')`, cor:'#3fa08c',
       badge: anteriores ? gestorBadge(atuais.resolvidos, anteriores.resolvidos, {modo:'sobe-bom', sufixo}) : '' },
-    { label:'Pendências do período <span style="font-weight:500;color:#5c7095">· fluxo</span>', val: atuais.backlog, click:`gestorFiltrarPorKPI('aberto')`, cor:'#a992e0',
+    { label:'Pendências do período <span style="font-weight:500;color:#5c7095">· fluxo</span>', val: atuais.backlog, click:`gestorFiltrarPorKPI(['aberto','pendente','pendenteMeta'])`, cor:'#a992e0',
       badge: (anteriores ? gestorBadge(atuais.backlog, anteriores.backlog, {modo:'desce-bom', sufixo}) : '') + `<div style="margin-top:6px;font:600 11px Manrope;color:#7186ab" title="Passivo total acumulado ate agora, independente do periodo selecionado.">Total atual: <span style="color:#dbe6fb;font-weight:700">${backlogTotalAtual}</span> <span style="color:${variacaoCor}">(${variacaoTxt})</span></div>` },
     { label:'Pendentes SRG <span style="font-weight:500;color:#5c7095">· fluxo</span>', val: atuais.pendentes, click:`gestorFiltrarPorKPI('pendente')`, cor:'#c15c5c',
       badge: anteriores ? gestorBadge(atuais.pendentes, anteriores.pendentes, {modo:'desce-bom', sufixo}) : '' },
