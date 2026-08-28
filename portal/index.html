@@ -1537,11 +1537,19 @@ function buildTimeline(page) {
   const editado  = page.last_edited_time;
   const label    = statusLabel(status);
   const etapas = [];
-  if (abertura) etapas.push({done:true, titulo:'Chamado aberto', data:fmtDate(abertura), desc:'Chamado registrado no portal do cliente.'});
-  if (setor)    etapas.push({done:true, titulo:`Encaminhado para ${setor}`, data:fmtDate(abertura), desc:`Chamado encaminhado para análise da equipe ${setor}.`});
-  etapas.push({ done: status==='Resolvido', titulo: label, data: fmtDateTime(editado), desc: status==='Resolvido' ? 'Chamado encerrado com sucesso.' : (solucao || 'Aguardando retorno da equipe responsável.'), last:true });
+  if (abertura) etapas.push({ordData: new Date(abertura+'T00:00:00'), done:true, titulo:'Chamado aberto', data:fmtDate(abertura), desc:'Chamado registrado no portal do cliente.'});
+  if (setor)    etapas.push({ordData: new Date(abertura+'T00:00:01'), done:true, titulo:`Encaminhado para ${setor}`, data:fmtDate(abertura), desc:`Chamado encaminhado para análise da equipe ${setor}.`});
+  // Cada Retorno SRG entra na mesma linha do tempo, na sua propria data --
+  // pedido explicito do usuario, pra nao ficar num bloco separado.
+  const historicoRetorno = retornoSRGHistorico(gpTextoCompleto(page,'Retorno SRG'), gp(page,'SRG Data','date'), gp(page,'Retorno SRG Autor','rich_text'));
+  historicoRetorno.forEach(h => {
+    etapas.push({ordData: h.data ? new Date(h.data) : new Date(0), done:true, retorno:true, titulo:`Retorno SRG${h.autor ? ' — '+h.autor : ''}`, data: h.data ? fmtDateTime(h.data) : '', desc: h.texto||''});
+  });
+  etapas.push({ordData: new Date(editado), done: status==='Resolvido', titulo: label, data: fmtDateTime(editado), desc: status==='Resolvido' ? 'Chamado encerrado com sucesso.' : (solucao || 'Aguardando retorno da equipe responsável.') });
+  etapas.sort((a,b) => a.ordData - b.ordData);
+  etapas[etapas.length-1].last = true;
   return etapas.map(e => {
-    const color = e.done ? '#5abfa0' : '#f2b84b';
+    const color = e.retorno ? '#5a96dc' : (e.done ? '#5abfa0' : '#f2b84b');
     const dotStyle = `width:15px;height:15px;border-radius:50%;background:${color};box-shadow:0 0 0 4px ${color}26;flex-shrink:0;` + (e.done?'':'animation:pulseDot 2.2s infinite;');
     const lineStyle = e.last ? 'display:none' : `flex:1;width:2px;margin-top:5px;background:linear-gradient(${color},rgba(120,150,200,.15))`;
     return `<div style="display:flex;gap:16px;padding-bottom:22px">
@@ -1551,8 +1559,8 @@ function buildTimeline(page) {
       </div>
       <div style="flex:1;margin-top:-3px">
         <div style="font:400 11.5px Manrope;color:#a6b8d6">${e.data}</div>
-        <div style="font:700 14.5px Manrope;color:#eaf1ff;margin-top:2px">${e.titulo}</div>
-        <div style="font:400 13px Manrope;color:#93a7cb;margin-top:3px;line-height:1.5">${e.desc}</div>
+        <div style="font:700 14.5px Manrope;color:#eaf1ff;margin-top:2px">${acEsc(e.titulo)}</div>
+        <div style="font:400 13px Manrope;color:#93a7cb;margin-top:3px;line-height:1.5;white-space:${e.retorno?'pre-wrap':'normal'}">${e.retorno ? acEsc(e.desc) : e.desc}</div>
       </div>
     </div>`;
   }).join('');
@@ -2027,7 +2035,7 @@ function mostrarDetalhe(found) {
 
   const ehEquipeSRG = !!(currentUser && (currentUser.atendenteSRG || currentUser.gestor || currentUser.role === 'admin'));
   document.getElementById('details-body').innerHTML += buildExpandable('desc-expand', 'Descrição completa', descCompleta) + buildExpandable('sol-expand', 'Solução', solucaoTxt)
-    + (ehEquipeSRG ? buildRetornoSRGForm(found.id, gpTextoCompleto(found,'Retorno SRG'), gp(found,'SRG Data','date'), 'cli', gp(found,'Retorno SRG Autor','rich_text')) : buildRetornoSRG(found));
+    + (ehEquipeSRG ? buildRetornoSRGAdicionar(found.id, 'cli') : '');
 
   const waMsg = encodeURIComponent(`Olá, gostaria de informações sobre o chamado ${currentProto||''}.`);
   document.getElementById('wa-btn').onclick = () => window.open(`https://wa.me/${WA_NUMBER}?text=${waMsg}`,'_blank');
@@ -2065,62 +2073,37 @@ function retornoSRGChunks(s) {
   for (let i = 0; i < s.length; i += tamanho) partes.push(s.slice(i, i + tamanho));
   return partes.length ? partes.map(t => ({ text: { content: t } })) : [{ text: { content: '' } }];
 }
-// Mesmo padrao visual do Histórico (buildTimeline): bolinha + linha
-// conectando os itens, em vez de cards separados -- pra ficar claro que
-// e uma continuação da mesma linha do tempo do chamado.
-function retornoSRGRenderLista(historico) {
-  if (!historico.length) return '<div style="font:400 13px Manrope;color:#7186ab;padding:2px 0 4px">Nenhum retorno registrado ainda.</div>';
-  const cor = '#5a96dc';
-  return historico.map((h, i) => {
-    const ultimo = i === historico.length - 1;
-    const lineStyle = ultimo ? 'display:none' : `flex:1;width:2px;margin-top:5px;background:linear-gradient(${cor},rgba(120,150,200,.15))`;
-    return `<div style="display:flex;gap:16px;padding-bottom:18px">
-      <div style="display:flex;flex-direction:column;align-items:center">
-        <span style="width:15px;height:15px;border-radius:50%;background:${cor};box-shadow:0 0 0 4px ${cor}26;flex-shrink:0"></span>
-        <span style="${lineStyle}"></span>
-      </div>
-      <div style="flex:1;margin-top:-3px">
-        <div style="font:400 11.5px Manrope;color:#a6b8d6">${h.data ? fmtDateTime(h.data) : ''}</div>
-        <div style="font:700 14.5px Manrope;color:#eaf1ff;margin-top:2px">Retorno SRG${h.autor ? ' — '+acEsc(h.autor) : ''}</div>
-        <div style="font:400 13px Manrope;color:#93a7cb;margin-top:3px;line-height:1.5;white-space:pre-wrap">${acEsc(h.texto||'')}</div>
-      </div>
-    </div>`;
-  }).join('');
-}
-function buildRetornoSRGForm(pageId, textoAtual, dataAtual, prefixo, autorAtual) {
+// Botao pra registrar um novo Retorno SRG -- os retornos ja registrados
+// aparecem direto no Histórico (buildTimeline), misturados com os demais
+// eventos do chamado, entao aqui so fica o controle de adicionar um novo.
+function buildRetornoSRGAdicionar(pageId, prefixo) {
   const p = prefixo || 'cli';
-  const historico = retornoSRGHistorico(textoAtual, dataAtual, autorAtual);
-  const ultimo = historico[0];
   return `
-    <div style="margin-top:14px">
-      <button onclick="toggleExpand('${p}-retorno-expand')" style="width:100%;display:flex;align-items:center;justify-content:space-between;background:rgba(90,150,220,.08);border:1px solid rgba(90,150,220,.25);border-radius:12px;padding:11px 15px;cursor:pointer;font:600 13px Manrope;color:#8fb0e0">
-        <span>Retorno SRG <span style="font-weight:400;color:#7186ab;font-size:11.5px">(o cliente vê isso)<span id="${p}-retorno-data-header">${ultimo && ultimo.data ? ' · ' + (ultimo.autor ? acEsc(ultimo.autor)+' · ' : '') + fmtDateTime(ultimo.data) : ''}</span></span></span>
-        <span id="${p}-retorno-expand-arrow" style="transition:transform .2s">▾</span>
-      </button>
-      <div id="${p}-retorno-expand" style="display:${historico.length ? 'block' : 'none'};margin-top:8px">
-        <div id="${p}-retorno-view">${retornoSRGRenderLista(historico)}</div>
-        <button class="chip" style="padding:6px 14px;font-size:12px" onclick="retornoSRGAbrirEdicao('${pageId}','${p}')">+ Adicionar retorno</button>
-        <div id="${p}-retorno-editor" style="display:none;margin-top:10px">
-          <textarea id="${p}-retorno-texto" rows="3" placeholder="Novo retorno..." style="width:100%;padding:10px 12px;border-radius:10px;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.16);color:#eaf1ff;font:400 13px Manrope;resize:vertical"></textarea>
-          <div style="display:flex;align-items:center;gap:10px;margin-top:8px">
-            <button class="btn-primary" style="height:36px;padding:0 14px;font-size:12.5px" onclick="retornoSRGSalvar('${pageId}','${p}')">Salvar</button>
-            <button class="chip" style="padding:6px 14px;font-size:12px" onclick="retornoSRGCancelarEdicao('${p}')">Cancelar</button>
-            <span id="${p}-retorno-flash" style="display:none;color:#7fe0c0;font:600 12px Manrope">salvo!</span>
-            <span id="${p}-retorno-erro" style="display:none;color:#e29a9a;font:600 12px Manrope"></span>
-          </div>
+    <div style="margin-top:6px">
+      <button class="chip" style="padding:6px 14px;font-size:12px" onclick="retornoSRGAbrirEdicao('${pageId}','${p}')">+ Adicionar retorno <span style="font-weight:400;color:#7186ab">(o cliente vê isso)</span></button>
+      <div id="${p}-retorno-editor" style="display:none;margin-top:10px">
+        <textarea id="${p}-retorno-texto" rows="3" placeholder="Novo retorno..." style="width:100%;padding:10px 12px;border-radius:10px;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.16);color:#eaf1ff;font:400 13px Manrope;resize:vertical"></textarea>
+        <div style="display:flex;align-items:center;gap:10px;margin-top:8px">
+          <button class="btn-primary" style="height:36px;padding:0 14px;font-size:12.5px" onclick="retornoSRGSalvar('${pageId}','${p}')">Salvar</button>
+          <button class="chip" style="padding:6px 14px;font-size:12px" onclick="retornoSRGCancelarEdicao('${p}')">Cancelar</button>
+          <span id="${p}-retorno-flash" style="display:none;color:#7fe0c0;font:600 12px Manrope">salvo!</span>
+          <span id="${p}-retorno-erro" style="display:none;color:#e29a9a;font:600 12px Manrope"></span>
         </div>
       </div>
     </div>`;
 }
 function retornoSRGAbrirEdicao(pageId, prefixo) {
   const p = prefixo || 'cli';
-  document.getElementById(`${p}-retorno-expand`).style.display = 'block';
-  document.getElementById(`${p}-retorno-expand-arrow`).style.transform = 'rotate(180deg)';
   document.getElementById(`${p}-retorno-editor`).style.display = 'block';
 }
 function retornoSRGCancelarEdicao(prefixo) {
   const p = prefixo || 'cli';
   document.getElementById(`${p}-retorno-editor`).style.display = 'none';
+}
+// Mapeia o prefixo (cli/gestor) pro id do container do Histórico que
+// precisa ser re-renderizado depois de salvar um novo retorno.
+function retornoSRGTimelineId(prefixo) {
+  return prefixo === 'gestor' ? 'gestor-timeline-body' : 'timeline-body';
 }
 async function retornoSRGSalvar(pageId, prefixo) {
   const p = prefixo || 'cli';
@@ -2154,18 +2137,16 @@ async function retornoSRGSalvar(pageId, prefixo) {
     });
     const data = await r.json();
     if (data.object === 'error') throw new Error(data.message || 'Erro ao salvar no Notion');
-    document.getElementById(`${p}-retorno-view`).innerHTML = retornoSRGRenderLista(novoHistorico);
-    document.getElementById(`${p}-retorno-data-header`).textContent = ' · ' + (autor ? autor+' · ' : '') + fmtDateTime(agora.toISOString());
+    // "data" e a pagina completa e atualizada (resposta do PATCH) -- usa
+    // ela pra re-renderizar o Histórico com o novo retorno já dentro.
+    const timelineEl = document.getElementById(retornoSRGTimelineId(p));
+    if (timelineEl) timelineEl.innerHTML = buildTimeline(data);
     document.getElementById(`${p}-retorno-texto`).value = '';
     document.getElementById(`${p}-retorno-editor`).style.display = 'none';
     // atualiza tambem o cache local do gestor, pra nao sumir se reabrir o mesmo chamado sem recarregar a pagina
     if (p === 'gestor') {
       const c = (gestorChamadosCache||[]).find(x => x.id === pageId);
-      if (c && c.page && c.page.properties) {
-        c.page.properties['Retorno SRG'] = { rich_text: retornoSRGChunks(novoTextoBruto) };
-        c.page.properties['SRG Data'] = { date: { start: agora.toISOString() } };
-        c.page.properties['Retorno SRG Autor'] = { rich_text: [{ text: { content: autor } }] };
-      }
+      if (c) c.page = data;
     }
     flash.style.display = 'inline';
     setTimeout(() => { flash.style.display = 'none'; }, 2500);
@@ -2173,23 +2154,6 @@ async function retornoSRGSalvar(pageId, prefixo) {
     erro.style.display = 'inline';
     erro.textContent = 'Erro ao salvar: ' + e.message;
   }
-}
-function buildRetornoSRG(page) {
-  const textoAtual = gpTextoCompleto(page, 'Retorno SRG');
-  const historico = retornoSRGHistorico(textoAtual, gp(page,'SRG Data','date'), gp(page,'Retorno SRG Autor','rich_text'));
-  if (!historico.length) return '';
-  return `
-    <div style="margin-top:14px;padding:14px 16px;border-radius:12px;background:rgba(63,160,140,.1);border:1px solid rgba(90,200,180,.28)">
-      <div style="font:600 12.5px Manrope;color:#7fd4c0;margin-bottom:8px">Retorno SRG</div>
-      ${historico.map(h => `
-        <div style="margin-bottom:10px;padding-bottom:10px;border-bottom:1px solid rgba(127,212,192,.15)">
-          <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:4px">
-            <span style="font:600 11.5px Manrope;color:#7fd4c0">${h.autor ? acEsc(h.autor) : 'SRG'}</span>
-            <span style="font:400 11px Manrope;color:#7186ab">${h.data ? fmtDateTime(h.data) : ''}</span>
-          </div>
-          <div style="font:400 13.5px Manrope;color:#e7eefb;line-height:1.55;white-space:pre-wrap">${acEsc(h.texto||'')}</div>
-        </div>`).join('')}
-    </div>`;
 }
 function buildExpandable(id, label, text) {
   if (!text) return '';
@@ -4006,8 +3970,8 @@ async function gestorAbrirTicket(id) {
     ${buildExpandable('gestor-desc-expand', 'Descrição completa', gp(c.page,'Descrição Completa','rich_text'))}
     ${buildExpandable('gestor-sol-expand', 'Solução', gp(c.page,'Solução','rich_text'))}
     <div style="font:600 13px Manrope;color:#bcccea;margin:18px 0 10px">Histórico</div>
-    ${buildTimeline(c.page)}
-    ${buildRetornoSRGForm(c.id, gpTextoCompleto(c.page,'Retorno SRG'), gp(c.page,'SRG Data','date'), 'gestor', gp(c.page,'Retorno SRG Autor','rich_text'))}`;
+    <div id="gestor-timeline-body">${buildTimeline(c.page)}</div>
+    ${buildRetornoSRGAdicionar(c.id, 'gestor')}`;
 }
 function gestorFecharModal() { document.getElementById('gestor-modal').style.display = 'none'; }
 
