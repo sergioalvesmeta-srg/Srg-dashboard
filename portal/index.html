@@ -658,7 +658,7 @@ footer.foot{border-top:1px solid rgba(255,255,255,.07);background:rgba(10,16,36,
         <div class="gestor-scroll">
           <table class="gestor-table" id="gestor-melhorias">
             <thead><tr>
-              <th>Chamado</th><th>Cliente</th><th>Setor</th><th>Ticket/SO</th><th>Aberto há</th><th>Status</th>
+              <th>Chamado</th><th>Cliente</th><th>Setor</th><th>Ticket/SO</th><th>Aberto há</th><th>Motivo</th><th>Status</th>
             </tr></thead>
             <tbody id="gestor-melhorias-body"></tbody>
           </table>
@@ -3966,16 +3966,26 @@ function gestorRenderMelhorias(resultado) {
   const contagemEl = document.getElementById('gestor-melhorias-count');
   if (contagemEl) contagemEl.textContent = total ? `${total} no total` : '';
   const el = document.getElementById('gestor-melhorias-body');
-  if (!linhas.length) { el.innerHTML = `<tr><td colspan="6" style="color:#7186ab">Nenhuma melhoria pendente no filtro atual.</td></tr>`; return; }
-  el.innerHTML = linhas.map(c => `
+  if (!linhas.length) { el.innerHTML = `<tr><td colspan="7" style="color:#7186ab">Nenhuma melhoria pendente no filtro atual.</td></tr>`; return; }
+  el.innerHTML = linhas.map(c => {
+    // Mostra POR QUE esse chamado caiu aqui -- categoria "Solicitação" e
+    // status "Pendente PO" sao criterios independentes (pode bater um,
+    // outro, ou os dois), e sem isso fica dificil de entender olhando so
+    // Setor/Status (ex: categoria Solicitação com status Aguardando Meta).
+    const motivos = [];
+    if (c.categoria === 'Solicitação') motivos.push('Categoria: Solicitação');
+    if (c.status === 'Pendente PO') motivos.push('Status: Pendente PO');
+    return `
     <tr class="clicavel" onclick="gestorAbrirTicket('${c.id}')">
       <td style="color:#8fd0f5;font-family:'IBM Plex Mono',monospace">${c.protocolo||'—'}</td>
       <td style="color:#eaf1ff">${c.cliente}</td>
       <td style="color:#b3c4e0">${c.setor}</td>
       <td style="color:#8fd0f5;font-family:'IBM Plex Mono',monospace">${c.ticketMeta||'—'}</td>
       <td>${diasLabel(c.dias)}</td>
+      <td style="color:#93a6c4;font-size:12px">${motivos.join(' + ')}</td>
       <td><span style="font:700 11px Manrope;padding:3px 10px;border-radius:999px;background:#a992e022;color:#a992e0;border:1px solid #a992e055;white-space:nowrap">${c.status}</span></td>
-    </tr>`).join('');
+    </tr>`;
+  }).join('');
 }
 
 function gestorToggleProgramacao() {
