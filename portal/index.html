@@ -4102,7 +4102,12 @@ function gestorRenderTudo() {
   gestorRenderEquipe(gestorCalcularDesempenhoEquipe(baseSemPeriodo, janela));
   gestorRenderN2N3(metricas);
 
-  gestorRenderMelhorias(gestorCalcularMelhorias(baseSemPeriodo));
+  // Usa "filtrados" (com corte de periodo) em vez de "baseSemPeriodo" --
+  // pedido explicito do usuario pra bater exatamente com o que aparece em
+  // "Todos os chamados" logo abaixo, que tambem usa "filtrados". Antes,
+  // a tabela de Melhorias ignorava o periodo (sempre o total acumulado)
+  // e a lista de baixo respeitava, entao os numeros nunca batiam.
+  gestorRenderMelhorias(gestorCalcularMelhorias(filtrados));
   gestorRenderAtencao(gestorCalcularAtencao(baseSemPeriodo));
   gestorRenderTickets(filtrados);
 
