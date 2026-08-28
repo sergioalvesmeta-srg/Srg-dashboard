@@ -3458,9 +3458,13 @@ function gestorCalcularMetricas(lista, ini, fim) {
   // gestor escolhe "Esta semana", o numero reflete so o que entrou nessa
   // semana e segue parado -- nao o acumulado historico inteiro).
   const backlog = recebidosLista.filter(c => c.balde !== 'resolvido').length;
-  const pendentes = lista.filter(c => c.balde === 'pendente').length;
-  const pendentesMeta = lista.filter(c => c.balde === 'pendenteMeta').length;
-  const emAberto = lista.filter(c => c.balde === 'aberto').length;
+  // Pedido explicito: todo card do painel reage ao período selecionado --
+  // antes "Pendentes SRG/Meta" eram "estoque" (total acumulado, ignorava
+  // o período); agora contam só dentro de recebidosLista, igual ao
+  // "Pendências do período" ao lado.
+  const pendentes = recebidosLista.filter(c => c.balde === 'pendente').length;
+  const pendentesMeta = recebidosLista.filter(c => c.balde === 'pendenteMeta').length;
+  const emAberto = recebidosLista.filter(c => c.balde === 'aberto').length;
   const taxaResolucao = recebidos ? (resolvidos / recebidos) * 100 : 0;
   const temposH = resolvidosLista.map(c => (parseDataBR(c.dataConclusao) - parseDataBR(c.dataAbertura)) / 3600000).filter(h => h >= 0);
   const tempoMedio = temposH.length ? temposH.reduce((a,b)=>a+b,0)/temposH.length : 0;
@@ -3534,9 +3538,9 @@ function gestorRenderKPIs(baseSemPeriodo, janela) {
       badge: anteriores ? gestorBadge(atuais.resolvidos, anteriores.resolvidos, {modo:'sobe-bom', sufixo}) : '' },
     { label:'Pendências do período <span style="font-weight:500;color:#5c7095">· fluxo</span>', val: atuais.backlog, click:`setGestorStatus('aberto')`, cor:'#a992e0',
       badge: (anteriores ? gestorBadge(atuais.backlog, anteriores.backlog, {modo:'desce-bom', sufixo}) : '') + `<div style="margin-top:6px;font:600 11px Manrope;color:#7186ab" title="Passivo total acumulado ate agora, independente do periodo selecionado.">Total atual: <span style="color:#dbe6fb;font-weight:700">${backlogTotalAtual}</span> <span style="color:${variacaoCor}">(${variacaoTxt})</span></div>` },
-    { label:'Pendentes SRG <span style="font-weight:500;color:#5c7095">· estoque</span>', val: atuais.pendentes, click:`setGestorStatus('pendente')`, cor:'#c15c5c',
+    { label:'Pendentes SRG <span style="font-weight:500;color:#5c7095">· fluxo</span>', val: atuais.pendentes, click:`setGestorStatus('pendente')`, cor:'#c15c5c',
       badge: anteriores ? gestorBadge(atuais.pendentes, anteriores.pendentes, {modo:'desce-bom', sufixo}) : '' },
-    { label:'Pendentes Meta <span style="font-weight:500;color:#5c7095">· estoque</span>', val: atuais.pendentesMeta, click:`setGestorStatus('pendenteMeta')`, cor:'#e0955f',
+    { label:'Pendentes Meta <span style="font-weight:500;color:#5c7095">· fluxo</span>', val: atuais.pendentesMeta, click:`setGestorStatus('pendenteMeta')`, cor:'#e0955f',
       badge: anteriores ? gestorBadge(atuais.pendentesMeta, anteriores.pendentesMeta, {modo:'desce-bom', sufixo}) : '' },
     { label:'Taxa de resolução <span style="font-weight:500;color:#5c7095">· fluxo</span>', val: atuais.taxaResolucao.toFixed(0)+'%', click:`setGestorStatus('resolvido')`, cor:'#5db4e6',
       badge: anteriores ? gestorBadge(atuais.taxaResolucao, anteriores.taxaResolucao, {modo:'sobe-bom', pontosPercentuais:true, casas:1, sufixo}) : '' },
