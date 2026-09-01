@@ -3576,8 +3576,6 @@ function gestorRenderKPIs(baseSemPeriodo, janela) {
       badge: anteriores ? gestorBadge(atuais.pendentesMeta, anteriores.pendentesMeta, {modo:'desce-bom', sufixo}) : '' },
     { label:'Taxa de resolução <span style="font-weight:500;color:#5c7095">· fluxo</span>', val: atuais.taxaResolucao.toFixed(0)+'%', click:`gestorFiltrarPorKPI('resolvido')`, cor:'#5db4e6',
       badge: anteriores ? gestorBadge(atuais.taxaResolucao, anteriores.taxaResolucao, {modo:'sobe-bom', pontosPercentuais:true, casas:1, sufixo}) : '' },
-    { label:'Tempo médio de resolução <span style="font-weight:500;color:#5c7095">· fluxo</span>', val: atuais.tempoMedio.toFixed(1)+'h', click:null, cor:'#7fd4c0',
-      badge: anteriores ? gestorBadge(atuais.tempoMedio, anteriores.tempoMedio, {modo:'desce-bom', casas:1, sufixo}) : '' },
   ];
   document.getElementById('gestor-kpis').innerHTML = cards.map(c => `
     <div class="glass" ${c.click?`onclick="${c.click}"`:''} style="padding:20px 20px;cursor:${c.click?'pointer':'default'};text-align:left">
