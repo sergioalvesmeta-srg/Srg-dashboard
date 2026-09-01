@@ -3564,18 +3564,18 @@ function gestorRenderKPIs(baseSemPeriodo, janela) {
   const variacaoCor = variacaoBacklog > 0 ? '#e0955f' : (variacaoBacklog < 0 ? '#5abfa0' : '#7186ab');
 
   const cards = [
-    { label:'Chamados recebidos <span style="font-weight:500;color:#5c7095">· fluxo</span>', val: atuais.recebidos, click:`gestorFiltrarPorKPI('todos')`, cor:'#f2f7ff',
-      badge: anteriores ? gestorBadge(atuais.recebidos, anteriores.recebidos, {modo:'neutro', sufixo}) : '' },
-    { label:'Resolvidos <span style="font-weight:500;color:#5c7095">· fluxo</span>', val: atuais.resolvidos, click:`gestorFiltrarPorKPI('resolvido')`, cor:'#3fa08c',
-      badge: anteriores ? gestorBadge(atuais.resolvidos, anteriores.resolvidos, {modo:'sobe-bom', sufixo}) : '' },
     { label:'Pendências do período <span style="font-weight:500;color:#5c7095">· fluxo</span>', val: atuais.backlog, click:`gestorFiltrarPorKPI(['aberto','pendente','pendenteMeta'])`, cor:'#a992e0',
       badge: (anteriores ? gestorBadge(atuais.backlog, anteriores.backlog, {modo:'desce-bom', sufixo}) : '') + `<div style="margin-top:6px;font:600 11px Manrope;color:#7186ab" title="Passivo total acumulado ate agora, independente do periodo selecionado.">Total atual: <span style="color:#dbe6fb;font-weight:700">${backlogTotalAtual}</span> <span style="color:${variacaoCor}">(${variacaoTxt})</span></div>` },
-    { label:'Pendentes SRG <span style="font-weight:500;color:#5c7095">· fluxo</span>', val: atuais.pendentes, click:`gestorFiltrarPorKPI('pendente')`, cor:'#c15c5c',
-      badge: anteriores ? gestorBadge(atuais.pendentes, anteriores.pendentes, {modo:'desce-bom', sufixo}) : '' },
     { label:'Pendentes Meta <span style="font-weight:500;color:#5c7095">· fluxo</span>', val: atuais.pendentesMeta, click:`gestorFiltrarPorKPI('pendenteMeta')`, cor:'#e0955f',
       badge: anteriores ? gestorBadge(atuais.pendentesMeta, anteriores.pendentesMeta, {modo:'desce-bom', sufixo}) : '' },
+    { label:'Pendentes SRG <span style="font-weight:500;color:#5c7095">· fluxo</span>', val: atuais.pendentes, click:`gestorFiltrarPorKPI('pendente')`, cor:'#c15c5c',
+      badge: anteriores ? gestorBadge(atuais.pendentes, anteriores.pendentes, {modo:'desce-bom', sufixo}) : '' },
+    { label:'Resolvidos <span style="font-weight:500;color:#5c7095">· fluxo</span>', val: atuais.resolvidos, click:`gestorFiltrarPorKPI('resolvido')`, cor:'#3fa08c',
+      badge: anteriores ? gestorBadge(atuais.resolvidos, anteriores.resolvidos, {modo:'sobe-bom', sufixo}) : '' },
     { label:'Taxa de resolução <span style="font-weight:500;color:#5c7095">· fluxo</span>', val: atuais.taxaResolucao.toFixed(0)+'%', click:`gestorFiltrarPorKPI('resolvido')`, cor:'#5db4e6',
       badge: anteriores ? gestorBadge(atuais.taxaResolucao, anteriores.taxaResolucao, {modo:'sobe-bom', pontosPercentuais:true, casas:1, sufixo}) : '' },
+    { label:'Chamados recebidos <span style="font-weight:500;color:#5c7095">· fluxo</span>', val: atuais.recebidos, click:`gestorFiltrarPorKPI('todos')`, cor:'#f2f7ff',
+      badge: anteriores ? gestorBadge(atuais.recebidos, anteriores.recebidos, {modo:'neutro', sufixo}) : '' },
   ];
   document.getElementById('gestor-kpis').innerHTML = cards.map(c => `
     <div class="glass" ${c.click?`onclick="${c.click}"`:''} style="padding:20px 20px;cursor:${c.click?'pointer':'default'};text-align:left">
