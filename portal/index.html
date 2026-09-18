@@ -1537,12 +1537,34 @@ function copy(text, btn) {
 }
 
 // ---- Timeline ----
-function buildTimeline(page, pageId, prefixo) {
-  const status   = gp(page,'Status','select');
-  const abertura = gp(page,'Data Abertura','date');
-  const setor    = gp(page,'Setor Suporte','select');
-  const solucao  = gp(page,'Solução','rich_text');
-  const editado  = page.last_edited_time;
+// Busca UM chamado no D1 pelo ID Interno (ex: "SRG-L298") -- usado antes
+// de renderizar a timeline/retorno, tanto na tela do cliente ("Meus
+// Chamados") quanto no modal do gestor. Retorna null se nao achar ou der
+// erro de rede (chamador decide o fallback).
+async function fetchD1Chamado(idInterno) {
+  if (!idInterno) return null;
+  try {
+    const r = await fetch(`${PROXY}/d1/chamados/id/${encodeURIComponent(idInterno)}`);
+    const d = await r.json();
+    return (d && d.ok) ? d.chamado : null;
+  } catch (e) {
+    return null;
+  }
+}
+
+// Migrado pra ler do D1 em 18/09/2026 (junto com o resto do painel) --
+// "chamado" agora e um objeto "achatado" (linha do D1: status,
+// data_abertura, setor_suporte, solucao, updated_at, retorno_srg_json,
+// retorno_srg_data, retorno_srg_autor), nao mais uma pagina do Notion.
+// "idInterno" (ex: "SRG-L298") substitui o antigo pageId como chave
+// pra excluir um retorno.
+function buildTimeline(chamado, idInterno, prefixo) {
+  chamado = chamado || {};
+  const status   = chamado.status;
+  const abertura = chamado.data_abertura;
+  const setor    = chamado.setor_suporte;
+  const solucao  = chamado.solucao;
+  const editado  = chamado.updated_at || chamado.created_at || abertura;
   const label    = statusLabel(status);
   const etapas = [];
   if (abertura) etapas.push({ordData: new Date(abertura+'T00:00:00'), done:true, titulo:'Chamado aberto', data:fmtDate(abertura), desc:'Chamado registrado no portal do cliente.'});
@@ -1550,7 +1572,7 @@ function buildTimeline(page, pageId, prefixo) {
   // Cada Retorno SRG entra na mesma linha do tempo, na sua propria data --
   // pedido explicito do usuario, pra nao ficar num bloco separado. Guarda
   // a data original (chave unica de cada retorno) pra permitir excluir.
-  const historicoRetorno = retornoSRGHistorico(gpTextoCompleto(page,'Retorno SRG'), gp(page,'SRG Data','date'), gp(page,'Retorno SRG Autor','rich_text'));
+  const historicoRetorno = retornoSRGHistorico(chamado.retorno_srg_json || '', chamado.retorno_srg_data, chamado.retorno_srg_autor);
   historicoRetorno.forEach(h => {
     etapas.push({ordData: h.data ? new Date(h.data) : new Date(0), done:true, retorno:true, chaveRetorno: h.data||'', titulo:`Retorno SRG${h.autor ? ' — '+h.autor : ''}`, data: h.data ? fmtDateTime(h.data) : '', desc: h.texto||''});
   });
@@ -1561,7 +1583,7 @@ function buildTimeline(page, pageId, prefixo) {
     const color = e.retorno ? '#5a96dc' : (e.done ? '#5abfa0' : '#f2b84b');
     const dotStyle = `width:15px;height:15px;border-radius:50%;background:${color};box-shadow:0 0 0 4px ${color}26;flex-shrink:0;` + (e.done?'':'animation:pulseDot 2.2s infinite;');
     const lineStyle = e.last ? 'display:none' : `flex:1;width:2px;margin-top:5px;background:linear-gradient(${color},rgba(120,150,200,.15))`;
-    const lixeira = (e.retorno && pageId) ? `<button onclick="retornoSRGExcluir('${pageId}','${(e.chaveRetorno||'').replace(/'/g,"\\'")}','${prefixo||'cli'}')" title="Excluir este retorno" style="background:none;border:none;cursor:pointer;color:#93a7cb;opacity:.6;padding:2px;flex-shrink:0" onmouseover="this.style.opacity=1;this.style.color='#e29a9a'" onmouseout="this.style.opacity=.6;this.style.color='#93a7cb'"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg></button>` : '';
+    const lixeira = (e.retorno && idInterno) ? `<button onclick="retornoSRGExcluir('${idInterno}','${(e.chaveRetorno||'').replace(/'/g,"\\'")}','${prefixo||'cli'}')" title="Excluir este retorno" style="background:none;border:none;cursor:pointer;color:#93a7cb;opacity:.6;padding:2px;flex-shrink:0" onmouseover="this.style.opacity=1;this.style.color='#e29a9a'" onmouseout="this.style.opacity=.6;this.style.color='#93a7cb'"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg></button>` : '';
     return `<div style="display:flex;gap:16px;padding-bottom:22px">
       <div style="display:flex;flex-direction:column;align-items:center">
         <span style="${dotStyle}"></span>
@@ -1986,7 +2008,7 @@ async function mostrarDetalhe(found) {
   document.getElementById('lista-wrap').style.display = 'none';
   document.getElementById('search-result').innerHTML = '';
   detalheChamadoId = found.id;
-  detalheRenderizar(found);
+  await detalheRenderizar(found);
   document.getElementById('detalhe-wrap').style.display = 'block';
   window.scrollTo(0,0);
   detalheIniciarAutoRefresh();
@@ -2002,7 +2024,7 @@ async function detalheAtualizar() {
   try {
     const r = await fetch(`${PROXY}/v1/pages/${detalheChamadoId}`);
     const pageFresca = await r.json();
-    if (pageFresca && pageFresca.object === 'page') detalheRenderizar(pageFresca);
+    if (pageFresca && pageFresca.object === 'page') await detalheRenderizar(pageFresca);
   } catch (e) { /* mantem o que ja esta na tela se a rede falhar */ }
 }
 function detalheIniciarAutoRefresh() {
@@ -2015,7 +2037,7 @@ function detalhePararAutoRefresh() {
   if (detalheIntervalAutoRefresh) { clearInterval(detalheIntervalAutoRefresh); detalheIntervalAutoRefresh = null; }
 }
 
-function detalheRenderizar(found) {
+async function detalheRenderizar(found) {
   document.getElementById('detalhe-ultima-att').textContent = 'atualizado agora mesmo · atualiza sozinho a cada 30s';
   const nome        = gp(found,'Cliente','title');
   const status      = gp(found,'Status','select');
@@ -2070,7 +2092,14 @@ function detalheRenderizar(found) {
     </div>`;
 
   const ehEquipeSRG = !!(currentUser && (currentUser.atendenteSRG || currentUser.gestor || currentUser.role === 'admin'));
-  document.getElementById('timeline-body').innerHTML = buildTimeline(found, ehEquipeSRG ? found.id : null, 'cli');
+  // Retorno SRG agora mora no D1, nao mais no Notion -- "ID Interno" e a
+  // chave que liga o card do Notion (ainda usado aqui pros dados basicos,
+  // ver tarefa pendente de migrar "Meus Chamados" tambem) ao registro do
+  // D1 (que tem o historico de retorno atualizado).
+  const idInternoAtual = gp(found,'ID Interno','rich_text');
+  const chamadoD1 = await fetchD1Chamado(idInternoAtual);
+  const dadosTimeline = chamadoD1 || { status, data_abertura: abertura, setor_suporte: setor, solucao: solucaoTxt, updated_at: editado };
+  document.getElementById('timeline-body').innerHTML = buildTimeline(dadosTimeline, ehEquipeSRG ? idInternoAtual : null, 'cli');
   const ultimaInt = gp(found,'Última Interação (Data)','date');
   const resolvido = status === 'Resolvido';
   const diasAberto = diasDesde(dtDigisac || abertura);
@@ -2086,7 +2115,7 @@ function detalheRenderizar(found) {
   ].map(([label,value]) => `<div style="display:flex;justify-content:space-between;gap:14px;padding:11px 0;border-bottom:1px solid rgba(255,255,255,.07)"><span style="font:500 13px Manrope;color:#b3c4e0;flex-shrink:0">${label}</span><span style="font:600 13.5px Manrope;color:#e7eefb;text-align:right">${value}</span></div>`).join('');
 
   document.getElementById('details-body').innerHTML += buildExpandable('desc-expand', 'Descrição completa', descCompleta) + buildExpandable('sol-expand', 'Solução', solucaoTxt)
-    + (ehEquipeSRG ? buildRetornoSRGAdicionar(found.id, 'cli') : '');
+    + (ehEquipeSRG && idInternoAtual ? buildRetornoSRGAdicionar(idInternoAtual, 'cli') : '');
 
   const waMsg = encodeURIComponent(`Olá, gostaria de informações sobre o chamado ${currentProto||''}.`);
   document.getElementById('wa-btn').onclick = () => window.open(`https://wa.me/${WA_NUMBER}?text=${waMsg}`,'_blank');
@@ -2153,7 +2182,11 @@ function retornoSRGCancelarEdicao(prefixo) {
 function retornoSRGTimelineId(prefixo) {
   return prefixo === 'gestor' ? 'gestor-timeline-body' : 'timeline-body';
 }
-async function retornoSRGSalvar(pageId, prefixo) {
+// Migrado pro D1 em 18/09/2026 -- "idInterno" (ex: "SRG-L298") substitui
+// o antigo pageId do Notion. O Retorno SRG agora e gravado direto no D1
+// (colunas retorno_srg_json/data/autor), independente do Notion estar
+// sincronizado ou nao.
+async function retornoSRGSalvar(idInterno, prefixo) {
   const p = prefixo || 'cli';
   const texto = document.getElementById(`${p}-retorno-texto`).value.trim();
   const flash = document.getElementById(`${p}-retorno-flash`);
@@ -2164,38 +2197,28 @@ async function retornoSRGSalvar(pageId, prefixo) {
   try {
     const agora = new Date();
     const autor = (currentUser && (currentUser.nome || currentUser.username)) || '';
-    // busca a pagina fresca antes de gravar, pra somar ao historico atual
+    // busca o registro fresco antes de gravar, pra somar ao historico atual
     // (e nao perder um retorno que outra pessoa tenha acabado de adicionar).
-    const rAtual = await fetch(`${PROXY}/v1/pages/${pageId}`);
-    const pageAtual = await rAtual.json();
-    const textoAtualBruto = pageAtual && pageAtual.object === 'page' ? gpTextoCompleto(pageAtual, 'Retorno SRG') : '';
-    const historicoAtual = retornoSRGHistorico(textoAtualBruto, null, null);
+    const atual = await fetchD1Chamado(idInterno);
+    const historicoAtual = retornoSRGHistorico((atual && atual.retorno_srg_json) || '', null, null);
     const novoHistorico = [{ autor, data: agora.toISOString(), texto }, ...historicoAtual];
-    const novoTextoBruto = JSON.stringify(novoHistorico);
-    const r = await fetch(`${PROXY}/v1/pages/${pageId}`, {
+    const r = await fetch(`${PROXY}/d1/chamados/id/${encodeURIComponent(idInterno)}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        properties: {
-          'Retorno SRG': { rich_text: retornoSRGChunks(novoTextoBruto) },
-          'SRG Data': { date: { start: agora.toISOString() } },
-          'Retorno SRG Autor': { rich_text: [{ text: { content: autor } }] }
-        }
+        retorno_srg_json: JSON.stringify(novoHistorico),
+        retorno_srg_data: agora.toISOString(),
+        retorno_srg_autor: autor,
       })
     });
     const data = await r.json();
-    if (data.object === 'error') throw new Error(data.message || 'Erro ao salvar no Notion');
-    // "data" e a pagina completa e atualizada (resposta do PATCH) -- usa
-    // ela pra re-renderizar o Histórico com o novo retorno já dentro.
+    if (!data.ok) throw new Error(data.error || 'Erro ao salvar no D1');
+    // "data.chamado" e a linha completa e atualizada -- usa ela pra
+    // re-renderizar o Histórico com o novo retorno já dentro.
     const timelineEl = document.getElementById(retornoSRGTimelineId(p));
-    if (timelineEl) timelineEl.innerHTML = buildTimeline(data, pageId, p);
+    if (timelineEl) timelineEl.innerHTML = buildTimeline(data.chamado, idInterno, p);
     document.getElementById(`${p}-retorno-texto`).value = '';
     document.getElementById(`${p}-retorno-editor`).style.display = 'none';
-    // atualiza tambem o cache local do gestor, pra nao sumir se reabrir o mesmo chamado sem recarregar a pagina
-    if (p === 'gestor') {
-      const c = (gestorChamadosCache||[]).find(x => x.id === pageId);
-      if (c) c.page = data;
-    }
     flash.style.display = 'inline';
     setTimeout(() => { flash.style.display = 'none'; }, 2500);
   } catch (e) {
@@ -2207,36 +2230,27 @@ async function retornoSRGSalvar(pageId, prefixo) {
 // engano). "chaveData" e o timestamp ISO desse retorno -- unico o
 // suficiente pra identificar qual entrada remover sem depender de indice
 // (que poderia mudar se alguem mais tiver adicionado/removido nesse meio-tempo).
-async function retornoSRGExcluir(pageId, chaveData, prefixo) {
+async function retornoSRGExcluir(idInterno, chaveData, prefixo) {
   const p = prefixo || 'cli';
   if (!confirm('Excluir este retorno? Essa ação não pode ser desfeita.')) return;
   try {
-    const rAtual = await fetch(`${PROXY}/v1/pages/${pageId}`);
-    const pageAtual = await rAtual.json();
-    const textoAtualBruto = pageAtual && pageAtual.object === 'page' ? gpTextoCompleto(pageAtual, 'Retorno SRG') : '';
-    const historicoAtual = retornoSRGHistorico(textoAtualBruto, null, null);
+    const atual = await fetchD1Chamado(idInterno);
+    const historicoAtual = retornoSRGHistorico((atual && atual.retorno_srg_json) || '', null, null);
     const novoHistorico = historicoAtual.filter(h => (h.data||'') !== chaveData);
-    const novoTextoBruto = JSON.stringify(novoHistorico);
     const ultimo = novoHistorico[0];
-    const r = await fetch(`${PROXY}/v1/pages/${pageId}`, {
+    const r = await fetch(`${PROXY}/d1/chamados/id/${encodeURIComponent(idInterno)}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        properties: {
-          'Retorno SRG': { rich_text: retornoSRGChunks(novoTextoBruto) },
-          'SRG Data': { date: ultimo && ultimo.data ? { start: ultimo.data } : null },
-          'Retorno SRG Autor': { rich_text: [{ text: { content: (ultimo && ultimo.autor) || '' } }] }
-        }
+        retorno_srg_json: JSON.stringify(novoHistorico),
+        retorno_srg_data: (ultimo && ultimo.data) || null,
+        retorno_srg_autor: (ultimo && ultimo.autor) || '',
       })
     });
     const data = await r.json();
-    if (data.object === 'error') throw new Error(data.message || 'Erro ao excluir no Notion');
+    if (!data.ok) throw new Error(data.error || 'Erro ao excluir no D1');
     const timelineEl = document.getElementById(retornoSRGTimelineId(p));
-    if (timelineEl) timelineEl.innerHTML = buildTimeline(data, pageId, p);
-    if (p === 'gestor') {
-      const c = (gestorChamadosCache||[]).find(x => x.id === pageId);
-      if (c) c.page = data;
-    }
+    if (timelineEl) timelineEl.innerHTML = buildTimeline(data.chamado, idInterno, p);
   } catch (e) {
     alert('Erro ao excluir retorno: ' + e.message);
   }
@@ -4076,30 +4090,20 @@ function gestorRenderTickets(filtrados) {
 async function gestorAbrirTicket(id) {
   const c = (gestorChamadosCache||[]).find(x => x.id === id);
   if (!c) return;
-  // Chamado ainda sem card no Notion (criado enquanto o plano gratuito
-  // estava travado, por exemplo) -- nao tem como abrir o detalhe/retorno
-  // ate ele sincronizar. Isso deve sumir sozinho assim que o Notion for
-  // resolvido (upgrade de plano ou migracao completa pro D1).
-  if (!c.notionPageId) {
-    alert('Esse chamado ainda não sincronizou no Notion (provavelmente por causa do limite de blocos do plano gratuito). Os dados básicos já aparecem na lista, mas o detalhe/retorno fica disponível assim que a sincronização for concluída.');
-    return;
-  }
-  id = c.notionPageId;
   const modal = document.getElementById('gestor-modal');
   modal.style.display = 'flex';
   document.getElementById('gestor-modal-body').innerHTML = '<div style="text-align:center;padding:2rem"><div class="spinner"></div></div>';
   // O gestorChamadosCache e montado UMA vez, no carregamento da lista --
-  // se outra pessoa (ou o proprio cliente, em outra aba/sessao) editou o
-  // Retorno SRG ou mudou o status nesse meio-tempo, o cache local ainda
-  // mostra a versao antiga. Por isso, toda vez que o modal abre, busca a
-  // pagina fresca direto no Notion antes de renderizar -- so pra esse
-  // chamado (rapido), sem precisar recarregar o Painel do Gestor inteiro.
-  // Se a rede falhar, segue com o que ja tinha em cache.
-  try {
-    const r = await fetch(`${PROXY}/v1/pages/${id}`);
-    const pageFresco = await r.json();
-    if (pageFresco && pageFresco.object === 'page') c.page = pageFresco;
-  } catch (e) { /* mantem o cache antigo se der erro de rede */ }
+  // se outra pessoa mudou o Retorno SRG ou o status nesse meio-tempo, o
+  // cache local ainda mostra a versao antiga. Por isso, toda vez que o
+  // modal abre, busca a linha fresca direto no D1 antes de renderizar --
+  // so pra esse chamado (rapido), sem recarregar o Painel do Gestor
+  // inteiro. Migrado de Notion pra D1 em 18/09/2026 -- isso tambem
+  // resolve a limitacao antiga de nao dar pra abrir chamados que ainda
+  // nao tinham sincronizado no Notion (D1 sempre tem tudo).
+  const fresco = await fetchD1Chamado(c.idInterno);
+  if (fresco) c.d1 = fresco;
+  const d1 = c.d1 || {};
   // Resolvido: quanto tempo ficou aberto ate a conclusao (fluxo). Ainda
   // aberto: ha quantos dias esta parado ate agora (estoque, atualiza
   // sozinho a cada dia).
@@ -4117,7 +4121,7 @@ async function gestorAbrirTicket(id) {
     </div>
     <div class="chamado-detalhe-grid" style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:18px">
       <div><div style="font:600 11.5px Manrope;color:#93a6c4">Protocolo</div><div style="display:flex;align-items:center;gap:8px;margin-top:2px"><span style="font:600 14px Manrope;color:#eaf1ff">${c.protocolo||'—'}</span>${c.protocolo?botaoCopiar(c.protocolo):''}</div></div>
-      <div><div style="font:600 11.5px Manrope;color:#93a6c4">Ticket Meta</div><div style="display:flex;align-items:center;gap:8px;margin-top:2px"><span style="font:600 14px Manrope;color:#eaf1ff">${gp(c.page,'Ticket Meta','rich_text')||'—'}</span>${gp(c.page,'Ticket Meta','rich_text')?botaoCopiar(gp(c.page,'Ticket Meta','rich_text')):''}</div></div>
+      <div><div style="font:600 11.5px Manrope;color:#93a6c4">Ticket Meta</div><div style="display:flex;align-items:center;gap:8px;margin-top:2px"><span style="font:600 14px Manrope;color:#eaf1ff">${c.ticketMeta||'—'}</span>${c.ticketMeta?botaoCopiar(c.ticketMeta):''}</div></div>
       <div><div style="font:600 11.5px Manrope;color:#93a6c4">Setor</div><div style="font:600 14px Manrope;color:#eaf1ff">${c.setor}</div></div>
       <div><div style="font:600 11.5px Manrope;color:#93a6c4">Nível de atendimento</div><div style="font:600 14px Manrope;color:${c.nivelAtendimento==='N3+'?'#e0a888':'#eaf1ff'}">${c.nivelAtendimento==='N3+'?'N3+ (escalado)':(c.nivelAtendimento||'N2')}</div></div>
       <div><div style="font:600 11.5px Manrope;color:#93a6c4">Atendente Meta</div><div style="font:600 14px Manrope;color:#eaf1ff">${c.atendente}</div></div>
@@ -4125,11 +4129,11 @@ async function gestorAbrirTicket(id) {
       <div><div style="font:600 11.5px Manrope;color:#93a6c4">Aberto em</div><div style="font:600 14px Manrope;color:#eaf1ff">${fmtDate(c.dataAbertura)}</div></div>
       <div><div style="font:600 11.5px Manrope;color:#93a6c4">Conclusão</div><div style="font:600 14px Manrope;color:#eaf1ff">${c.dataConclusao?fmtDate(c.dataConclusao):'—'}</div></div>
     </div>
-    ${buildExpandable('gestor-desc-expand', 'Descrição completa', gp(c.page,'Descrição Completa','rich_text'))}
-    ${buildExpandable('gestor-sol-expand', 'Solução', gp(c.page,'Solução','rich_text'))}
+    ${buildExpandable('gestor-desc-expand', 'Descrição completa', d1.descricao_completa || '')}
+    ${buildExpandable('gestor-sol-expand', 'Solução', d1.solucao || '')}
     <div style="font:600 13px Manrope;color:#bcccea;margin:18px 0 10px">Histórico</div>
-    <div id="gestor-timeline-body">${buildTimeline(c.page, c.id, 'gestor')}</div>
-    ${buildRetornoSRGAdicionar(c.id, 'gestor')}`;
+    <div id="gestor-timeline-body">${buildTimeline(d1, c.idInterno, 'gestor')}</div>
+    ${c.idInterno ? buildRetornoSRGAdicionar(c.idInterno, 'gestor') : ''}`;
 }
 function gestorFecharModal() { document.getElementById('gestor-modal').style.display = 'none'; }
 
