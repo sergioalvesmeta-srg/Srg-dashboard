@@ -2487,44 +2487,47 @@ function gestorBalde(status) {
 // API sem precisar tocar em mais nada do Painel do Gestor.
 async function getChamados({ forcar=false } = {}) {
   if (gestorChamadosCache && !forcar) return gestorChamadosCache;
-  let todos = [];
-  let cursor = undefined;
-  do {
-    const payload = { page_size:100, sorts:[{timestamp:'last_edited_time',direction:'descending'}] };
-    if (cursor) payload.start_cursor = cursor;
-    const r = await fetch(`${PROXY}/v1/databases/${DB}/query`, {
-      method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload)
-    });
-    const d = await r.json();
-    if (!r.ok) throw new Error(d.message || 'Erro ao consultar Notion');
-    todos = todos.concat(d.results || []);
-    cursor = d.has_more ? d.next_cursor : null;
-  } while (cursor);
+  // Migrado de Notion pro D1 em 18/09/2026 -- o Notion ficou bloqueado
+  // (limite de blocos do plano gratuito) e passou a nao refletir mais
+  // chamados novos. O D1 e alimentado pelo meta_to_notion.py a cada
+  // ciclo do cron (dual-write), direto da planilha, independente do
+  // Notion estar funcionando ou nao. Ver worker-final-completo.js,
+  // rota GET /d1/chamados.
+  const r = await fetch(`${PROXY}/d1/chamados`);
+  const d = await r.json();
+  if (!r.ok || !d.ok) throw new Error(d.error || 'Erro ao consultar D1');
 
-  gestorChamadosCache = todos.map(p => {
-    const status = gp(p,'Status','select') || 'Em Andamento';
-    const dataAbertura = gp(p,'Data Digisac','date') || gp(p,'Data Abertura','date') || p.created_time;
-    const dataConclusao = gp(p,'Conclusão','date') || null;
+  gestorChamadosCache = (d.chamados || []).map(row => {
+    const status = row.status || 'Em Andamento';
+    const dataAbertura = row.data_abertura || row.created_at;
+    const dataConclusao = row.conclusao || null;
     return {
-      id: p.id,
-      cliente: gp(p,'Cliente','title') || 'Sem assunto',
+      // Enquanto a linha nao tiver sincronizado no Notion ainda (ex:
+      // criada durante o bloqueio do plano gratuito), notion_page_id
+      // fica null -- usamos um id sintetico "d1:SRG-Lxxx" pra a lista
+      // funcionar normalmente; abrir o detalhe desses avisa que ainda
+      // nao esta disponivel (ver gestorAbrirTicket).
+      id: row.notion_page_id || `d1:${row.id_interno}`,
+      idInterno: row.id_interno,
+      notionPageId: row.notion_page_id || null,
+      cliente: row.cliente || 'Sem assunto',
       status,
       balde: gestorBalde(status),
-      setor: gp(p,'Setor Suporte','select') || 'Sem setor',
-      atendente: gp(p,'Atendente','rich_text') || 'Sem atendente',
-      atendenteSRG: gestorNormalizarNome(gp(p,'Solicitante','rich_text')),
-      nivelAtendimento: gp(p,'Nível de Atendimento','select') || 'N2',
-      protocolo: gp(p,'Protocolo Digisac','rich_text') || '',
-      categoria: gp(p,'Categoria','select') || '',
-      ticketMeta: gp(p,'Ticket Meta','rich_text') || '',
+      setor: row.setor_suporte || 'Sem setor',
+      atendente: row.atendente || 'Sem atendente',
+      atendenteSRG: gestorNormalizarNome(row.solicitante),
+      nivelAtendimento: row.nivel_atendimento || 'N2',
+      protocolo: row.protocolo || '',
+      categoria: row.categoria || '',
+      ticketMeta: row.ticket_so || '',
       // "Melhoria" = pedido de desenvolvimento pro sistema (categoria
       // "Solicitação" na planilha, ou status "Pendente PO" -- fila do
       // Product Owner da Meta). Usado na secao "Melhorias pendentes".
-      melhoria: gp(p,'Categoria','select') === 'Solicitação' || status === 'Pendente PO',
+      melhoria: row.categoria === 'Solicitação' || status === 'Pendente PO',
       dataAbertura,
       dataConclusao,
-      lastEdited: p.last_edited_time,
-      page: p,
+      lastEdited: row.updated_at,
+      page: null,
     };
   });
   gestorUltimaBusca = new Date();
@@ -3206,7 +3209,7 @@ async function carregarPainelGestor(forcar=false) {
   try {
     if (forcar) gestorChamadosCache = null;
     await Promise.all([ getChamados({forcar}), buscarUltimaSincronizacao() ]);
-    if (nota) nota.textContent = 'Fonte de dados: Notion (base "Chamados Meta"), a mesma usada no restante do portal.';
+    if (nota) nota.textContent = 'Fonte de dados: banco D1 (espelhado da planilha Meta a cada ciclo do sync), independente do Notion.';
     gestorRenderTudo();
     if (gestorAgoTimer) clearInterval(gestorAgoTimer);
     gestorAtualizarAgo();
@@ -4073,6 +4076,15 @@ function gestorRenderTickets(filtrados) {
 async function gestorAbrirTicket(id) {
   const c = (gestorChamadosCache||[]).find(x => x.id === id);
   if (!c) return;
+  // Chamado ainda sem card no Notion (criado enquanto o plano gratuito
+  // estava travado, por exemplo) -- nao tem como abrir o detalhe/retorno
+  // ate ele sincronizar. Isso deve sumir sozinho assim que o Notion for
+  // resolvido (upgrade de plano ou migracao completa pro D1).
+  if (!c.notionPageId) {
+    alert('Esse chamado ainda não sincronizou no Notion (provavelmente por causa do limite de blocos do plano gratuito). Os dados básicos já aparecem na lista, mas o detalhe/retorno fica disponível assim que a sincronização for concluída.');
+    return;
+  }
+  id = c.notionPageId;
   const modal = document.getElementById('gestor-modal');
   modal.style.display = 'flex';
   document.getElementById('gestor-modal-body').innerHTML = '<div style="text-align:center;padding:2rem"><div class="spinner"></div></div>';
@@ -4152,7 +4164,7 @@ function gestorRenderTudo() {
 
   const nota = document.getElementById('gestor-fonte-nota');
   if (nota) {
-    nota.innerHTML = 'Fonte de dados: Notion (base "Chamados Meta"), a mesma usada no restante do portal.' +
+    nota.innerHTML = 'Fonte de dados: banco D1 (espelhado da planilha Meta a cada ciclo do sync), independente do Notion.' +
       '<br>Dois indicadores do briefing ainda não estão disponíveis por falta de dado na origem: ' +
       '<b>SLA</b> (não existe meta de prazo por setor/prioridade cadastrada hoje) e ' +
       '<b>reincidência</b> (não há um identificador estável de cliente/posto separado do título do chamado). ' +
