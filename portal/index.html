@@ -1453,6 +1453,19 @@ function contatoPertenceAoUsuario(page, contatosUsuario) {
     return chaveChamado === chaveUsuario;
   });
 }
+// Mesma logica de contatoPertenceAoUsuario, mas pra uma linha "achatada"
+// do D1 (row.contato_digisac_tel) em vez de uma pagina do Notion. Usado
+// por carregarMeusChamados/buscar desde a migracao de 18/09/2026.
+function contatoPertenceAoUsuarioD1(row, contatosUsuario) {
+  if (!contatosUsuario || !contatosUsuario.length) return true;
+  const chaveChamado = phoneKey(row.contato_digisac_tel || '');
+  if (!chaveChamado || chaveChamado.length < 8) return false;
+  return contatosUsuario.some(u => {
+    const chaveUsuario = phoneKey(u);
+    if (!chaveUsuario || chaveUsuario.length < 8) return false;
+    return chaveChamado === chaveUsuario;
+  });
+}
 function fmtDate(d) {
   if (!d || d === 'Invalid Date') return '—';
   try { const dt = new Date(d.includes('T') ? d : d+'T12:00:00'); if (isNaN(dt.getTime())) return '—'; return dt.toLocaleDateString('pt-BR'); } catch { return '—'; }
@@ -1645,6 +1658,19 @@ function voltarLista() {
 }
 
 // ---- Carregar lista "Meus chamados" ----
+// Busca TODOS os chamados no D1 (fonte unica desde 18/09/2026, tanto pro
+// Painel do Gestor quanto pra essas telas de cliente/colaborador) e
+// filtra no proprio navegador -- troca a estrategia antiga de montar
+// filtros diferentes pro Notion (equals/contains por propriedade) por um
+// unico fetch + filtro em JS, ja que o D1 nao tem (ainda) um endpoint de
+// query por campo. Pra volume de centenas de chamados isso e trivial.
+async function fetchTodosChamadosD1() {
+  const r = await fetch(`${PROXY}/d1/chamados`);
+  const d = await r.json();
+  if (!r.ok || !d.ok) throw new Error(d.error || 'Erro ao consultar D1');
+  return d.chamados || [];
+}
+
 async function carregarMeusChamados() {
   const wrap = document.getElementById('lista-wrap');
   const body = document.getElementById('lista-body');
@@ -1652,93 +1678,51 @@ async function carregarMeusChamados() {
   wrap.style.display = 'block';
   body.innerHTML = '<div style="text-align:center;padding:2rem"><div class="spinner"></div></div>';
   try {
-    let results;
+    const todos = await fetchTodosChamadosD1();
     const chavesTelefone = (currentUser.unidades||[]).map(u => phoneKey(u)).filter(k => k && k.length >= 8);
+    let results;
 
     if (currentUser.atendenteSRG) {
       // Colaborador interno vinculado a um Solicitante (ex: Felipe,
-      // Vitoria, Junior): filtra direto no Notion pelo campo "Solicitante".
-      // O nome é digitado a mão em cada chamado e varia (com/sem acento,
-      // "Maria" na frente, etc) -- por isso o campo do usuário aceita
-      // várias variações separadas por vírgula, e aqui viram um OR de
-      // "equals" (Notion não faz match sem acento sozinho). Pagina até
-      // trazer TODOS os chamados, igual ao filtro por telefone.
-      const aliases = atendenteSRGAliases(currentUser.atendenteSRG);
-      const filtroSolicitante = aliases.length > 1
-        ? { or: aliases.map(a => ({ property:'Solicitante', rich_text:{ equals: a } })) }
-        : { property:'Solicitante', rich_text:{ equals: aliases[0] } };
-      let todos = [];
-      let cursor = undefined;
-      do {
-        const payload = { page_size:100, sorts:[{timestamp:'last_edited_time',direction:'descending'}], filter: filtroSolicitante };
-        if (cursor) payload.start_cursor = cursor;
-        const r = await fetch(`${PROXY}/v1/databases/${DB}/query`, {
-          method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload)
-        });
-        const d = await r.json();
-        if (!r.ok) throw new Error(d.message||'Erro');
-        todos = todos.concat(d.results||[]);
-        cursor = d.has_more ? d.next_cursor : null;
-      } while (cursor);
-      results = todos;
+      // Vitoria, Junior): filtra pelo campo "solicitante" do D1. O nome é
+      // digitado a mão em cada chamado e varia (com/sem acento, "Maria"
+      // na frente, etc) -- por isso o campo do usuário aceita várias
+      // variações separadas por vírgula (ver atendenteSRGAliases), e a
+      // comparação e tolerante a acento/caixa (nomeComparavel).
+      const aliasesComp = atendenteSRGAliases(currentUser.atendenteSRG).map(nomeComparavel);
+      results = todos.filter(row => aliasesComp.includes(nomeComparavel(row.solicitante)));
     } else if (chavesTelefone.length) {
-      // Usuario restrito por telefone: filtra direto no Notion pelo campo
-      // "Contato Digisac" (contains), em vez de trazer só os 30 mais
-      // recentes de TODA a base e filtrar depois -- isso garante que
-      // chamados mais antigos do cliente tambem apareçam.
-      const filtroTelefone = chavesTelefone.length === 1
-        ? { property:'Contato Digisac', rich_text:{ contains: chavesTelefone[0] } }
-        : { or: chavesTelefone.map(k => ({ property:'Contato Digisac', rich_text:{ contains: k } })) };
-      // Pagina ate trazer TODOS os chamados do cliente (Notion so devolve
-      // ate 100 por pagina) -- desde o primeiro chamado dele, sem limite.
-      let todos = [];
-      let cursor = undefined;
-      do {
-        const payload = { page_size:100, sorts:[{timestamp:'last_edited_time',direction:'descending'}], filter: filtroTelefone };
-        if (cursor) payload.start_cursor = cursor;
-        const r = await fetch(`${PROXY}/v1/databases/${DB}/query`, {
-          method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload)
-        });
-        const d = await r.json();
-        if (!r.ok) throw new Error(d.message||'Erro');
-        todos = todos.concat(d.results||[]);
-        cursor = d.has_more ? d.next_cursor : null;
-      } while (cursor);
-      // O filtro do Notion e "contains" (substring), entao ainda passamos
-      // pelo match fino em JS pra eliminar qualquer falso positivo.
-      results = todos.filter(p => contatoPertenceAoUsuario(p, currentUser.unidades));
+      // Usuario restrito por telefone: filtra pelo campo contato_digisac_tel.
+      results = todos.filter(row => contatoPertenceAoUsuarioD1(row, currentUser.unidades));
     } else {
-      // Admin / usuario sem restricao: mantem o comportamento original
-      // (30 mais recentes de toda a base).
-      const r = await fetch(`${PROXY}/v1/databases/${DB}/query`, {
-        method:'POST', headers:{'Content-Type':'application/json'},
-        body: JSON.stringify({ page_size:30, sorts:[{timestamp:'last_edited_time',direction:'descending'}] })
-      });
-      const d = await r.json();
-      if (!r.ok) throw new Error(d.message||'Erro');
-      results = d.results || [];
+      // Admin / usuario sem restricao: ve tudo.
+      results = todos;
     }
+
+    // Ordena por atualizacao mais recente primeiro (equivalente ao
+    // "sorts: last_edited_time descending" que o Notion fazia).
+    results = results.slice().sort((a,b) => new Date(b.updated_at) - new Date(a.updated_at));
 
     if (currentDataDe || currentDataAte) {
       const ini = currentDataDe ? new Date(currentDataDe+'T00:00:00') : null;
       const fim = currentDataAte ? new Date(currentDataAte+'T23:59:59') : new Date();
-      results = results.filter(p => { const d = new Date(p.created_time); return (!ini || d >= ini) && d <= fim; });
+      results = results.filter(row => { const d = parseDataBR(row.data_abertura) || new Date(row.created_at); return (!ini || d >= ini) && d <= fim; });
     } else if (currentPeriodo > 0) {
       const limite = new Date(); limite.setDate(limite.getDate()-currentPeriodo);
-      results = results.filter(p => new Date(p.created_time) >= limite);
+      results = results.filter(row => (parseDataBR(row.data_abertura) || new Date(row.created_at)) >= limite);
     }
     if (currentStatusFiltro.length) {
-      results = results.filter(p => currentStatusFiltro.includes(gp(p,'Status','select')));
+      results = results.filter(row => currentStatusFiltro.includes(row.status));
     } else {
       results = [];
     }
     // Chamados "Resolvido" ficam limitados aos 10 mais recentes (results
-    // ja vem ordenado por last_edited_time descendente); todos os demais
+    // ja vem ordenado por updated_at descendente); todos os demais
     // status (Em Andamento, Aguardando Meta, Pendente SRG, Pendente PO)
     // aparecem sem limite nenhum.
     let resolvidosContados = 0;
-    results = results.filter(p => {
-      if (gp(p,'Status','select') === 'Resolvido') {
+    results = results.filter(row => {
+      if (row.status === 'Resolvido') {
         resolvidosContados++;
         return resolvidosContados <= 10;
       }
@@ -1750,18 +1734,17 @@ async function carregarMeusChamados() {
       body.innerHTML = '<div class="glass" style="padding:2rem;text-align:center;font:500 13px Manrope;color:#b3c4e0">Nenhum chamado encontrado no período selecionado.</div>';
       return;
     }
-    body.innerHTML = results.map((p,i) => {
-      const nome = gp(p,'Cliente','title');
-      const status = gp(p,'Status','select');
-      const proto = gp(p,'Protocolo Digisac','rich_text');
-      const abertura = gp(p,'Data Abertura','date');
-      const dtDigisac = gp(p,'Data Digisac','date');
-      const ultimaInt = gp(p,'Última Interação (Data)','date');
-      const nomeContatoLista = gp(p,'Nome Contato Digisac','rich_text');
+    body.innerHTML = results.map((row,i) => {
+      const nome = row.cliente;
+      const status = row.status;
+      const proto = row.protocolo;
+      const abertura = row.data_abertura;
+      const ultimaInt = row.ultima_interacao_data;
+      const nomeContatoLista = row.contato_digisac_nome;
       const kind = statusKind(status);
       const resolvido = status === 'Resolvido';
-      const diasAberto = diasDesde(dtDigisac || abertura);
-      const diasParado = diasDesde(ultimaInt || p.last_edited_time);
+      const diasAberto = diasDesde(abertura);
+      const diasParado = diasDesde(ultimaInt || row.updated_at);
       const parado5mais = !resolvido && diasParado !== null && diasParado >= 5;
       return `<div onclick="abrirDetalheIndex(${i})" style="display:flex;align-items:center;gap:18px;padding:20px 22px;border-radius:18px;cursor:pointer;background:rgba(255,255,255,.045);backdrop-filter:blur(18px);border:1px solid rgba(255,255,255,.1)">
         <span style="width:12px;height:12px;border-radius:50%;flex-shrink:0;background:${KIND_COLOR[kind]};box-shadow:0 0 0 4px ${KIND_COLOR[kind]}22"></span>
@@ -1769,7 +1752,7 @@ async function carregarMeusChamados() {
           <div style="font:700 15.5px Manrope;color:#eaf1ff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${nome||'Sem assunto'}</div>
           <div style="display:flex;gap:16px;flex-wrap:wrap;margin-top:5px;font:500 12.5px Manrope;color:#b3c4e0">
             ${nomeContatoLista ? `<span>${nomeContatoLista}</span>` : ''}
-            <span>Protocolo ${proto||'—'}</span><span>· Aberto em ${fmtDate(dtDigisac||abertura)}</span>
+            <span>Protocolo ${proto||'—'}</span><span>· Aberto em ${fmtDate(abertura)}</span>
             <span>· ${diasLabel(diasAberto)} em aberto</span>
             ${!resolvido ? `<span style="${parado5mais?'color:#fc9a6a;font-weight:700':''}">· ${diasLabel(diasParado)} parado</span>` : ''}
           </div>
@@ -1916,47 +1899,37 @@ async function buscar() {
   document.getElementById('detalhe-wrap').style.display = 'none';
   res.innerHTML = '<div style="text-align:center;padding:2rem"><div class="spinner"></div></div>';
   try {
-    const searches = [ {property:'Protocolo Digisac'}, {property:'Ticket Meta'} ];
-    let found = null;
-    for (const s of searches) {
-      if (found) break;
-      const body = { page_size:50, filter:{property:s.property, rich_text:{contains:q}} };
-      const r = await fetch(`${PROXY}/v1/databases/${DB}/query`, { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body) });
-      const d = await r.json();
-      if (!r.ok) throw new Error(d.message||'Erro');
-      let exato = (d.results||[]).filter(p => { const val = gp(p,s.property,'rich_text'); return val === q || val.includes(q); });
-      if (currentUser.unidades && currentUser.unidades.length) {
-        exato = exato.filter(p => contatoPertenceAoUsuario(p, currentUser.unidades));
-      }
-      if (exato.length) found = exato.sort((a,b)=>new Date(b.last_edited_time)-new Date(a.last_edited_time))[0];
+    const todos = await fetchTodosChamadosD1();
+    // Restringe primeiro pelo que o usuario pode ver (mesma logica de
+    // carregarMeusChamados), depois procura dentro desse recorte --
+    // assim a busca nunca "vaza" chamado de outro cliente/colaborador.
+    let visiveis = todos;
+    if (currentUser.atendenteSRG) {
+      const aliasesComp = atendenteSRGAliases(currentUser.atendenteSRG).map(nomeComparavel);
+      visiveis = visiveis.filter(row => aliasesComp.includes(nomeComparavel(row.solicitante)));
+    } else if (currentUser.unidades && currentUser.unidades.length) {
+      visiveis = visiveis.filter(row => contatoPertenceAoUsuarioD1(row, currentUser.unidades));
     }
+
+    // 1) tenta match exato/contains em Protocolo ou Ticket/SO.
+    let exato = visiveis.filter(row => {
+      const proto = row.protocolo || '';
+      const ticket = row.ticket_so || '';
+      return proto === q || proto.includes(q) || ticket === q || ticket.includes(q);
+    });
+    let found = exato.length ? exato.sort((a,b)=>new Date(b.updated_at)-new Date(a.updated_at))[0] : null;
     res.innerHTML = '';
     if (found) { mostrarDetalhe(found); return; }
 
-    // Não achou por protocolo/ticket -- tenta por palavra, no Cliente
-    // (titulo, ex: "CAC 21 — Integração > Shell [Raizen]") e na Descrição
-    // Completa. Se achar mais de um, mostra como lista pra escolher; se
-    // achar só um, abre direto o detalhe.
-    const filtroPalavra = {
-      or: [
-        { property:'Cliente', title:{ contains:q } },
-        { property:'Descrição Completa', rich_text:{ contains:q } },
-      ],
-    };
-    const body = { page_size:50, sorts:[{timestamp:'last_edited_time',direction:'descending'}], filter: filtroPalavra };
-    const r = await fetch(`${PROXY}/v1/databases/${DB}/query`, { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body) });
-    const d = await r.json();
-    if (!r.ok) throw new Error(d.message||'Erro');
-    let achados = d.results || [];
-    if (currentUser.unidades && currentUser.unidades.length) {
-      achados = achados.filter(p => contatoPertenceAoUsuario(p, currentUser.unidades));
-    }
-    if (currentUser.atendenteSRG) {
-      // Comparação tolerante a acento/caixa, contra qualquer uma das
-      // variações cadastradas (ver atendenteSRGAliases/nomeComparavel).
-      const aliasesComp = atendenteSRGAliases(currentUser.atendenteSRG).map(nomeComparavel);
-      achados = achados.filter(p => aliasesComp.includes(nomeComparavel(gp(p,'Solicitante','rich_text'))));
-    }
+    // Não achou por protocolo/ticket -- tenta por palavra, no Cliente e
+    // na Descrição Completa. Se achar mais de um, mostra como lista pra
+    // escolher; se achar só um, abre direto o detalhe.
+    const qLower = nomeComparavel(q);
+    let achados = visiveis.filter(row =>
+      nomeComparavel(row.cliente || '').includes(qLower) ||
+      nomeComparavel(row.descricao_completa || '').includes(qLower)
+    );
+    achados.sort((a,b)=>new Date(b.updated_at)-new Date(a.updated_at));
     if (!achados.length) {
       res.innerHTML = `<div class="glass" style="padding:2rem;text-align:center"><div style="font:700 15px Outfit,sans-serif;color:#f2f7ff;margin-bottom:6px">Chamado não encontrado</div><div style="font:400 13px Manrope;color:#b3c4e0">Verifique o número/palavra informado ou entre em contato com o suporte.</div></div>`;
       return;
@@ -1980,13 +1953,13 @@ function mostrarResultadosBusca(achados, termo) {
   res.innerHTML = `
     <div style="font:600 12.5px Manrope;color:#93a6c4;margin-bottom:12px">${achados.length} chamado${achados.length>1?'s':''} encontrado${achados.length>1?'s':''} para "${termo}"</div>
     <div style="display:flex;flex-direction:column;gap:10px">
-      ${achados.map((p,i) => {
-        const nome = gp(p,'Cliente','title') || 'Sem assunto';
-        const status = gp(p,'Status','select');
-        const proto = gp(p,'Protocolo Digisac','rich_text');
-        const setor = gp(p,'Setor Suporte','select');
-        const atendente = gp(p,'Atendente','rich_text');
-        const abertura = gp(p,'Data Abertura','date');
+      ${achados.map((row,i) => {
+        const nome = row.cliente || 'Sem assunto';
+        const status = row.status;
+        const proto = row.protocolo;
+        const setor = row.setor_suporte;
+        const atendente = row.atendente;
+        const abertura = row.data_abertura;
         return `<div onclick="mostrarDetalhe(window.buscaResultadosCache[${i}])" style="display:flex;align-items:center;gap:16px;padding:14px 16px;border-radius:14px;cursor:pointer;background:rgba(255,255,255,.035);border:1px solid rgba(255,255,255,.08)">
           <span style="width:10px;height:10px;border-radius:50%;flex-shrink:0;background:${KIND_COLOR[statusKind(status)]}"></span>
           <div style="flex:1;min-width:0">
@@ -2007,7 +1980,7 @@ var detalheIntervalAutoRefresh = null;
 async function mostrarDetalhe(found) {
   document.getElementById('lista-wrap').style.display = 'none';
   document.getElementById('search-result').innerHTML = '';
-  detalheChamadoId = found.id;
+  detalheChamadoId = found.id_interno;
   await detalheRenderizar(found);
   document.getElementById('detalhe-wrap').style.display = 'block';
   window.scrollTo(0,0);
@@ -2022,9 +1995,8 @@ async function mostrarDetalhe(found) {
 async function detalheAtualizar() {
   if (!detalheChamadoId) return;
   try {
-    const r = await fetch(`${PROXY}/v1/pages/${detalheChamadoId}`);
-    const pageFresca = await r.json();
-    if (pageFresca && pageFresca.object === 'page') await detalheRenderizar(pageFresca);
+    const fresco = await fetchD1Chamado(detalheChamadoId);
+    if (fresco) await detalheRenderizar(fresco);
   } catch (e) { /* mantem o que ja esta na tela se a rede falhar */ }
 }
 function detalheIniciarAutoRefresh() {
@@ -2039,22 +2011,25 @@ function detalhePararAutoRefresh() {
 
 async function detalheRenderizar(found) {
   document.getElementById('detalhe-ultima-att').textContent = 'atualizado agora mesmo · atualiza sozinho a cada 30s';
-  const nome        = gp(found,'Cliente','title');
-  const status      = gp(found,'Status','select');
-  const setor       = gp(found,'Setor Suporte','select');
-  const abertura    = gp(found,'Data Abertura','date');
-  const urgencia    = gp(found,'Urgência','select')||gp(found,'Urgência','rich_text');
-  const ticket      = gp(found,'Ticket Meta','rich_text');
-  const proto       = gp(found,'Protocolo Digisac','rich_text');
-  const atendenteMeta = gp(found,'Atendente','rich_text');
-  const atendenteSRG  = gp(found,'Solicitante','rich_text');
-  const categoria   = gp(found,'Categoria','select');
-  const nivelAtd    = gp(found,'Nível de Atendimento','select');
-  const nomeContato = gp(found,'Nome Contato Digisac','rich_text');
-  const descCompleta= gp(found,'Descrição Completa','rich_text');
-  const solucaoTxt  = gp(found,'Solução','rich_text');
-  const dtDigisac= gp(found,'Data Digisac','date');
-  const editado  = found.last_edited_time;
+  // Migrado de Notion pra D1 em 18/09/2026 -- "found" agora e uma linha
+  // achatada do D1 (mesmo formato do que fetchTodosChamadosD1/
+  // fetchD1Chamado retornam), nao mais uma pagina do Notion.
+  const nome        = found.cliente;
+  const status      = found.status;
+  const setor       = found.setor_suporte;
+  const abertura    = found.data_abertura;
+  const urgencia    = found.urgencia;
+  const ticket      = found.ticket_so;
+  const proto       = found.protocolo;
+  const atendenteMeta = found.atendente;
+  const atendenteSRG  = found.solicitante;
+  const categoria   = found.categoria;
+  const nivelAtd    = found.nivel_atendimento;
+  const nomeContato = found.contato_digisac_nome;
+  const descCompleta= found.descricao_completa;
+  const solucaoTxt  = found.solucao;
+  const editado  = found.updated_at;
+  const idInternoAtual = found.id_interno;
   currentProto = proto || '';
 
   document.getElementById('detalhe-header').innerHTML = `
@@ -2092,22 +2067,17 @@ async function detalheRenderizar(found) {
     </div>`;
 
   const ehEquipeSRG = !!(currentUser && (currentUser.atendenteSRG || currentUser.gestor || currentUser.role === 'admin'));
-  // Retorno SRG agora mora no D1, nao mais no Notion -- "ID Interno" e a
-  // chave que liga o card do Notion (ainda usado aqui pros dados basicos,
-  // ver tarefa pendente de migrar "Meus Chamados" tambem) ao registro do
-  // D1 (que tem o historico de retorno atualizado).
-  const idInternoAtual = gp(found,'ID Interno','rich_text');
-  const chamadoD1 = await fetchD1Chamado(idInternoAtual);
-  const dadosTimeline = chamadoD1 || { status, data_abertura: abertura, setor_suporte: setor, solucao: solucaoTxt, updated_at: editado };
-  document.getElementById('timeline-body').innerHTML = buildTimeline(dadosTimeline, ehEquipeSRG ? idInternoAtual : null, 'cli');
-  const ultimaInt = gp(found,'Última Interação (Data)','date');
+  // "found" ja e a linha completa do D1 (retorno_srg_json/data/autor
+  // inclusos) -- nao precisa de um fetch extra separado igual antes.
+  document.getElementById('timeline-body').innerHTML = buildTimeline(found, ehEquipeSRG ? idInternoAtual : null, 'cli');
+  const ultimaInt = found.ultima_interacao_data;
   const resolvido = status === 'Resolvido';
-  const diasAberto = diasDesde(dtDigisac || abertura);
+  const diasAberto = diasDesde(abertura);
   const diasParado = diasDesde(ultimaInt || editado);
   const parado5mais = !resolvido && diasParado !== null && diasParado >= 5;
   document.getElementById('details-body').innerHTML = [
     ['Cliente', nomeContato||'—'], ['Assunto', nome||'—'], ['Setor', setor||'—'], ['Prioridade', urgencia||'Normal'],
-    ['Aberto em', dtDigisac ? fmtDate(dtDigisac) : fmtDate(abertura)], ['Última atualização', fmtDateTime(editado)],
+    ['Aberto em', fmtDate(abertura)], ['Última atualização', fmtDateTime(editado)],
     ['Dias em aberto', diasLabel(diasAberto)],
     ...(resolvido ? [] : [['Dias parado', `<span style="${parado5mais?'color:#fc9a6a':''}">${diasLabel(diasParado)}</span>`]]),
     ['Atendente Meta', atendenteMeta||'—'], ['Atendente SRG', atendenteSRG||'—'], ['Categoria', categoria||'—'],
