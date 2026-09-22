@@ -570,13 +570,22 @@ footer.foot{border-top:1px solid rgba(255,255,255,.07);background:rgba(10,16,36,
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="m18 15-6-6-6 6"/></svg>
             </span>
           </div>
-          <span id="gestor-melhorias-count" style="font:600 12.5px Manrope;color:#93a6c4"></span>
+          <div style="display:flex;align-items:center;gap:12px">
+            <select id="gestor-melhorias-status-select" onchange="event.stopPropagation();setGestorMelhoriasStatus(this.value)" onclick="event.stopPropagation()" style="height:32px;padding:0 10px;border-radius:9px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.2);color:#eaf1ff;font:500 12px Manrope">
+              <option value="todos">Todos os status</option>
+              <option value="Em Andamento">Em Andamento</option>
+              <option value="Aguardando Meta">Aguardando Meta</option>
+              <option value="Pendente SRG">Pendente SRG</option>
+              <option value="Pendente PO">Pendente PO</option>
+            </select>
+            <span id="gestor-melhorias-count" style="font:600 12.5px Manrope;color:#93a6c4"></span>
+          </div>
         </div>
         <p style="font:400 12px Manrope;color:#7186ab;margin:8px 0 16px">Chamados com categoria "Solicitação" ou status "Pendente PO" -- pedidos de melhoria/desenvolvimento encaminhados, ainda não resolvidos.</p>
         <div id="gestor-melhorias-wrap" class="gestor-scroll">
           <table class="gestor-table" id="gestor-melhorias">
             <thead><tr>
-              <th>Chamado</th><th>Cliente</th><th>Setor</th><th>Ticket/SO</th><th>Aberto há</th><th>Motivo</th><th>Status</th>
+              <th>Chamado</th><th>Cliente</th><th>Categoria</th><th>Setor</th><th>Ticket/SO</th><th>Aberto há</th><th>Descrição</th><th>Status</th>
             </tr></thead>
             <tbody id="gestor-melhorias-body"></tbody>
           </table>
@@ -2474,6 +2483,7 @@ const gestorState = {
   coorteDias: null, // 7 | 15 | 30 | null -- quando preenchido, o grafico de evolucao muda pra visao de coorte (ver gestorRenderEvolucaoCoorte)
   listaAberta: true, // "Todos os chamados" pode ficar muito longa (100+) -- da pra recolher
   melhoriasAberta: true, // mesmo esquema de recolher, pra "Melhorias pendentes"
+  melhoriasStatus: 'todos', // filtro de status proprio da tabela "Melhorias pendentes" ('todos' ou um Status exato)
   atencaoExpandido: false, // "Chamados que exigem atenção" mostra so os 15 primeiros por padrao -- da pra expandir e ver todos
 };
 
@@ -2527,6 +2537,7 @@ async function getChamados({ forcar=false } = {}) {
       nivelAtendimento: row.nivel_atendimento || 'N2',
       protocolo: row.protocolo || '',
       categoria: row.categoria || '',
+      descricaoCompleta: row.descricao_completa || '',
       ticketMeta: row.ticket_so || '',
       // "Melhoria" = pedido de desenvolvimento pro sistema (categoria
       // "Solicitação" na planilha, ou status "Pendente PO" -- fila do
@@ -3995,9 +4006,11 @@ function gestorRenderAtencao(resultado) {
 // "Pendente PO" (fila do Product Owner da Meta), ainda nao resolvidos.
 // Usa a mesma base ja filtrada pelos filtros de cima (periodo/setor/
 // atendente/status), igual "Chamados que exigem atenção".
+function setGestorMelhoriasStatus(v) { gestorState.melhoriasStatus = v; gestorRenderMelhorias(gestorCalcularMelhorias(gestorAplicarFiltros(gestorChamadosCache || []))); }
 function gestorCalcularMelhorias(filtrados) {
   const todas = filtrados
     .filter(c => c.melhoria && c.balde !== 'resolvido')
+    .filter(c => gestorState.melhoriasStatus === 'todos' || c.status === gestorState.melhoriasStatus)
     .map(c => ({ ...c, dias: diasDesde(c.dataAbertura) || 0 }))
     .sort((a,b) => b.dias - a.dias);
   return { linhas: todas, total: todas.length };
@@ -4010,24 +4023,28 @@ function gestorRenderMelhorias(resultado) {
   if (wrapEl) wrapEl.style.display = gestorState.melhoriasAberta ? 'block' : 'none';
   const setaEl = document.getElementById('gestor-toggle-melhorias-seta');
   if (setaEl) setaEl.style.transform = gestorState.melhoriasAberta ? 'rotate(0deg)' : 'rotate(-90deg)';
+  const selectEl = document.getElementById('gestor-melhorias-status-select');
+  if (selectEl && selectEl.value !== gestorState.melhoriasStatus) selectEl.value = gestorState.melhoriasStatus;
   const el = document.getElementById('gestor-melhorias-body');
-  if (!linhas.length) { el.innerHTML = `<tr><td colspan="7" style="color:#7186ab">Nenhuma melhoria pendente no filtro atual.</td></tr>`; return; }
+  if (!linhas.length) { el.innerHTML = `<tr><td colspan="8" style="color:#7186ab">Nenhuma melhoria pendente no filtro atual.</td></tr>`; return; }
   el.innerHTML = linhas.map(c => {
-    // Mostra POR QUE esse chamado caiu aqui -- categoria "Solicitação" e
-    // status "Pendente PO" sao criterios independentes (pode bater um,
-    // outro, ou os dois), e sem isso fica dificil de entender olhando so
-    // Setor/Status (ex: categoria Solicitação com status Aguardando Meta).
-    const motivos = [];
-    if (c.categoria === 'Solicitação') motivos.push('Categoria: Solicitação');
-    if (c.status === 'Pendente PO') motivos.push('Status: Pendente PO');
+    // Categoria ("Solicitação"/"Problema"/"Incidente" etc, vinda direto da
+    // planilha) agora tem coluna propria -- antes so aparecia embutida no
+    // texto generico de "Motivo". A coluna de descricao mostra o texto
+    // real do problema (descricao_completa, vindo do D1), truncado, com
+    // o texto integral disponivel no title (tooltip ao passar o mouse) e
+    // no modal de detalhe ao clicar na linha.
+    const descricao = (c.descricaoCompleta || '').trim();
+    const descricaoCurta = descricao ? (descricao.length > 90 ? descricao.slice(0, 90) + '…' : descricao) : '—';
     return `
     <tr class="clicavel" onclick="gestorAbrirTicket('${c.id}')">
       <td style="color:#8fd0f5;font-family:'IBM Plex Mono',monospace">${c.protocolo||'—'}</td>
       <td style="color:#eaf1ff">${c.cliente}</td>
+      <td style="color:#c3aef0;font-size:12px">${c.categoria||'—'}</td>
       <td style="color:#b3c4e0">${c.setor}</td>
       <td style="color:#8fd0f5;font-family:'IBM Plex Mono',monospace">${c.ticketMeta||'—'}</td>
       <td>${diasLabel(c.dias)}</td>
-      <td style="color:#93a6c4;font-size:12px">${motivos.join(' + ')}</td>
+      <td style="color:#93a6c4;font-size:12px" title="${descricao.replace(/"/g,'&quot;')}">${descricaoCurta}</td>
       <td><span style="font:700 11px Manrope;padding:3px 10px;border-radius:999px;background:#a992e022;color:#a992e0;border:1px solid #a992e055;white-space:nowrap">${c.status}</span></td>
     </tr>`;
   }).join('');
