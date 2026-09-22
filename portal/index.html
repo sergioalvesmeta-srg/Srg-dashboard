@@ -142,7 +142,13 @@ footer.foot{border-top:1px solid rgba(255,255,255,.07);background:rgba(10,16,36,
         <svg id="toggle-pass" width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="#8399be" stroke-width="1.8" stroke-linecap="round" style="cursor:pointer;flex-shrink:0" onclick="togglePass()"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg>
       </div>
 
-      <div style="text-align:right;margin-bottom:24px"><span onclick="showForgot()" style="font:600 13px Manrope;cursor:pointer;color:#5db4e6">Esqueci minha senha</span></div>
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:24px">
+        <label style="display:flex;align-items:center;gap:7px;font:500 13px Manrope;color:#bcccea;cursor:pointer;user-select:none">
+          <input type="checkbox" id="login-manter" style="width:15px;height:15px;accent-color:#5db4e6;cursor:pointer">
+          Manter conectado
+        </label>
+        <span onclick="showForgot()" style="font:600 13px Manrope;cursor:pointer;color:#5db4e6">Esqueci minha senha</span>
+      </div>
 
       <button class="btn-primary" style="width:100%" id="login-btn" onclick="doLogin()">
         <span id="login-btn-text">Entrar</span>
@@ -983,7 +989,7 @@ async function salvarNomeExibicao() {
     const data = await apiUpdateProfile(currentUser.token, nome);
     if (!data.ok) { mostrarMsg(data.error || 'Não foi possível salvar o nome.', '#fc8181'); return; }
     currentUser = { ...currentUser, nome };
-    sessionStorage.setItem('srg_user', JSON.stringify(currentUser));
+    salvarSessaoLocal();
     // Atualiza tudo que exibe o nome na hora, sem precisar recarregar a pagina
     const nomeExibido = nome || currentUser.username;
     document.getElementById('dash-greeting').textContent = `Olá, ${nomeExibido}! 👋`;
@@ -1168,12 +1174,22 @@ function showView(name) {
 }
 
 // ---- Login / Logout ----
+// "Manter conectado" (checkbox login-manter): quando marcado, a sessao vai
+// pra localStorage em vez de sessionStorage -- sobrevive a fechar o
+// navegador/aba. A SENHA nunca e salva em lugar nenhum; so o token que o
+// Worker ja emite no login, exatamente como a sessao normal ja funcionava,
+// so que num storage que persiste mais tempo. Adicionado em 22/09/2026.
+function salvarSessaoLocal() {
+  const alvo = localStorage.getItem('srg_manter') === '1' ? localStorage : sessionStorage;
+  alvo.setItem('srg_user', JSON.stringify(currentUser));
+}
 async function doLogin() {
   const login = document.getElementById('login-user').value.trim().toLowerCase();
   const pass  = document.getElementById('login-pass').value;
   const err   = document.getElementById('login-error');
   const btn   = document.getElementById('login-btn');
   const btnText = document.getElementById('login-btn-text');
+  const manter = document.getElementById('login-manter').checked;
   if (!login || !pass) return;
   btn.disabled = true; btnText.textContent = 'Entrando...';
   const data = await apiLogin(login, pass);
@@ -1181,7 +1197,10 @@ async function doLogin() {
   if (data.ok) {
     currentUser = { username:data.username, nome:data.nome||'', role:data.role, unidades:data.unidades||[], token:data.token, gestor:!!data.gestor, verHistorico:!!data.verHistorico, verKPIs:!!data.verKPIs, verAcessoClientes:!!data.verAcessoClientes, atendenteSRG:data.atendenteSRG||'' };
     err.style.display = 'none';
-    sessionStorage.setItem('srg_user', JSON.stringify(currentUser));
+    if (manter) { localStorage.setItem('srg_manter', '1'); } else { localStorage.removeItem('srg_manter'); }
+    sessionStorage.removeItem('srg_user');
+    localStorage.removeItem('srg_user');
+    salvarSessaoLocal();
     enterApp();
   } else {
     err.textContent = data.error || 'Usuário ou senha inválidos.';
@@ -1193,9 +1212,12 @@ async function doLogout() {
   if (currentUser && currentUser.token) await apiLogout(currentUser.token);
   currentUser = null;
   sessionStorage.removeItem('srg_user');
+  localStorage.removeItem('srg_user');
+  localStorage.removeItem('srg_manter');
   showLogin();
   document.getElementById('login-user').value = '';
   document.getElementById('login-pass').value = '';
+  document.getElementById('login-manter').checked = false;
 }
 function enterApp() {
   const nomeExibido = currentUser.nome && currentUser.nome.trim() ? currentUser.nome.trim() : currentUser.username;
@@ -1220,9 +1242,11 @@ function enterApp() {
 // navegador, a mudança aparece sem precisar deslogar e logar de novo
 // (antes so pegava o dado do momento do login e ficava preso nele).
 (function initSession(){
-  const saved = sessionStorage.getItem('srg_user');
+  const manter = localStorage.getItem('srg_manter') === '1';
+  const saved = manter ? localStorage.getItem('srg_user') : sessionStorage.getItem('srg_user');
   if (saved) {
     currentUser = JSON.parse(saved);
+    document.getElementById('login-manter').checked = manter;
     enterApp();
     revalidarSessao();
   } else {
@@ -1235,7 +1259,7 @@ async function revalidarSessao() {
     const data = await apiValidate(currentUser.token);
     if (!data.ok) { doLogout(); return; } // sessao expirada ou usuario removido
     currentUser = { ...currentUser, nome:data.nome||'', role:data.role, unidades:data.unidades||[], gestor:!!data.gestor, verHistorico:!!data.verHistorico, verKPIs:!!data.verKPIs, verAcessoClientes:!!data.verAcessoClientes, atendenteSRG:data.atendenteSRG||'' };
-    sessionStorage.setItem('srg_user', JSON.stringify(currentUser));
+    salvarSessaoLocal();
     document.getElementById('nav-gestor').style.display = (currentUser.gestor || currentUser.role === 'admin') ? 'inline-block' : 'none';
     document.getElementById('nav-kpis').style.display = (currentUser.verKPIs || currentUser.gestor || currentUser.role === 'admin') ? 'inline-block' : 'none';
     document.getElementById('nav-acesso-clientes').style.display = (currentUser.verAcessoClientes || currentUser.gestor || currentUser.role === 'admin') ? 'inline-block' : 'none';
