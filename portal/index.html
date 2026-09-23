@@ -3178,11 +3178,34 @@ function acSelecionarMaquina(i) {
 }
 
 /* ---- Historico ---- */
+// O campo "data" do historico tem formatos MISTURADOS no banco: registros
+// antigos (importados do app Electron, antes da migracao pro portal web --
+// ver task #39/#40) ficam em "DD/MM/YYYY", os novos (gravados por
+// acConectar(), via hojeLocalStr()) ficam em "YYYY-MM-DD". O
+// "order=data.desc" do backend ordena como TEXTO puro, entao mistura os
+// dois formatos incorretamente (ex: "30/06/2026" vem antes de
+// "2026-08-27" so porque "3" > "2" como caractere). Por isso reordenamos
+// aqui no cliente, entendendo os dois formatos -- corrige a exibicao pros
+// 300 registros existentes sem precisar migrar nada no banco. Achado e
+// corrigido em 23/09/2026.
+function acParseDataHistorico(str) {
+  if (!str) return 0;
+  let d, m, y;
+  if (str.includes('-')) { [y, m, d] = str.split('-').map(Number); }
+  else if (str.includes('/')) { [d, m, y] = str.split('/').map(Number); }
+  else return 0;
+  const dt = new Date(y||0, (m||1)-1, d||1);
+  return isNaN(dt.getTime()) ? 0 : dt.getTime();
+}
 async function acCarregarHistorico() {
   const cont = document.getElementById('ac-hist-lista');
   cont.innerHTML = '<div style="font:400 13px Manrope;color:#7186ab;padding:12px">Carregando...</div>';
   try {
     acHistorico = await acGet('historico', '?select=*&order=data.desc,hora.desc&limit=300') || [];
+    acHistorico.sort((a,b) => {
+      const diff = acParseDataHistorico(b.data) - acParseDataHistorico(a.data);
+      return diff !== 0 ? diff : (b.hora||'').localeCompare(a.hora||'');
+    });
     acRenderHistorico();
   } catch(e) {
     cont.innerHTML = `<div style="color:#e29a9a;font:500 13px Manrope">Erro: ${acEsc(e.message)}</div>`;
