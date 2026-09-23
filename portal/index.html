@@ -814,6 +814,7 @@ footer.foot{border-top:1px solid rgba(255,255,255,.07);background:rgba(10,16,36,
           <button class="chip active" data-acstatus="" onclick="acSetStatus('',this)">Todos</button>
           <button class="chip" data-acstatus="disponivel" onclick="acSetStatus('disponivel',this)">Disponível</button>
           <button class="chip" data-acstatus="atendimento" onclick="acSetStatus('atendimento',this)">Em atendimento</button>
+          <button id="ac-finalizar-todos-btn" class="chip" onclick="acFinalizarTodos()" style="color:#e29a9a;display:none;margin-left:auto">Finalizar todos</button>
         </div>
         <div id="ac-contador" style="font:400 12.5px Manrope;color:#7186ab;margin-bottom:10px"></div>
         <div id="ac-clientes-lista" style="display:flex;flex-direction:column;gap:10px"></div>
@@ -2973,6 +2974,11 @@ function acRenderStats() {
       <div style="font:600 11px Manrope;letter-spacing:.08em;text-transform:uppercase;color:#7186ab;margin-bottom:6px">${label}</div>
       <div style="font:700 26px Outfit,sans-serif;color:${cor}">${val}</div>
     </div>`).join('');
+  const btnFinalizarTodos = document.getElementById('ac-finalizar-todos-btn');
+  if (btnFinalizarTodos) {
+    btnFinalizarTodos.style.display = emAtendimento > 0 ? 'inline-flex' : 'none';
+    btnFinalizarTodos.textContent = `Finalizar todos (${emAtendimento})`;
+  }
 }
 
 function acRenderCards() {
@@ -3031,6 +3037,33 @@ async function acFinalizarAtendimento(clienteId) {
     acRenderStats();
     acRenderCards();
   } catch(e) { alert('Erro ao finalizar atendimento: ' + e.message); }
+}
+
+// Finaliza TODOS os atendimentos em andamento de uma vez -- pedido do
+// Sergio em 23/09/2026, pra nao precisar clicar "Finalizar" cliente por
+// cliente quando sobram varios atendimentos abertos ao mesmo tempo.
+// Confirma antes (acao em lote, sem desfazer facil) e roda os PATCHs em
+// paralelo -- mesma chamada que acFinalizarAtendimento ja usa por
+// cliente, so que pra todos de uma vez.
+async function acFinalizarTodos() {
+  const emAtendimento = acClientes.filter(c => c.status === 'atendimento');
+  if (!emAtendimento.length) return;
+  if (!confirm(`Finalizar TODOS os ${emAtendimento.length} atendimento(s) em andamento agora?`)) return;
+  const btn = document.getElementById('ac-finalizar-todos-btn');
+  if (btn) { btn.disabled = true; btn.textContent = 'Finalizando...'; }
+  let erros = 0;
+  await Promise.all(emAtendimento.map(async c => {
+    try {
+      await acPatch('clientes', `?id=eq.${c.id}`, { status: 'disponivel', atendimento_maquina: '', atendimento_usuario: '' });
+      c.status = 'disponivel';
+      c.atendimento_maquina = '';
+      c.atendimento_usuario = '';
+    } catch(e) { erros++; }
+  }));
+  if (btn) btn.disabled = false;
+  acRenderStats();
+  acRenderCards();
+  if (erros) alert(`${erros} atendimento(s) não puderam ser finalizados automaticamente -- confira e finalize manualmente se precisar.`);
 }
 
 function acRenderModal() {
