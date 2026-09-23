@@ -545,7 +545,7 @@ footer.foot{border-top:1px solid rgba(255,255,255,.07);background:rgba(10,16,36,
         <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;cursor:pointer" onclick="gestorToggleLista()">
           <div style="display:flex;align-items:center;gap:10px">
             <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="#7fd4c0" stroke-width="1.9" stroke-linecap="round"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 9h18M8 4v16"/></svg>
-            <h3 style="font:700 17px Outfit,sans-serif;color:#f2f7ff;margin:0">Todos os chamados</h3>
+            <h3 style="font:700 17px Outfit,sans-serif;color:#f2f7ff;margin:0" title="Filtra pela data de ABERTURA dentro do período selecionado -- um chamado aberto antes do período e resolvido agora não aparece aqui, mesmo contando no card &quot;Resolvidos&quot;.">Todos os chamados <span style="font-weight:500;font-size:13px;color:#5c7095">· por abertura</span></h3>
             <span id="gestor-toggle-lista-seta" style="color:#7fd4c0;transition:transform .2s;display:flex;align-items:center">
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="m18 15-6-6-6 6"/></svg>
             </span>
@@ -3643,22 +3643,31 @@ function gestorRenderKPIs(baseSemPeriodo, janela) {
   const variacaoTxt = variacaoBacklog === 0 ? 'estável no período' : `${variacaoBacklog>0?'+':''}${variacaoBacklog} no período`;
   const variacaoCor = variacaoBacklog > 0 ? '#e0955f' : (variacaoBacklog < 0 ? '#5abfa0' : '#7186ab');
 
+  // title = tooltip explicando POR QUAL DATA esse card filtra -- a maioria
+  // conta pela data de ABERTURA dentro do periodo (igual "Todos os
+  // chamados" e os outros widgets), mas "Resolvidos"/"Taxa de resolução"
+  // sao a excecao proposital: contam pela data de CONCLUSÃO, entao podem
+  // incluir chamados abertos antes do periodo selecionado -- por isso o
+  // numero deles pode nao bater com o que aparece em "Todos os chamados".
+  // Adicionado em 23/09/2026 depois do Sergio notar essa diferenca.
+  const tituloAbertura = 'Conta pela data de ABERTURA dentro do período selecionado (mesmo critério de "Todos os chamados").';
+  const tituloConclusao = 'Conta pela data de CONCLUSÃO dentro do período -- pode incluir chamados abertos ANTES do período selecionado, por isso pode não bater com "Todos os chamados".';
   const cards = [
-    { label:'Pendências do período <span style="font-weight:500;color:#5c7095">· fluxo</span>', val: atuais.backlog, click:`gestorFiltrarPorKPI(['pendente','pendenteMeta','pendentePO'])`, cor:'#a992e0',
+    { label:'Pendências do período <span style="font-weight:500;color:#5c7095">· fluxo</span>', val: atuais.backlog, click:`gestorFiltrarPorKPI(['pendente','pendenteMeta','pendentePO'])`, cor:'#a992e0', title: tituloAbertura,
       badge: (anteriores ? gestorBadge(atuais.backlog, anteriores.backlog, {modo:'desce-bom', sufixo}) : '') + `<div style="margin-top:6px;font:600 11px Manrope;color:#7186ab" title="Passivo total acumulado ate agora, independente do periodo selecionado.">Total atual: <span style="color:#dbe6fb;font-weight:700">${backlogTotalAtual}</span> <span style="color:${variacaoCor}">(${variacaoTxt})</span></div>` },
-    { label:'Pendentes Meta <span style="font-weight:500;color:#5c7095">· fluxo</span>', val: atuais.pendentesMeta, click:`gestorFiltrarPorKPI('pendenteMeta')`, cor:'#e0955f',
+    { label:'Pendentes Meta <span style="font-weight:500;color:#5c7095">· fluxo</span>', val: atuais.pendentesMeta, click:`gestorFiltrarPorKPI('pendenteMeta')`, cor:'#e0955f', title: tituloAbertura,
       badge: anteriores ? gestorBadge(atuais.pendentesMeta, anteriores.pendentesMeta, {modo:'desce-bom', sufixo}) : '' },
-    { label:'Pendentes SRG <span style="font-weight:500;color:#5c7095">· fluxo</span>', val: atuais.pendentes, click:`gestorFiltrarPorKPI('pendente')`, cor:'#c15c5c',
+    { label:'Pendentes SRG <span style="font-weight:500;color:#5c7095">· fluxo</span>', val: atuais.pendentes, click:`gestorFiltrarPorKPI('pendente')`, cor:'#c15c5c', title: tituloAbertura,
       badge: anteriores ? gestorBadge(atuais.pendentes, anteriores.pendentes, {modo:'desce-bom', sufixo}) : '' },
-    { label:'Resolvidos <span style="font-weight:500;color:#5c7095">· fluxo</span>', val: atuais.resolvidos, click:`gestorFiltrarPorKPI('resolvido')`, cor:'#3fa08c',
+    { label:'Resolvidos <span style="font-weight:500;color:#5c7095">· fluxo</span>', val: atuais.resolvidos, click:`gestorFiltrarPorKPI('resolvido')`, cor:'#3fa08c', title: tituloConclusao,
       badge: anteriores ? gestorBadge(atuais.resolvidos, anteriores.resolvidos, {modo:'sobe-bom', sufixo}) : '' },
-    { label:'Taxa de resolução <span style="font-weight:500;color:#5c7095">· fluxo</span>', val: atuais.taxaResolucao.toFixed(0)+'%', click:`gestorFiltrarPorKPI('resolvido')`, cor:'#5db4e6',
+    { label:'Taxa de resolução <span style="font-weight:500;color:#5c7095">· fluxo</span>', val: atuais.taxaResolucao.toFixed(0)+'%', click:`gestorFiltrarPorKPI('resolvido')`, cor:'#5db4e6', title: tituloConclusao + ' Divide Resolvidos (por conclusão) por Chamados recebidos (por abertura) -- por isso pode passar de 100%.',
       badge: anteriores ? gestorBadge(atuais.taxaResolucao, anteriores.taxaResolucao, {modo:'sobe-bom', pontosPercentuais:true, casas:1, sufixo}) : '' },
-    { label:'Chamados recebidos <span style="font-weight:500;color:#5c7095">· fluxo</span>', val: atuais.recebidos, click:`gestorFiltrarPorKPI('todos')`, cor:'#f2f7ff',
+    { label:'Chamados recebidos <span style="font-weight:500;color:#5c7095">· fluxo</span>', val: atuais.recebidos, click:`gestorFiltrarPorKPI('todos')`, cor:'#f2f7ff', title: tituloAbertura,
       badge: anteriores ? gestorBadge(atuais.recebidos, anteriores.recebidos, {modo:'neutro', sufixo}) : '' },
   ];
   document.getElementById('gestor-kpis').innerHTML = cards.map(c => `
-    <div class="glass" ${c.click?`onclick="${c.click}"`:''} style="padding:20px 20px;cursor:${c.click?'pointer':'default'};text-align:left">
+    <div class="glass" ${c.click?`onclick="${c.click}"`:''} title="${c.title||''}" style="padding:20px 20px;cursor:${c.click?'pointer':'default'};text-align:left">
       <div style="font:600 12px Manrope;color:#93a6c4;margin-bottom:8px">${c.label}</div>
       <div style="font:700 26px Outfit,sans-serif;color:${c.cor};margin-bottom:8px">${c.val}</div>
       <div>${c.badge}</div>
