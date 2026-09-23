@@ -2561,6 +2561,12 @@ async function getChamados({ forcar=false } = {}) {
       dataAbertura,
       dataConclusao,
       lastEdited: row.updated_at,
+      // Usado so pra diferenciar, na lista "Todos os chamados", se a
+      // ultima atualizacao foi um Retorno SRG (dado pela propria SRG,
+      // dentro do chamado) ou uma mudanca vinda do sync da planilha
+      // (status/campo alterado do lado da Meta) -- ver fmtAtualizadoHa
+      // e gestorRenderTickets.
+      retornoSrgData: row.retorno_srg_data || null,
       page: null,
     };
   });
@@ -4170,15 +4176,29 @@ function gestorRenderTickets(filtrados) {
   el.innerHTML = ordenados.map(c => {
     const dias = c.balde !== 'resolvido' ? diasDesde(c.dataAbertura) : null;
     const atualizadoHa = fmtAtualizadoHa(c.lastEdited);
-    // Recente (<1h) ganha destaque verde -- e o caso que motivou o pedido:
-    // "dei retorno ha 5 minutos, nao preciso abrir de novo pra saber".
-    const atualizadoRecente = atualizadoHa && (atualizadoHa === 'agora mesmo' || atualizadoHa.endsWith('min atrás'));
+    // Diferencia a ORIGEM da ultima atualizacao, nao so se foi recente:
+    // - Retorno SRG (a propria SRG deu retorno dentro do chamado) -> verde.
+    // - Mudanca vinda do sync da planilha (status/campo alterado do lado
+    //   da Meta) -> azul.
+    // Retorno SRG grava retorno_srg_data no MESMO instante que atualiza
+    // updated_at (ver rota PATCH /d1/chamados/id/:id no Worker); o sync
+    // da planilha (/d1/upsert) nunca toca retorno_srg_data. Entao, se os
+    // dois timestamps praticamente coincidem, a ultima mudanca foi um
+    // retorno -- caso contrario, veio do sync. Pedido do Sergio em
+    // 23/09/2026.
+    const segAtras = c.lastEdited ? Math.floor((Date.now() - new Date(c.lastEdited).getTime())/1000) : null;
+    let corAtualizado = '#93a6c4'; // neutro (atualizacao antiga, sem destaque)
+    if (segAtras !== null && segAtras < 86400) {
+      const origemRetorno = c.retornoSrgData && Math.abs(new Date(c.lastEdited).getTime() - new Date(c.retornoSrgData).getTime()) < 5*60*1000;
+      corAtualizado = origemRetorno ? '#5abfa0' : '#5db4e6';
+    }
+    const atualizadoDestaque = corAtualizado !== '#93a6c4';
     return `
     <div onclick="gestorAbrirTicket('${c.id}')" style="display:flex;align-items:center;gap:16px;padding:14px 16px;border-radius:14px;cursor:pointer;background:rgba(255,255,255,.035);border:1px solid rgba(255,255,255,.08)">
       <span style="width:10px;height:10px;border-radius:50%;flex-shrink:0;background:${KIND_COLOR[statusKind(c.status)]}"></span>
       <div style="flex:1;min-width:0">
         <div style="font:700 14px Manrope;color:#eaf1ff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${c.cliente}</div>
-        <div style="font:500 12px Manrope;color:#93a6c4;margin-top:3px">Protocolo ${c.protocolo||'—'} · ${c.setor} · ${c.atendente} · ${fmtDate(c.dataAbertura)}${dias!==null?` · aberto há ${diasLabel(dias)}`:''}${atualizadoHa?` · <span style="color:${atualizadoRecente?'#5abfa0':'#93a6c4'};font-weight:${atualizadoRecente?'700':'500'}">atualizado ${atualizadoHa}</span>`:''}</div>
+        <div style="font:500 12px Manrope;color:#93a6c4;margin-top:3px">Protocolo ${c.protocolo||'—'} · ${c.setor} · ${c.atendente} · ${fmtDate(c.dataAbertura)}${dias!==null?` · aberto há ${diasLabel(dias)}`:''}${atualizadoHa?` · <span style="color:${corAtualizado};font-weight:${atualizadoDestaque?'700':'500'}">atualizado ${atualizadoHa}</span>`:''}</div>
       </div>
       ${c.nivelAtendimento==='N3+' ? `<span style="font:700 10.5px Manrope;padding:4px 10px;border-radius:999px;background:rgba(224,149,95,.16);color:#e0a888;border:1px solid rgba(224,149,95,.35);white-space:nowrap">N3+</span>` : ''}
       ${pillHtml(c.status)}
