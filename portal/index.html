@@ -833,13 +833,15 @@ footer.foot{border-top:1px solid rgba(255,255,255,.07);background:rgba(10,16,36,
       <!-- ABA CONFIGURACOES -->
       <div id="ac-aba-config" style="display:none">
         <div class="glass" style="padding:26px 28px">
-          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
-            <h3 style="font:700 18px Outfit,sans-serif;color:#f4f8ff;margin:0">Clientes cadastrados</h3>
-            <span id="ac-cfg-cnt" style="font:400 12.5px Manrope;color:#7186ab"></span>
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;flex-wrap:wrap;gap:10px">
+            <div style="display:flex;align-items:center;gap:10px">
+              <h3 style="font:700 18px Outfit,sans-serif;color:#f4f8ff;margin:0">Clientes cadastrados</h3>
+              <span id="ac-cfg-cnt" style="font:400 12.5px Manrope;color:#7186ab"></span>
+            </div>
+            <button class="btn-primary" onclick="acAddCliente()" style="height:38px;padding:0 16px;font-size:13px">+ Novo cliente</button>
           </div>
           <div id="ac-cfg-lista"></div>
-          <button class="chip" onclick="acAddCliente()" style="margin-top:12px">+ novo cliente</button>
-          <button class="btn-primary" onclick="acSalvarClientes()" style="height:40px;padding:0 20px;font-size:13px;margin-top:12px;margin-left:10px">Salvar alterações</button>
+          <button class="btn-primary" onclick="acSalvarClientes()" style="height:40px;padding:0 20px;font-size:13px;margin-top:12px">Salvar alterações</button>
           <span id="ac-cfg-flash" style="display:none;color:#7fe0c0;font:600 12.5px Manrope;margin-left:10px">salvo!</span>
         </div>
       </div>
@@ -3261,15 +3263,37 @@ function acRenderConfig() {
     </div>`).join('') || '<div style="color:#7186ab;font:400 13px Manrope">Nenhum cliente cadastrado.</div>';
 }
 
+// unshift (nao push) pra aparecer no TOPO da lista -- com 85+ clientes
+// cadastrados, jogar o novo card no final deixava ele fora da tela sem
+// rolar tudo, o que provavelmente e por isso o Sergio nao achou o "+
+// novo cliente" antes (ficava enterrado la embaixo). Foca o campo nome
+// logo em seguida, pra já poder digitar.
 function acAddCliente() {
-  acClientes.push({ nome:'Novo cliente', obs:'', versao:'', anotacoes:'', status:'disponivel', maquinas:[] });
+  acClientes.unshift({ nome:'', obs:'', versao:'', anotacoes:'', status:'disponivel', maquinas:[] });
   acRenderConfig();
+  const primeiroInput = document.querySelector('#ac-cfg-lista input');
+  if (primeiroInput) { primeiroInput.focus(); primeiroInput.scrollIntoView({ behavior:'smooth', block:'center' }); }
 }
 
-function acRemoverCliente(ci) {
-  if (!confirm('Remover este cliente da lista local? Lembre de clicar em "Salvar alterações".')) return;
+async function acRemoverCliente(ci) {
+  const c = acClientes[ci];
+  if (!confirm(`Remover "${c.nome || 'este cliente'}" definitivamente? Esta ação não pode ser desfeita.`)) return;
+  // Bug corrigido em 23/09/2026: antes isso so tirava o cliente da lista
+  // LOCAL (splice), sem apagar de verdade no Supabase -- ao recarregar a
+  // pagina, o cliente "removido" voltava a aparecer. Se ja tem id (ja foi
+  // salvo antes), deleta no banco de verdade; se nao tem id (criado
+  // agora, nunca salvo), so precisa sumir da lista local mesmo.
+  if (c.id) {
+    try {
+      await acDelete('clientes', `?id=eq.${c.id}`);
+    } catch(e) {
+      alert('Erro ao remover cliente no banco: ' + e.message);
+      return;
+    }
+  }
   acClientes.splice(ci,1);
   acRenderConfig();
+  acRenderStats();
 }
 
 function acAddMaquina(ci) {
