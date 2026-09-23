@@ -695,7 +695,7 @@ footer.foot{border-top:1px solid rgba(255,255,255,.07);background:rgba(10,16,36,
         <div class="gestor-scroll">
           <table class="gestor-table" id="gestor-atencao">
             <thead><tr>
-              <th>Chamado</th><th>Cliente</th><th>Setor</th><th>Responsável</th><th>Aberto há</th><th>Status</th>
+              <th>Chamado</th><th>Cliente</th><th>Setor</th><th>Responsável</th><th>Aberto há</th><th>Status</th><th>Estado</th>
             </tr></thead>
             <tbody id="gestor-atencao-body"></tbody>
           </table>
@@ -3996,6 +3996,18 @@ function gestorToggleAtencao() {
   gestorState.atencaoExpandido = !gestorState.atencaoExpandido;
   gestorRenderTudo();
 }
+// Cor por status REAL do chamado (Pendente Meta, Pendente SRG etc) --
+// diferente de pillHtml()/statusLabel() (que relabelam pro cliente final,
+// ex: "Em análise técnica"), aqui e visão interna do gestor, entao mostra
+// o texto cru do status. Mesmo esquema de cores ja usado nos outros
+// widgets do painel (balde 'pendenteMeta'=laranja, 'pendente'=vermelho,
+// 'pendentePO'=roxo, 'resolvido'=verde).
+function gestorCorStatusReal(status) {
+  if (status === 'Resolvido') return '#3fa08c';
+  if (status === 'Pendente SRG') return '#c15c5c';
+  if (status === 'Pendente PO') return '#a992e0';
+  return '#e0a888'; // Aguardando Meta / Em Andamento
+}
 function gestorRenderAtencao(resultado) {
   const { linhas, total } = resultado;
   const contagemEl = document.getElementById('gestor-atencao-count');
@@ -4008,16 +4020,20 @@ function gestorRenderAtencao(resultado) {
       : '';
   }
   const el = document.getElementById('gestor-atencao-body');
-  if (!linhas.length) { el.innerHTML = `<tr><td colspan="6" style="color:#7186ab">Nenhum chamado em aberto no filtro atual — tudo em dia.</td></tr>`; return; }
-  el.innerHTML = linhas.map(c => `
+  if (!linhas.length) { el.innerHTML = `<tr><td colspan="7" style="color:#7186ab">Nenhum chamado em aberto no filtro atual — tudo em dia.</td></tr>`; return; }
+  el.innerHTML = linhas.map(c => {
+    const corStatus = gestorCorStatusReal(c.status);
+    return `
     <tr class="clicavel" onclick="gestorAbrirTicket('${c.id}')">
       <td style="color:#8fd0f5;font-family:'IBM Plex Mono',monospace">${c.protocolo||'—'}</td>
       <td style="color:#eaf1ff">${c.cliente}</td>
       <td>${c.setor}</td>
       <td>${c.atendenteSRG||'—'}</td>
       <td>${diasLabel(c.dias)}</td>
+      <td><span style="font:700 11px Manrope;padding:3px 10px;border-radius:999px;background:${corStatus}22;color:${corStatus};border:1px solid ${corStatus}55;white-space:nowrap">${c.status}</span></td>
       <td><span style="font:700 11px Manrope;padding:3px 10px;border-radius:999px;background:${c.cor}22;color:${c.cor};border:1px solid ${c.cor}55;white-space:nowrap">${c.statusLabel}</span></td>
-    </tr>`).join('');
+    </tr>`;
+  }).join('');
 }
 
 // ---- LINHA 5.5 — Melhorias pendentes de desenvolvimento ----
