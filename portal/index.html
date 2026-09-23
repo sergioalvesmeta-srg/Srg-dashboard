@@ -4102,6 +4102,22 @@ function gestorToggleMelhorias() {
   document.getElementById('gestor-melhorias-wrap').style.display = gestorState.melhoriasAberta ? 'block' : 'none';
   document.getElementById('gestor-toggle-melhorias-seta').style.transform = gestorState.melhoriasAberta ? 'rotate(0deg)' : 'rotate(-90deg)';
 }
+// "Atualizado há X" por chamado -- pedido do Sergio em 23/09/2026: dar
+// retorno dentro do chamado (Retorno SRG) atualiza c.lastEdited (updated_at
+// do D1), entao da pra ver de relance que ja rolou uma atualizacao recente
+// sem precisar abrir o chamado de novo pra conferir.
+function fmtAtualizadoHa(iso) {
+  if (!iso) return null;
+  const dt = new Date(iso);
+  if (isNaN(dt.getTime())) return null;
+  const s = Math.floor((Date.now() - dt.getTime())/1000);
+  if (s < 0) return 'agora mesmo';
+  if (s < 60) return 'agora mesmo';
+  if (s < 3600) return `${Math.floor(s/60)} min atrás`;
+  if (s < 86400) return `${Math.floor(s/3600)}h atrás`;
+  if (s < 172800) return 'ontem';
+  return `${Math.floor(s/86400)}d atrás`;
+}
 function gestorRenderTickets(filtrados) {
   // Na visão inicial escondemos o setor "Programação" (fila tecnica
   // interna, especialistas N3 -- nao e o foco do dia-a-dia do gestor).
@@ -4120,12 +4136,16 @@ function gestorRenderTickets(filtrados) {
   if (!ordenados.length) { el.innerHTML = '<div style="font:500 13px Manrope;color:#7186ab;padding:1rem 0">Nenhum chamado no filtro atual.</div>'; return; }
   el.innerHTML = ordenados.map(c => {
     const dias = c.balde !== 'resolvido' ? diasDesde(c.dataAbertura) : null;
+    const atualizadoHa = fmtAtualizadoHa(c.lastEdited);
+    // Recente (<1h) ganha destaque verde -- e o caso que motivou o pedido:
+    // "dei retorno ha 5 minutos, nao preciso abrir de novo pra saber".
+    const atualizadoRecente = atualizadoHa && (atualizadoHa === 'agora mesmo' || atualizadoHa.endsWith('min atrás'));
     return `
     <div onclick="gestorAbrirTicket('${c.id}')" style="display:flex;align-items:center;gap:16px;padding:14px 16px;border-radius:14px;cursor:pointer;background:rgba(255,255,255,.035);border:1px solid rgba(255,255,255,.08)">
       <span style="width:10px;height:10px;border-radius:50%;flex-shrink:0;background:${KIND_COLOR[statusKind(c.status)]}"></span>
       <div style="flex:1;min-width:0">
         <div style="font:700 14px Manrope;color:#eaf1ff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${c.cliente}</div>
-        <div style="font:500 12px Manrope;color:#93a6c4;margin-top:3px">Protocolo ${c.protocolo||'—'} · ${c.setor} · ${c.atendente} · ${fmtDate(c.dataAbertura)}${dias!==null?` · aberto há ${diasLabel(dias)}`:''}</div>
+        <div style="font:500 12px Manrope;color:#93a6c4;margin-top:3px">Protocolo ${c.protocolo||'—'} · ${c.setor} · ${c.atendente} · ${fmtDate(c.dataAbertura)}${dias!==null?` · aberto há ${diasLabel(dias)}`:''}${atualizadoHa?` · <span style="color:${atualizadoRecente?'#5abfa0':'#93a6c4'};font-weight:${atualizadoRecente?'700':'500'}">atualizado ${atualizadoHa}</span>`:''}</div>
       </div>
       ${c.nivelAtendimento==='N3+' ? `<span style="font:700 10.5px Manrope;padding:4px 10px;border-radius:999px;background:rgba(224,149,95,.16);color:#e0a888;border:1px solid rgba(224,149,95,.35);white-space:nowrap">N3+</span>` : ''}
       ${pillHtml(c.status)}
