@@ -639,7 +639,9 @@ footer.foot{border-top:1px solid rgba(255,255,255,.07);background:rgba(10,16,36,
           <div style="display:flex;gap:18px;margin-top:20px;flex-wrap:wrap">
             <span style="display:flex;align-items:center;gap:7px;font:500 12px Manrope;color:#b3c4e0"><span style="width:10px;height:10px;border-radius:3px;background:#3fa08c"></span>Resolvidos</span>
             <span style="display:flex;align-items:center;gap:7px;font:500 12px Manrope;color:#b3c4e0"><span style="width:10px;height:10px;border-radius:3px;background:#e0955f"></span>Em aberto</span>
-            <span style="display:flex;align-items:center;gap:7px;font:500 12px Manrope;color:#b3c4e0"><span style="width:10px;height:10px;border-radius:3px;background:#c15c5c"></span>Pendentes</span>
+            <span style="display:flex;align-items:center;gap:7px;font:500 12px Manrope;color:#b3c4e0"><span style="width:10px;height:10px;border-radius:3px;background:#c15c5c"></span>Pendente SRG</span>
+            <span style="display:flex;align-items:center;gap:7px;font:500 12px Manrope;color:#b3c4e0"><span style="width:10px;height:10px;border-radius:3px;background:#e0a888"></span>Pendente Meta</span>
+            <span style="display:flex;align-items:center;gap:7px;font:500 12px Manrope;color:#b3c4e0"><span style="width:10px;height:10px;border-radius:3px;background:#a992e0"></span>Pendente PO</span>
           </div>
         </div>
         <div class="glass" style="padding:26px 28px">
@@ -2487,14 +2489,22 @@ const gestorState = {
   atencaoExpandido: false, // "Chamados que exigem atenção" mostra so os 15 primeiros por padrao -- da pra expandir e ver todos
 };
 
-// Mapeia o Status real do Notion (4 estados + Resolvido) pro agrupamento
-// de baldes que o painel usa: aberto (so "Em Andamento") / pendenteMeta
-// ("Aguardando Meta", depende de resposta da Meta) / pendente ("Pendente
-// SRG"/"Pendente PO", depende da propria SRG) / resolvido.
+// Mapeia o Status real do Notion (5 estados) pro agrupamento de baldes
+// que o painel usa: aberto (so "Em Andamento") / pendenteMeta ("Aguardando
+// Meta", depende de resposta da Meta) / pendente (so "Pendente SRG",
+// pendencia NOSSA de verdade) / pendentePO ("Pendente PO", fila de
+// desenvolvimento/Product Owner da Meta -- NAO e pendencia da SRG, e
+// coberta a parte em "Melhorias pendentes") / resolvido.
+//
+// Ate 22/09/2026, "Pendente PO" caia dentro do mesmo balde 'pendente' que
+// "Pendente SRG", inflando os numeros de pendencia da propria SRG com
+// algo que na verdade e responsabilidade do time de desenvolvimento da
+// Meta. Separado a pedido do Sergio em 23/09/2026.
 function gestorBalde(status) {
   if (status === 'Resolvido') return 'resolvido';
   if (status === 'Aguardando Meta') return 'pendenteMeta';
-  if (status === 'Pendente SRG' || status === 'Pendente PO') return 'pendente';
+  if (status === 'Pendente SRG') return 'pendente';
+  if (status === 'Pendente PO') return 'pendentePO';
   return 'aberto'; // Em Andamento
 }
 
@@ -3373,10 +3383,11 @@ function gestorFiltrarStatus(lista) {
   if (!sel.length || sel.includes('todos')) return lista;
   return lista.filter(c => sel.some(s => {
     if (s === 'melhorias') return c.melhoria && c.balde !== 'resolvido';
-    // "Pendente SRG" (chip/card) so deve pegar o status exato "Pendente
-    // SRG" -- "Pendente PO" (mesmo balde 'pendente') e melhoria de
-    // desenvolvimento, ja coberta à parte em "Melhorias pendentes".
-    if (s === 'pendente') return c.status === 'Pendente SRG';
+    // Desde 23/09/2026 "Pendente PO" tem balde proprio ('pendentePO',
+    // separado de 'pendente' -- ver gestorBalde), entao o chip "Pendente
+    // SRG" (balde 'pendente') ja nao inclui "Pendente PO" automaticamente
+    // -- que e melhoria de desenvolvimento, coberta à parte em "Melhorias
+    // pendentes".
     return c.balde === s;
   }));
 }
@@ -3430,7 +3441,7 @@ function gestorRenderCrumbs() {
   if (gestorState.setor !== 'todos') crumbs.push({ label:`Setor: ${gestorState.setor}`, campo:'setor' });
   if (gestorState.atendente !== 'todos') crumbs.push({ label:`Solicitante: ${gestorState.atendente}`, campo:'atendente' });
   if (gestorState.statusFiltro.length && !gestorState.statusFiltro.includes('todos')) {
-    const nomes = { aberto:'Em aberto', pendenteMeta:'Pendente Meta', pendente:'Pendente SRG', resolvido:'Resolvido', melhorias:'Melhorias pendentes' };
+    const nomes = { aberto:'Em aberto', pendenteMeta:'Pendente Meta', pendente:'Pendente SRG', pendentePO:'Pendente PO', resolvido:'Resolvido', melhorias:'Melhorias pendentes' };
     crumbs.push({ label:`Status: ${gestorState.statusFiltro.map(s => nomes[s]||s).join(', ')}`, campo:'status' });
   }
   if (!crumbs.length) { wrap.style.display = 'none'; wrap.innerHTML=''; return; }
@@ -3511,12 +3522,12 @@ function gestorCalcularMetricas(lista, ini, fim) {
   // antes "Pendentes SRG/Meta" eram "estoque" (total acumulado, ignorava
   // o período); agora contam só dentro de recebidosLista, igual ao
   // "Pendências do período" ao lado.
-  // "Pendentes SRG" agora conta so o status real "Pendente SRG" -- o
-  // balde 'pendente' ainda agrupa "Pendente SRG" + "Pendente PO" pros
-  // outros widgets (situação/equipe), mas esse card e o chip de filtro
-  // do mesmo nome nao devem misturar "Pendente PO" (que e melhoria de
-  // desenvolvimento, ja mostrado à parte em "Melhorias pendentes").
-  const pendentes = recebidosLista.filter(c => c.status === 'Pendente SRG').length;
+  // "Pendentes SRG" conta so o balde 'pendente' (status real "Pendente
+  // SRG") -- desde 23/09/2026 "Pendente PO" tem balde proprio
+  // ('pendentePO', ver gestorBalde), entao ja nao precisa mais de
+  // filtro por status exato aqui pra excluir ele.
+  const pendentes = recebidosLista.filter(c => c.balde === 'pendente').length;
+  const pendentesPO = recebidosLista.filter(c => c.balde === 'pendentePO').length;
   const pendentesMeta = recebidosLista.filter(c => c.balde === 'pendenteMeta').length;
   const emAberto = recebidosLista.filter(c => c.balde === 'aberto').length;
   const taxaResolucao = recebidos ? (resolvidos / recebidos) * 100 : 0;
@@ -3539,7 +3550,7 @@ function gestorCalcularMetricas(lista, ini, fim) {
   const resolvidoN3 = n3Lista.filter(c => c.balde === 'resolvido').length;
   const aguardandoN3 = escaladoN3 - resolvidoN3;
   return {
-    recebidos, resolvidos, backlog, pendentes, pendentesMeta, emAberto, taxaResolucao, tempoMedio,
+    recebidos, resolvidos, backlog, pendentes, pendentesPO, pendentesMeta, emAberto, taxaResolucao, tempoMedio,
     pctResolvidoN2: recebidos ? (resolvidoN2/recebidos)*100 : 0,
     pctEmAtendimentoN2: recebidos ? (emAtendimentoN2/recebidos)*100 : 0,
     pctEscaladoN3: recebidos ? (escaladoN3/recebidos)*100 : 0,
@@ -3586,7 +3597,7 @@ function gestorRenderKPIs(baseSemPeriodo, janela) {
   const variacaoCor = variacaoBacklog > 0 ? '#e0955f' : (variacaoBacklog < 0 ? '#5abfa0' : '#7186ab');
 
   const cards = [
-    { label:'Pendências do período <span style="font-weight:500;color:#5c7095">· fluxo</span>', val: atuais.backlog, click:`gestorFiltrarPorKPI(['aberto','pendente','pendenteMeta'])`, cor:'#a992e0',
+    { label:'Pendências do período <span style="font-weight:500;color:#5c7095">· fluxo</span>', val: atuais.backlog, click:`gestorFiltrarPorKPI(['aberto','pendente','pendenteMeta','pendentePO'])`, cor:'#a992e0',
       badge: (anteriores ? gestorBadge(atuais.backlog, anteriores.backlog, {modo:'desce-bom', sufixo}) : '') + `<div style="margin-top:6px;font:600 11px Manrope;color:#7186ab" title="Passivo total acumulado ate agora, independente do periodo selecionado.">Total atual: <span style="color:#dbe6fb;font-weight:700">${backlogTotalAtual}</span> <span style="color:${variacaoCor}">(${variacaoTxt})</span></div>` },
     { label:'Pendentes Meta <span style="font-weight:500;color:#5c7095">· fluxo</span>', val: atuais.pendentesMeta, click:`gestorFiltrarPorKPI('pendenteMeta')`, cor:'#e0955f',
       badge: anteriores ? gestorBadge(atuais.pendentesMeta, anteriores.pendentesMeta, {modo:'desce-bom', sufixo}) : '' },
@@ -3811,17 +3822,20 @@ function gestorRenderSetores(filtrados) {
     const ab = lista.filter(c=>c.balde==='aberto').length;
     const pe = lista.filter(c=>c.balde==='pendente').length;
     const pm = lista.filter(c=>c.balde==='pendenteMeta').length;
+    const pp = lista.filter(c=>c.balde==='pendentePO').length;
     const pct = v => total ? (v/total*100) : 0;
     return `<div onclick="setGestorSetor('${setor}')" style="cursor:pointer">
       <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:3px">
         <span style="font:600 13.5px Manrope;color:#eaf1ff">${setor}</span>
-        <span style="font:500 11.5px Manrope;color:#93a6c4">${total} total · <span style="color:#3fa08c">${res} resolv.</span> · <span style="color:#e0955f">${ab} abertos</span> · <span style="color:#c15c5c">${pe} pend. SRG</span> · <span style="color:#e0a888">${pm} pend. Meta</span></span>
+        <span style="font:500 11.5px Manrope;color:#93a6c4">${total} total · <span style="color:#3fa08c">${res} resolv.</span> · <span style="color:#e0955f">${ab} abertos</span> · <span style="color:#c15c5c">${pe} pend. SRG</span> · <span style="color:#e0a888">${pm} pend. Meta</span>${pp ? ` · <span style="color:#a992e0">${pp} pend. PO</span>` : ''}</span>
       </div>
       <div style="font:600 11px Manrope;color:#a992e0;margin-bottom:7px">Pendente ${setor}: ${ab+pe}</div>
       <div style="display:flex;height:10px;border-radius:6px;overflow:hidden;background:rgba(255,255,255,.06)">
         <span style="width:${pct(res)}%;background:#3fa08c"></span>
         <span style="width:${pct(ab)}%;background:#e0955f"></span>
         <span style="width:${pct(pe)}%;background:#c15c5c"></span>
+        <span style="width:${pct(pm)}%;background:#e0a888"></span>
+        <span style="width:${pct(pp)}%;background:#a992e0"></span>
       </div>
     </div>`;
   }).join('');
