@@ -2460,8 +2460,6 @@ const gestorState = {
   listaAberta: true, // "Todos os chamados" pode ficar muito longa (100+) -- da pra recolher
   listaOrdenarPor: null, // null = padrao (ultima atualizacao); 'titulo'|'descricao'|'prioridade'|'status' quando o gestor clica num cabecalho da tabela
   listaOrdenarDir: 'desc', // 'asc'|'desc' -- alterna ao clicar de novo no mesmo cabecalho
-  melhoriasAberta: true, // mesmo esquema de recolher, pra "Melhorias pendentes"
-  melhoriasStatus: 'todos', // filtro de status proprio da tabela "Melhorias pendentes" ('todos' ou um Status exato)
   atencaoExpandido: false, // "Chamados que exigem atenção" mostra so os 15 primeiros por padrao -- da pra expandir e ver todos
 };
 
@@ -4132,11 +4130,6 @@ function gestorToggleLista() {
   document.getElementById('gestor-tickets').style.display = gestorState.listaAberta ? 'flex' : 'none';
   document.getElementById('gestor-toggle-lista-seta').style.transform = gestorState.listaAberta ? 'rotate(0deg)' : 'rotate(-90deg)';
 }
-function gestorToggleMelhorias() {
-  gestorState.melhoriasAberta = !gestorState.melhoriasAberta;
-  document.getElementById('gestor-melhorias-wrap').style.display = gestorState.melhoriasAberta ? 'block' : 'none';
-  document.getElementById('gestor-toggle-melhorias-seta').style.transform = gestorState.melhoriasAberta ? 'rotate(0deg)' : 'rotate(-90deg)';
-}
 // "Atualizado há X" por chamado -- pedido do Sergio em 23/09/2026: dar
 // retorno dentro do chamado (Retorno SRG) atualiza c.lastEdited (updated_at
 // do D1), entao da pra ver de relance que ja rolou uma atualizacao recente
@@ -4319,12 +4312,6 @@ function gestorRenderTudo() {
   gestorRenderEquipe(gestorCalcularDesempenhoEquipe(baseSemPeriodo, janela));
   gestorRenderN2N3(metricas);
 
-  // Usa "filtrados" (com corte de periodo) em vez de "baseSemPeriodo" --
-  // pedido explicito do usuario pra bater exatamente com o que aparece em
-  // "Todos os chamados" logo abaixo, que tambem usa "filtrados". Antes,
-  // a tabela de Melhorias ignorava o periodo (sempre o total acumulado)
-  // e a lista de baixo respeitava, entao os numeros nunca batiam.
-  gestorRenderMelhorias(gestorCalcularMelhorias(filtrados));
   gestorRenderAtencao(gestorCalcularAtencao(baseSemPeriodo));
   gestorRenderTickets(filtrados);
 
