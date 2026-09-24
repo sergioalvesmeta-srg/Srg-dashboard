@@ -2101,7 +2101,7 @@ async function detalheRenderizar(found) {
     ['Nível de atendimento', nivelAtd ? `<span style="${nivelAtd==='N3+'?'color:#fc9a6a;font-weight:700':''}">${nivelAtd==='N3+'?'N3+ (escalado)':nivelAtd}</span>` : '—'],
   ].map(([label,value]) => `<div style="display:flex;justify-content:space-between;gap:14px;padding:11px 0;border-bottom:1px solid rgba(255,255,255,.07)"><span style="font:500 13px Manrope;color:#b3c4e0;flex-shrink:0">${label}</span><span style="font:600 13.5px Manrope;color:#e7eefb;text-align:right">${value}</span></div>`).join('');
 
-  document.getElementById('details-body').innerHTML += buildExpandable('desc-expand', 'Descrição completa', descCompleta) + buildExpandable('sol-expand', 'Solução', solucaoTxt)
+  document.getElementById('details-body').innerHTML += buildExpandable('desc-expand', 'Descrição completa', descCompleta, true) + buildExpandable('sol-expand', 'Solução', solucaoTxt)
     + (ehEquipeSRG && idInternoAtual ? buildRetornoSRGAdicionar(idInternoAtual, 'cli') : '');
 
   const waMsg = encodeURIComponent(`Olá, gostaria de informações sobre o chamado ${currentProto||''}.`);
@@ -2242,15 +2242,15 @@ async function retornoSRGExcluir(idInterno, chaveData, prefixo) {
     alert('Erro ao excluir retorno: ' + e.message);
   }
 }
-function buildExpandable(id, label, text) {
+function buildExpandable(id, label, text, aberto=false) {
   if (!text) return '';
   return `
     <div style="margin-top:14px">
       <button onclick="toggleExpand('${id}')" style="width:100%;display:flex;align-items:center;justify-content:space-between;background:rgba(127,212,192,.08);border:1px solid rgba(127,212,192,.22);border-radius:12px;padding:11px 15px;cursor:pointer;font:600 13px Manrope;color:#7fd4c0">
         <span>${label}</span>
-        <span id="${id}-arrow" style="transition:transform .2s">▾</span>
+        <span id="${id}-arrow" style="transition:transform .2s;transform:rotate(${aberto?180:0}deg)">▾</span>
       </button>
-      <div id="${id}" style="display:none;margin-top:8px;padding:13px 15px;background:rgba(255,255,255,.03);border-radius:10px;font:400 13px Manrope;color:#d6e2f5;line-height:1.55;white-space:pre-wrap">${text}</div>
+      <div id="${id}" style="display:${aberto?'block':'none'};margin-top:8px;padding:13px 15px;background:rgba(255,255,255,.03);border-radius:10px;font:400 13px Manrope;color:#d6e2f5;line-height:1.55;white-space:pre-wrap">${text}</div>
     </div>`;
 }
 function toggleExpand(id) {
@@ -2561,21 +2561,20 @@ async function getChamados({ forcar=false } = {}) {
   return gestorChamadosCache;
 }
 
-// Busca a data/hora REAL da ultima sincronizacao (nao simulada), lida do
-// campo "Solução" da pagina SYNC_PAGE_ID que o meta_to_notion.py atualiza
-// a cada rodada com "dd/MM/yyyy HH:mm:ss".
-const SYNC_PAGE_ID = '3761388c-50a6-8121-b12c-fbd577a3a1e7';
+// Busca a data/hora REAL da ultima sincronizacao (nao simulada) -- lida
+// direto do D1 (MAX updated_at da tabela chamados), via rota do Worker.
+// Ate 24/09/2026 isso lia um campo de uma pagina do Notion (SYNC_PAGE_ID)
+// que o meta_to_notion.py atualizava a cada rodada -- mas isso parou de
+// funcionar quando NOTION_WRITES_ATIVO virou False (escritos no Notion
+// desativados), deixando o indicador "Atualizado ha X" congelado desde
+// aquele dia (o Sergio reportou "atualizado ha 4d" mesmo com o sync
+// rodando normal a cada 5 min). Trocado pra fonte real (D1).
 async function buscarUltimaSincronizacao() {
   try {
-    const r = await fetch(`${PROXY}/v1/pages/${SYNC_PAGE_ID}`);
+    const r = await fetch(`${PROXY}/d1/ultima-sincronizacao`);
     const d = await r.json();
-    if (!r.ok) throw new Error(d.message||'Erro');
-    const txt = gp(d,'Solução','rich_text') || '';
-    const m = txt.match(/(\d{2})\/(\d{2})\/(\d{4})\s+(\d{2}):(\d{2}):(\d{2})/);
-    if (m) {
-      const [,dd,mm,yyyy,hh,mi,ss] = m;
-      gestorSyncReal = new Date(+yyyy, +mm-1, +dd, +hh, +mi, +ss);
-    }
+    if (!r.ok || !d.ok) throw new Error(d.error||'Erro');
+    if (d.ultima) gestorSyncReal = new Date(d.ultima);
   } catch(e) { /* silencioso -- cai no fallback do ultimo fetch local */ }
 }
 
@@ -4293,7 +4292,7 @@ async function gestorAbrirTicket(id) {
       <div><div style="font:600 11.5px Manrope;color:#93a6c4">Aberto em</div><div style="font:600 14px Manrope;color:#eaf1ff">${fmtDate(c.dataAbertura)}</div></div>
       <div><div style="font:600 11.5px Manrope;color:#93a6c4">Conclusão</div><div style="font:600 14px Manrope;color:#eaf1ff">${c.dataConclusao?fmtDate(c.dataConclusao):'—'}</div></div>
     </div>
-    ${buildExpandable('gestor-desc-expand', 'Descrição completa', d1.descricao_completa || '')}
+    ${buildExpandable('gestor-desc-expand', 'Descrição completa', d1.descricao_completa || '', true)}
     ${buildExpandable('gestor-sol-expand', 'Solução', d1.solucao || '')}
     <div style="font:600 13px Manrope;color:#bcccea;margin:18px 0 10px">Histórico</div>
     <div id="gestor-timeline-body">${buildTimeline(d1, c.idInterno, 'gestor')}</div>
