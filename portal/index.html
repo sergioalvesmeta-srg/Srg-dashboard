@@ -550,7 +550,6 @@ footer.foot{border-top:1px solid rgba(255,255,255,.07);background:rgba(10,16,36,
             </span>
           </div>
           <div style="display:flex;align-items:center;gap:12px">
-            <span id="gestor-toggle-prog" onclick="event.stopPropagation();gestorToggleProgramacao()" style="font:600 11.5px Manrope;color:#8fb8e0;cursor:pointer;white-space:nowrap"></span>
             <span id="gestor-ticket-count" style="font:600 12.5px Manrope;color:#93a6c4"></span>
           </div>
         </div>
@@ -2464,7 +2463,6 @@ const gestorState = {
   atendente: 'todos',
   setorSearch: '',
   atendenteSearch: '',
-  ocultarProgramacao: true, // "Todos os chamados": esconde setor Programação na visão inicial (fila tecnica interna da Meta, nao o foco do dia-a-dia do gestor) -- pode reexibir clicando no toggle
   dataDe: null,  // 'YYYY-MM-DD' -- quando preenchido, substitui os chips de periodo por um recorte exato de datas
   dataAte: null,
   coorteDias: null, // 7 | 15 | 30 | null -- quando preenchido, o grafico de evolucao muda pra visao de coorte (ver gestorRenderEvolucaoCoorte)
@@ -4064,12 +4062,7 @@ function gestorRenderN2N3(metricas) {
 // selecionou "Esta semana" + "Pendente", essa tabela mostra so o que
 // bate com esse filtro, igual todo o resto do painel.
 function gestorCalcularAtencao(filtrados) {
-  // Programação e a fila de especialista N3 -- naturalmente demora mais
-  // e domina o ranking, escondendo o que realmente importa aqui: chamado
-  // de Suporte (N2) parado ha muito tempo. Segue o mesmo toggle de
-  // "Todos os chamados" (oculto por padrao, reexibivel).
-  const base = gestorState.ocultarProgramacao ? filtrados.filter(c => c.setor !== 'Programação') : filtrados;
-  const todas = base
+  const todas = filtrados
     .filter(c => c.balde !== 'resolvido')
     .map(c => {
       const dias = diasDesde(c.dataAbertura) || 0;
@@ -4129,10 +4122,6 @@ function gestorRenderAtencao(resultado) {
   }).join('');
 }
 
-function gestorToggleProgramacao() {
-  gestorState.ocultarProgramacao = !gestorState.ocultarProgramacao;
-  gestorRenderTudo();
-}
 // Recolhe/expande a lista "Todos os chamados" -- pode passar de 100+
 // linhas e empurrar o resto do painel pra baixo. So mexe na exibicao (nao
 // refaz a busca), entao e instantaneo.
@@ -4179,13 +4168,12 @@ function setGestorListaStatus(v) {
   gestorRenderTudo();
 }
 function gestorRenderTickets(filtrados) {
-  // Na visão inicial escondemos o setor "Programação" (fila tecnica
-  // interna, especialistas N3 -- nao e o foco do dia-a-dia do gestor).
-  // O gestor pode reexibir clicando no link ao lado da contagem.
-  const base0 = gestorState.ocultarProgramacao ? filtrados.filter(c => c.setor !== 'Programação') : filtrados;
-  const escondidos = filtrados.length - base0.length;
+  // Setor "Programação" removido do filtro de ocultacao em 24/09/2026, a
+  // pedido do Sergio -- a lista sempre mostra todos os setores agora,
+  // igual os KPIs e o resto do painel (sem essa dimensao a mais pra
+  // explicar diferencas de contagem entre widgets).
   const base = (gestorState.listaStatusFiltro && gestorState.listaStatusFiltro !== 'todos')
-    ? base0.filter(c => c.status === gestorState.listaStatusFiltro) : base0;
+    ? filtrados.filter(c => c.status === gestorState.listaStatusFiltro) : filtrados;
   const selStatusEl = document.getElementById('gestor-lista-status-select');
   if (selStatusEl && selStatusEl.value !== gestorState.listaStatusFiltro) selStatusEl.value = gestorState.listaStatusFiltro;
   const campoOrd = gestorState.listaOrdenarPor;
@@ -4214,24 +4202,11 @@ function gestorRenderTickets(filtrados) {
     }
   });
   document.getElementById('gestor-ticket-count').textContent = `${base.length} no total · exibindo ${ordenados.length}`;
-  const toggleEl = document.getElementById('gestor-toggle-prog');
-  toggleEl.textContent = gestorState.ocultarProgramacao
-    ? `Programação oculta (${escondidos}) · mostrar (afeta esta lista e "exigem atenção")`
-    : 'Ocultar setor Programação';
   const el = document.getElementById('gestor-tickets');
   el.style.display = gestorState.listaAberta ? 'flex' : 'none';
   document.getElementById('gestor-toggle-lista-seta').style.transform = gestorState.listaAberta ? 'rotate(0deg)' : 'rotate(-90deg)';
   if (!ordenados.length) {
-    // Se o motivo da lista vazia e o setor "Programação" estar oculto (nao
-    // "nao existem chamados"), deixa isso explicito com um link direto pra
-    // reexibir -- senao parece bug/tela quebrada, quando na verdade os
-    // chamados existem (e contam nos KPIs, que ignoram esse filtro) mas
-    // estao escondidos. Pedido do Sergio em 24/09/2026 (relatou "nao
-    // aparece nada" com o filtro Aberto + Todos os status, quando na
-    // verdade os 39 chamados existentes eram todos do setor Programação).
-    el.innerHTML = escondidos > 0
-      ? `<div style="font:500 13px Manrope;color:#7186ab;padding:1rem 0">Nenhum chamado visível -- ${escondidos} chamado(s) do setor Programação está(ão) oculto(s). <a href="#" onclick="event.preventDefault();gestorToggleProgramacao()" style="color:#8fd0f5;text-decoration:underline">Mostrar</a></div>`
-      : '<div style="font:500 13px Manrope;color:#7186ab;padding:1rem 0">Nenhum chamado no filtro atual.</div>';
+    el.innerHTML = '<div style="font:500 13px Manrope;color:#7186ab;padding:1rem 0">Nenhum chamado no filtro atual.</div>';
     return;
   }
   el.innerHTML = ordenados.map(c => {
