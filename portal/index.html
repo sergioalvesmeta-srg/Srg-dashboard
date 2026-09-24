@@ -3389,12 +3389,22 @@ function gestorFiltrarPorKPI(s) {
 }
 // Status agora aceita multi-select (ex: "Em aberto" + "Pendente SRG" ao
 // mesmo tempo) -- "Todos" continua exclusivo, os demais se combinam.
+// "melhorias" e uma dimensao DIFERENTE dos status (aberto/pendente/
+// pendenteMeta/resolvido) -- e categoria/tipo de chamado (Solicitação ou
+// Pendente PO), nao um status. Misturar os dois com logica OU (como os
+// status fazem entre si) gerava resultados confusos: marcar "Melhorias
+// pendentes" junto com "Pendente Meta"/"Pendente SRG" virava uma uniao
+// ENORME (tudo que e Pendente Meta OU Pendente SRG OU melhoria), nao um
+// recorte "dentro de melhorias, separado por status" como o Sergio
+// esperava. Por isso agora "melhorias" e exclusivo, igual "todos" --
+// selecionar ele desliga qualquer status marcado, e vice-versa. Corrigido
+// em 24/09/2026.
 function setGestorStatus(s) {
   let atual = gestorState.statusFiltro;
-  if (s === 'todos') {
-    atual = ['todos'];
+  if (s === 'todos' || s === 'melhorias') {
+    atual = [s];
   } else {
-    atual = atual.filter(x => x !== 'todos');
+    atual = atual.filter(x => x !== 'todos' && x !== 'melhorias');
     if (atual.includes(s)) atual = atual.filter(x => x !== s);
     else atual = [...atual, s];
     if (!atual.length) atual = ['todos'];
