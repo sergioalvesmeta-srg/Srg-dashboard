@@ -4212,7 +4212,7 @@ function gestorRenderTickets(filtrados) {
     return;
   }
   el.innerHTML = ordenados.map(c => {
-    const dias = c.balde !== 'resolvido' ? diasDesde(c.dataAbertura) : null;
+    const dias = diasDesde(c.dataAbertura);
     const atualizadoHa = fmtAtualizadoHa(c.lastEdited);
     // Diferencia a ORIGEM da ultima atualizacao, nao so se foi recente:
     // - Retorno SRG (a propria SRG deu retorno dentro do chamado) -> verde.
@@ -4240,14 +4240,14 @@ function gestorRenderTickets(filtrados) {
         <div style="font:500 12px Manrope;color:#93a6c4;margin-top:3px">Protocolo ${c.protocolo||'—'} · ${c.setor} · ${c.atendente}${atualizadoHa?` · <span style="color:${corAtualizado};font-weight:${atualizadoDestaque?'700':'500'}">atualizado ${atualizadoHa}</span>`:''}</div>
       </div>
       <div style="width:170px;flex-shrink:0">
-        <div style="font:500 12.5px Manrope;color:#b3c4e0">${dias!==null?diasLabel(dias):fmtDate(c.dataAbertura)}</div>
-        ${dias!==null?`<div style="font:500 11px Manrope;color:#7186ab;margin-top:2px">${fmtDate(c.dataAbertura)}</div>`:''}
+        <div style="font:500 12.5px Manrope;color:#b3c4e0">${diasLabel(dias)}</div>
+        <div style="font:500 11px Manrope;color:#7186ab;margin-top:2px">${fmtDate(c.dataAbertura)}</div>
       </div>
       <div style="width:90px;flex-shrink:0;display:flex;justify-content:center">
         <span style="font:700 10.5px Manrope;padding:4px 10px;border-radius:999px;background:${corUrgencia}1e;color:${corUrgencia};border:1px solid ${corUrgencia}55;white-space:nowrap">${c.urgencia}</span>
       </div>
-      <div style="width:170px;flex-shrink:0;display:flex;justify-content:flex-end;align-items:center;gap:6px">
-        ${c.nivelAtendimento==='N3+' ? `<span style="font:700 10.5px Manrope;padding:4px 10px;border-radius:999px;background:rgba(224,149,95,.16);color:#e0a888;border:1px solid rgba(224,149,95,.35);white-space:nowrap">N3+</span>` : ''}
+      <div style="width:170px;flex-shrink:0;display:flex;flex-direction:column;justify-content:center;align-items:flex-end;gap:5px">
+        ${c.nivelAtendimento==='N3+' ? `<span style="font:700 10.5px Manrope;padding:3px 10px;border-radius:999px;background:rgba(224,149,95,.16);color:#e0a888;border:1px solid rgba(224,149,95,.35);white-space:nowrap">N3+</span>` : ''}
         ${pillHtml(c.status)}
       </div>
     </div>`;
