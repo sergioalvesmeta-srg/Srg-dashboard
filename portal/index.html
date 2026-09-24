@@ -4198,7 +4198,19 @@ function gestorRenderTickets(filtrados) {
   const el = document.getElementById('gestor-tickets');
   el.style.display = gestorState.listaAberta ? 'flex' : 'none';
   document.getElementById('gestor-toggle-lista-seta').style.transform = gestorState.listaAberta ? 'rotate(0deg)' : 'rotate(-90deg)';
-  if (!ordenados.length) { el.innerHTML = '<div style="font:500 13px Manrope;color:#7186ab;padding:1rem 0">Nenhum chamado no filtro atual.</div>'; return; }
+  if (!ordenados.length) {
+    // Se o motivo da lista vazia e o setor "Programação" estar oculto (nao
+    // "nao existem chamados"), deixa isso explicito com um link direto pra
+    // reexibir -- senao parece bug/tela quebrada, quando na verdade os
+    // chamados existem (e contam nos KPIs, que ignoram esse filtro) mas
+    // estao escondidos. Pedido do Sergio em 24/09/2026 (relatou "nao
+    // aparece nada" com o filtro Aberto + Todos os status, quando na
+    // verdade os 39 chamados existentes eram todos do setor Programação).
+    el.innerHTML = escondidos > 0
+      ? `<div style="font:500 13px Manrope;color:#7186ab;padding:1rem 0">Nenhum chamado visível -- ${escondidos} chamado(s) do setor Programação está(ão) oculto(s). <a href="#" onclick="event.preventDefault();gestorToggleProgramacao()" style="color:#8fd0f5;text-decoration:underline">Mostrar</a></div>`
+      : '<div style="font:500 13px Manrope;color:#7186ab;padding:1rem 0">Nenhum chamado no filtro atual.</div>';
+    return;
+  }
   el.innerHTML = ordenados.map(c => {
     const dias = c.balde !== 'resolvido' ? diasDesde(c.dataAbertura) : null;
     const atualizadoHa = fmtAtualizadoHa(c.lastEdited);
