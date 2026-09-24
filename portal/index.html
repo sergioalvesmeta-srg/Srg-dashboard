@@ -514,8 +514,7 @@ footer.foot{border-top:1px solid rgba(255,255,255,.07);background:rgba(10,16,36,
         <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-top:16px">
           <span style="font:600 12.5px Manrope;color:#b3c4e0;margin-right:2px">Status:</span>
           <button class="chip active" data-gstatus="todos" onclick="setGestorStatus('todos')">Todos</button>
-          <button class="chip" data-gstatus="pendenteMeta" onclick="setGestorStatus('pendenteMeta')">Pendente Meta</button>
-          <button class="chip" data-gstatus="pendente" onclick="setGestorStatus('pendente')">Pendente SRG</button>
+          <button class="chip" data-gstatus="aberto" onclick="setGestorStatus('aberto')">Aberto</button>
           <button class="chip" data-gstatus="resolvido" onclick="setGestorStatus('resolvido')">Resolvido</button>
           <button class="chip" data-gstatus="melhorias" onclick="setGestorStatus('melhorias')" style="color:#c3aef0">Melhorias pendentes</button>
         </div>
@@ -3483,11 +3482,13 @@ function gestorFiltrarStatus(lista) {
   if (!sel.length || sel.includes('todos')) return lista;
   return lista.filter(c => sel.some(s => {
     if (s === 'melhorias') return c.melhoria && c.balde !== 'resolvido';
-    // Desde 23/09/2026 "Pendente PO" tem balde proprio ('pendentePO',
-    // separado de 'pendente' -- ver gestorBalde), entao o chip "Pendente
-    // SRG" (balde 'pendente') ja nao inclui "Pendente PO" automaticamente
-    // -- que e melhoria de desenvolvimento, coberta à parte em "Melhorias
-    // pendentes".
+    // "Aberto" (chip simplificado em 24/09/2026, a pedido do Sergio,
+    // substituindo os chips separados "Pendente Meta"/"Pendente SRG") =
+    // tudo que ainda nao foi resolvido, independente do balde especifico
+    // (pendenteMeta/pendente/pendentePO). Os cards de KPI "Pendentes
+    // Meta"/"Pendentes SRG" continuam existindo e clicaveis por baixo dos
+    // panos com o balde exato -- so o CHIP de cima foi simplificado.
+    if (s === 'aberto') return c.balde !== 'resolvido';
     return c.balde === s;
   }));
 }
@@ -3541,7 +3542,7 @@ function gestorRenderCrumbs() {
   if (gestorState.setor !== 'todos') crumbs.push({ label:`Setor: ${gestorState.setor}`, campo:'setor' });
   if (gestorState.atendente !== 'todos') crumbs.push({ label:`Solicitante: ${gestorState.atendente}`, campo:'atendente' });
   if (gestorState.statusFiltro.length && !gestorState.statusFiltro.includes('todos')) {
-    const nomes = { aberto:'Em aberto', pendenteMeta:'Pendente Meta', pendente:'Pendente SRG', pendentePO:'Pendente PO', resolvido:'Resolvido', melhorias:'Melhorias pendentes' };
+    const nomes = { aberto:'Aberto', pendenteMeta:'Pendente Meta', pendente:'Pendente SRG', pendentePO:'Pendente PO', resolvido:'Resolvido', melhorias:'Melhorias pendentes' };
     crumbs.push({ label:`Status: ${gestorState.statusFiltro.map(s => nomes[s]||s).join(', ')}`, campo:'status' });
   }
   if (!crumbs.length) { wrap.style.display = 'none'; wrap.innerHTML=''; return; }
@@ -3710,7 +3711,7 @@ function gestorRenderKPIs(baseSemPeriodo, janela) {
   const tituloAbertura = 'Conta pela data de ABERTURA dentro do período selecionado (mesmo critério de "Todos os chamados").';
   const tituloConclusao = 'Conta pela data de CONCLUSÃO dentro do período -- pode incluir chamados abertos ANTES do período selecionado, por isso pode não bater com "Todos os chamados".';
   const cards = [
-    { label:'Pendências do período <span style="font-weight:500;color:#5c7095">· fluxo</span>', val: atuais.backlog, click:`gestorFiltrarPorKPI(['pendente','pendenteMeta','pendentePO'])`, cor:'#a992e0', title: tituloAbertura,
+    { label:'Pendências do período <span style="font-weight:500;color:#5c7095">· fluxo</span>', val: atuais.backlog, click:`gestorFiltrarPorKPI('aberto')`, cor:'#a992e0', title: tituloAbertura,
       badge: (anteriores ? gestorBadge(atuais.backlog, anteriores.backlog, {modo:'desce-bom', sufixo}) : '') + `<div style="margin-top:6px;font:600 11px Manrope;color:#7186ab" title="Passivo total acumulado ate agora, independente do periodo selecionado.">Total atual: <span style="color:#dbe6fb;font-weight:700">${backlogTotalAtual}</span> <span style="color:${variacaoCor}">(${variacaoTxt})</span></div>` },
     { label:'Pendentes Meta <span style="font-weight:500;color:#5c7095">· fluxo</span>', val: atuais.pendentesMeta, click:`gestorFiltrarPorKPI('pendenteMeta')`, cor:'#e0955f', title: tituloAbertura,
       badge: anteriores ? gestorBadge(atuais.pendentesMeta, anteriores.pendentesMeta, {modo:'desce-bom', sufixo}) : '' },
