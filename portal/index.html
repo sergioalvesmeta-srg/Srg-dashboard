@@ -559,7 +559,17 @@ footer.foot{border-top:1px solid rgba(255,255,255,.07);background:rgba(10,16,36,
           <span style="flex:1;min-width:0;cursor:pointer;display:flex;align-items:center;gap:5px" onclick="gestorOrdenarLista('titulo')" data-gordcampo="titulo">Título<span class="gestor-ord-seta"></span></span>
           <span style="width:170px;flex-shrink:0;cursor:pointer;display:flex;align-items:center;gap:5px" onclick="gestorOrdenarLista('descricao')" data-gordcampo="descricao">Aberto há<span class="gestor-ord-seta"></span></span>
           <span style="width:90px;flex-shrink:0;cursor:pointer;display:flex;align-items:center;gap:5px;justify-content:center" onclick="gestorOrdenarLista('prioridade')" data-gordcampo="prioridade">Prioridade<span class="gestor-ord-seta"></span></span>
-          <span style="width:170px;flex-shrink:0;cursor:pointer;display:flex;align-items:center;gap:5px;justify-content:flex-end" onclick="gestorOrdenarLista('status')" data-gordcampo="status">Status<span class="gestor-ord-seta"></span></span>
+          <div style="width:170px;flex-shrink:0;display:flex;align-items:center;justify-content:flex-end;gap:8px">
+            <span style="cursor:pointer;display:flex;align-items:center;gap:5px" onclick="gestorOrdenarLista('status')" data-gordcampo="status">Status<span class="gestor-ord-seta"></span></span>
+            <select id="gestor-lista-status-select" onclick="event.stopPropagation()" onchange="setGestorListaStatus(this.value)" style="height:24px;padding:0 6px;border-radius:6px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.2);color:#bcccea;font:600 10px Manrope;text-transform:none;letter-spacing:0;cursor:pointer">
+              <option value="todos">Todos</option>
+              <option value="Em Andamento">Em andamento</option>
+              <option value="Aguardando Meta">Em análise técnica</option>
+              <option value="Pendente SRG">Aguardando ação SRG</option>
+              <option value="Pendente PO">Aguardando aprovação</option>
+              <option value="Resolvido">Resolvido</option>
+            </select>
+          </div>
         </div>
         <div id="gestor-tickets" style="display:flex;flex-direction:column;gap:10px;margin-top:8px;max-height:820px;overflow-y:auto;padding-right:6px"></div>
       </div>
@@ -2449,6 +2459,7 @@ let gestorAgoTimer = null;
 const gestorState = {
   periodo: 30,          // 30 | 60 | 90 | 999
   statusFiltro: ['todos'], // array -- 'todos' e exclusivo, os demais combinam entre si (multi-select)
+  listaStatusFiltro: 'todos', // filtro extra so da lista "Todos os chamados", pelo status exato (Em Andamento/Aguardando Meta/Pendente SRG/Pendente PO/Resolvido) -- pedido do Sergio em 24/09/2026, separado do filtro de status geral (baldes) la de cima
   setor: 'todos',
   atendente: 'todos',
   setorSearch: '',
@@ -4159,12 +4170,24 @@ function gestorOrdenarLista(campo) {
   }
   gestorRenderTudo();
 }
+// Filtro extra pelo status exato, so dentro da lista "Todos os chamados"
+// (pedido do Sergio em 24/09/2026: "quero um botão pra poder filtrar por
+// status" -- diferente do filtro de baldes (Aberto/Resolvido/Melhorias) la
+// de cima, que agrupa varios status; esse aqui filtra por 1 status exato).
+function setGestorListaStatus(v) {
+  gestorState.listaStatusFiltro = v;
+  gestorRenderTudo();
+}
 function gestorRenderTickets(filtrados) {
   // Na visão inicial escondemos o setor "Programação" (fila tecnica
   // interna, especialistas N3 -- nao e o foco do dia-a-dia do gestor).
   // O gestor pode reexibir clicando no link ao lado da contagem.
-  const base = gestorState.ocultarProgramacao ? filtrados.filter(c => c.setor !== 'Programação') : filtrados;
-  const escondidos = filtrados.length - base.length;
+  const base0 = gestorState.ocultarProgramacao ? filtrados.filter(c => c.setor !== 'Programação') : filtrados;
+  const escondidos = filtrados.length - base0.length;
+  const base = (gestorState.listaStatusFiltro && gestorState.listaStatusFiltro !== 'todos')
+    ? base0.filter(c => c.status === gestorState.listaStatusFiltro) : base0;
+  const selStatusEl = document.getElementById('gestor-lista-status-select');
+  if (selStatusEl && selStatusEl.value !== gestorState.listaStatusFiltro) selStatusEl.value = gestorState.listaStatusFiltro;
   const campoOrd = gestorState.listaOrdenarPor;
   const dirOrd = gestorState.listaOrdenarDir === 'asc' ? 1 : -1;
   const RANK_URGENCIA = { 'Alta': 2, 'Normal': 1, 'Baixa': 0 };
