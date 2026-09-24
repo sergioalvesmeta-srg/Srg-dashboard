@@ -554,7 +554,14 @@ footer.foot{border-top:1px solid rgba(255,255,255,.07);background:rgba(10,16,36,
             <span id="gestor-ticket-count" style="font:600 12.5px Manrope;color:#93a6c4"></span>
           </div>
         </div>
-        <div id="gestor-tickets" style="display:flex;flex-direction:column;gap:10px;margin-top:20px"></div>
+        <div id="gestor-tickets-header" style="display:flex;align-items:center;gap:16px;padding:0 16px;margin-top:20px;font:700 10.5px Manrope;letter-spacing:.06em;text-transform:uppercase;color:#7186ab">
+          <span style="width:10px;flex-shrink:0"></span>
+          <span style="flex:1;min-width:0;cursor:pointer;display:flex;align-items:center;gap:5px" onclick="gestorOrdenarLista('titulo')" data-gordcampo="titulo">Título<span class="gestor-ord-seta"></span></span>
+          <span style="width:170px;flex-shrink:0;cursor:pointer;display:flex;align-items:center;gap:5px" onclick="gestorOrdenarLista('descricao')" data-gordcampo="descricao">Aberto em<span class="gestor-ord-seta"></span></span>
+          <span style="width:90px;flex-shrink:0;cursor:pointer;display:flex;align-items:center;gap:5px;justify-content:center" onclick="gestorOrdenarLista('prioridade')" data-gordcampo="prioridade">Prioridade<span class="gestor-ord-seta"></span></span>
+          <span style="width:170px;flex-shrink:0;cursor:pointer;display:flex;align-items:center;gap:5px;justify-content:flex-end" onclick="gestorOrdenarLista('status')" data-gordcampo="status">Status<span class="gestor-ord-seta"></span></span>
+        </div>
+        <div id="gestor-tickets" style="display:flex;flex-direction:column;gap:10px;margin-top:8px;max-height:820px;overflow-y:auto;padding-right:6px"></div>
       </div>
 
       <!-- Melhorias pendentes de desenvolvimento -- logo apos "Todos os
@@ -2483,6 +2490,8 @@ const gestorState = {
   dataAte: null,
   coorteDias: null, // 7 | 15 | 30 | null -- quando preenchido, o grafico de evolucao muda pra visao de coorte (ver gestorRenderEvolucaoCoorte)
   listaAberta: true, // "Todos os chamados" pode ficar muito longa (100+) -- da pra recolher
+  listaOrdenarPor: null, // null = padrao (ultima atualizacao); 'titulo'|'descricao'|'prioridade'|'status' quando o gestor clica num cabecalho da tabela
+  listaOrdenarDir: 'desc', // 'asc'|'desc' -- alterna ao clicar de novo no mesmo cabecalho
   melhoriasAberta: true, // mesmo esquema de recolher, pra "Melhorias pendentes"
   melhoriasStatus: 'todos', // filtro de status proprio da tabela "Melhorias pendentes" ('todos' ou um Status exato)
   atencaoExpandido: false, // "Chamados que exigem atenção" mostra so os 15 primeiros por padrao -- da pra expandir e ver todos
@@ -2551,6 +2560,7 @@ async function getChamados({ forcar=false } = {}) {
       atendente: row.atendente || 'Sem atendente',
       atendenteSRG: gestorNormalizarNome(row.solicitante),
       nivelAtendimento: row.nivel_atendimento || 'N2',
+      urgencia: row.urgencia || 'Normal',
       protocolo: row.protocolo || '',
       categoria: row.categoria || '',
       descricaoCompleta: row.descricao_completa || '',
@@ -4224,13 +4234,50 @@ function fmtAtualizadoHa(iso) {
   if (s < 172800) return 'ontem';
   return `${Math.floor(s/86400)}d atrás`;
 }
+// Clicar num cabecalho da tabela "Todos os chamados" ordena por aquela
+// coluna -- clicar de novo no mesmo cabecalho inverte a direcao. Pedido
+// do Sergio em 24/09/2026, junto com limitar a lista visivel (rolagem
+// interna em vez de a pagina toda crescer).
+function gestorOrdenarLista(campo) {
+  if (gestorState.listaOrdenarPor === campo) {
+    gestorState.listaOrdenarDir = gestorState.listaOrdenarDir === 'asc' ? 'desc' : 'asc';
+  } else {
+    gestorState.listaOrdenarPor = campo;
+    gestorState.listaOrdenarDir = campo === 'titulo' ? 'asc' : 'desc';
+  }
+  gestorRenderTudo();
+}
 function gestorRenderTickets(filtrados) {
   // Na visão inicial escondemos o setor "Programação" (fila tecnica
   // interna, especialistas N3 -- nao e o foco do dia-a-dia do gestor).
   // O gestor pode reexibir clicando no link ao lado da contagem.
   const base = gestorState.ocultarProgramacao ? filtrados.filter(c => c.setor !== 'Programação') : filtrados;
   const escondidos = filtrados.length - base.length;
-  const ordenados = [...base].sort((a,b)=> new Date(b.lastEdited) - new Date(a.lastEdited)).slice(0,40);
+  const campoOrd = gestorState.listaOrdenarPor;
+  const dirOrd = gestorState.listaOrdenarDir === 'asc' ? 1 : -1;
+  const RANK_URGENCIA = { 'Alta': 2, 'Normal': 1, 'Baixa': 0 };
+  const ordenados = [...base].sort((a,b) => {
+    if (!campoOrd) return new Date(b.lastEdited) - new Date(a.lastEdited); // padrao: atualizado mais recente primeiro
+    if (campoOrd === 'titulo') return dirOrd * (a.cliente||'').localeCompare(b.cliente||'', 'pt-BR');
+    if (campoOrd === 'descricao') {
+      const da = parseDataBR(a.dataAbertura), db = parseDataBR(b.dataAbertura);
+      return dirOrd * ((da?da.getTime():0) - (db?db.getTime():0));
+    }
+    if (campoOrd === 'prioridade') return dirOrd * ((RANK_URGENCIA[a.urgencia]??1) - (RANK_URGENCIA[b.urgencia]??1));
+    if (campoOrd === 'status') return dirOrd * (a.status||'').localeCompare(b.status||'', 'pt-BR');
+    return 0;
+  }).slice(0,40);
+  // Seta indicando a coluna/direcao ativa no cabecalho.
+  document.querySelectorAll('#gestor-tickets-header [data-gordcampo]').forEach(el => {
+    const seta = el.querySelector('.gestor-ord-seta');
+    if (campoOrd === el.dataset.gordcampo) {
+      seta.textContent = gestorState.listaOrdenarDir === 'asc' ? ' ▲' : ' ▼';
+      el.style.color = '#8fd0f5';
+    } else {
+      seta.textContent = '';
+      el.style.color = '#7186ab';
+    }
+  });
   document.getElementById('gestor-ticket-count').textContent = `${base.length} no total · exibindo ${ordenados.length}`;
   const toggleEl = document.getElementById('gestor-toggle-prog');
   toggleEl.textContent = gestorState.ocultarProgramacao
@@ -4260,15 +4307,25 @@ function gestorRenderTickets(filtrados) {
       corAtualizado = origemRetorno ? '#5abfa0' : '#5db4e6';
     }
     const atualizadoDestaque = corAtualizado !== '#93a6c4';
+    const corUrgencia = { 'Alta':'#e29a9a', 'Normal':'#93a6c4', 'Baixa':'#8fb8e0' }[c.urgencia] || '#93a6c4';
     return `
     <div onclick="gestorAbrirTicket('${c.id}')" style="display:flex;align-items:center;gap:16px;padding:14px 16px;border-radius:14px;cursor:pointer;background:rgba(255,255,255,.035);border:1px solid rgba(255,255,255,.08)">
       <span style="width:10px;height:10px;border-radius:50%;flex-shrink:0;background:${KIND_COLOR[statusKind(c.status)]}"></span>
       <div style="flex:1;min-width:0">
         <div style="font:700 14px Manrope;color:#eaf1ff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${c.cliente}</div>
-        <div style="font:500 12px Manrope;color:#93a6c4;margin-top:3px">Protocolo ${c.protocolo||'—'} · ${c.setor} · ${c.atendente} · ${fmtDate(c.dataAbertura)}${dias!==null?` · aberto há ${diasLabel(dias)}`:''}${atualizadoHa?` · <span style="color:${corAtualizado};font-weight:${atualizadoDestaque?'700':'500'}">atualizado ${atualizadoHa}</span>`:''}</div>
+        <div style="font:500 12px Manrope;color:#93a6c4;margin-top:3px">Protocolo ${c.protocolo||'—'} · ${c.setor} · ${c.atendente}${atualizadoHa?` · <span style="color:${corAtualizado};font-weight:${atualizadoDestaque?'700':'500'}">atualizado ${atualizadoHa}</span>`:''}</div>
       </div>
-      ${c.nivelAtendimento==='N3+' ? `<span style="font:700 10.5px Manrope;padding:4px 10px;border-radius:999px;background:rgba(224,149,95,.16);color:#e0a888;border:1px solid rgba(224,149,95,.35);white-space:nowrap">N3+</span>` : ''}
-      ${pillHtml(c.status)}
+      <div style="width:170px;flex-shrink:0">
+        <div style="font:500 12.5px Manrope;color:#b3c4e0">${fmtDate(c.dataAbertura)}</div>
+        ${dias!==null?`<div style="font:500 11px Manrope;color:#7186ab;margin-top:2px">aberto há ${diasLabel(dias)}</div>`:''}
+      </div>
+      <div style="width:90px;flex-shrink:0;display:flex;justify-content:center">
+        <span style="font:700 10.5px Manrope;padding:4px 10px;border-radius:999px;background:${corUrgencia}1e;color:${corUrgencia};border:1px solid ${corUrgencia}55;white-space:nowrap">${c.urgencia}</span>
+      </div>
+      <div style="width:170px;flex-shrink:0;display:flex;justify-content:flex-end;align-items:center;gap:6px">
+        ${c.nivelAtendimento==='N3+' ? `<span style="font:700 10.5px Manrope;padding:4px 10px;border-radius:999px;background:rgba(224,149,95,.16);color:#e0a888;border:1px solid rgba(224,149,95,.35);white-space:nowrap">N3+</span>` : ''}
+        ${pillHtml(c.status)}
+      </div>
     </div>`;
   }).join('');
 }
