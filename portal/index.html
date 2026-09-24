@@ -557,7 +557,7 @@ footer.foot{border-top:1px solid rgba(255,255,255,.07);background:rgba(10,16,36,
           <span style="width:10px;flex-shrink:0"></span>
           <span style="flex:1;min-width:0;cursor:pointer;display:flex;align-items:center;gap:5px" onclick="gestorOrdenarLista('titulo')" data-gordcampo="titulo">Título<span class="gestor-ord-seta"></span></span>
           <span style="width:170px;flex-shrink:0;cursor:pointer;display:flex;align-items:center;gap:5px" onclick="gestorOrdenarLista('descricao')" data-gordcampo="descricao">Aberto há<span class="gestor-ord-seta"></span></span>
-          <span style="width:90px;flex-shrink:0;cursor:pointer;display:flex;align-items:center;gap:5px;justify-content:center" onclick="gestorOrdenarLista('prioridade')" data-gordcampo="prioridade">Prioridade<span class="gestor-ord-seta"></span></span>
+          <span style="width:110px;flex-shrink:0;cursor:pointer;display:flex;align-items:center;gap:5px;justify-content:center;white-space:nowrap" onclick="gestorOrdenarLista('prioridade')" data-gordcampo="prioridade">Prioridade<span class="gestor-ord-seta"></span></span>
           <div style="width:170px;flex-shrink:0;display:flex;align-items:center;justify-content:flex-end;gap:8px">
             <span style="cursor:pointer;display:flex;align-items:center;gap:5px" onclick="gestorOrdenarLista('status')" data-gordcampo="status">Status<span class="gestor-ord-seta"></span></span>
             <select id="gestor-lista-status-select" onclick="event.stopPropagation()" onchange="setGestorListaStatus(this.value)" style="height:24px;padding:0 6px;border-radius:6px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.2);color:#bcccea;font:600 10px Manrope;text-transform:none;letter-spacing:0;cursor:pointer">
@@ -622,7 +622,6 @@ footer.foot{border-top:1px solid rgba(255,255,255,.07);background:rgba(10,16,36,
             <span style="display:flex;align-items:center;gap:7px;font:500 12px Manrope;color:#b3c4e0"><span style="width:10px;height:10px;border-radius:3px;background:#3fa08c"></span>Resolvidos</span>
             <span style="display:flex;align-items:center;gap:7px;font:500 12px Manrope;color:#b3c4e0"><span style="width:10px;height:10px;border-radius:3px;background:#c15c5c"></span>Pendente SRG</span>
             <span style="display:flex;align-items:center;gap:7px;font:500 12px Manrope;color:#b3c4e0"><span style="width:10px;height:10px;border-radius:3px;background:#e0a888"></span>Pendente Meta</span>
-            <span style="display:flex;align-items:center;gap:7px;font:500 12px Manrope;color:#b3c4e0"><span style="width:10px;height:10px;border-radius:3px;background:#a992e0"></span>Pendente PO</span>
           </div>
         </div>
         <div class="glass" style="padding:26px 28px">
@@ -2473,28 +2472,30 @@ const gestorState = {
 };
 
 // Mapeia o Status real do Notion (5 estados) pro agrupamento de baldes
-// que o painel usa: aberto (so "Em Andamento") / pendenteMeta ("Aguardando
-// Meta", depende de resposta da Meta) / pendente (so "Pendente SRG",
-// pendencia NOSSA de verdade) / pendentePO ("Pendente PO", fila de
-// desenvolvimento/Product Owner da Meta -- NAO e pendencia da SRG, e
-// coberta a parte em "Melhorias pendentes") / resolvido.
+// que o painel usa: pendenteMeta ("Aguardando Meta"/"Em Andamento"/
+// "Pendente PO" -- tudo que depende de alguem do lado da Meta, nao da
+// SRG) / pendente (so "Pendente SRG", pendencia NOSSA de verdade) /
+// resolvido.
 //
-// Ate 22/09/2026, "Pendente PO" caia dentro do mesmo balde 'pendente' que
-// "Pendente SRG", inflando os numeros de pendencia da propria SRG com
-// algo que na verdade e responsabilidade do time de desenvolvimento da
-// Meta. Separado a pedido do Sergio em 23/09/2026.
+// Em 23/09/2026 "Pendente PO" tinha ganhado balde proprio ('pendentePO'),
+// separado de 'pendenteMeta', pra nao se misturar com "Aguardando Meta"
+// nos graficos. Mas isso criava um 3o balde "invisivel" (sem card
+// proprio) que inflava "Pendências do período" sem aparecer em nenhum
+// dos dois cards visiveis (Pendentes Meta / Pendentes SRG), gerando conta
+// que nao batia (ex: 17 = 10+6+1). A pedido do Sergio em 24/09/2026,
+// "Pendente PO" volta a contar dentro de 'pendenteMeta' (e responsabilidade
+// do lado Meta/dev, nao da SRG, entao faz sentido junto com "Aguardando
+// Meta" e nao com "Pendente SRG").
 //
-// Tambem em 23/09/2026: "Em Andamento" deixou de ser um balde proprio
-// ('aberto') e passou a contar junto com "Aguardando Meta" (balde
-// 'pendenteMeta'), a pedido explicito do Sergio. O status individual de
-// cada chamado (c.status) continua mostrando "Em Andamento" normalmente
-// em qualquer lugar que exibe o texto cru -- so o AGRUPAMENTO usado nos
-// KPIs/graficos agregados e que mudou.
+// "Em Andamento" tambem conta como 'pendenteMeta' desde 23/09/2026. O
+// status individual de cada chamado (c.status) continua mostrando o texto
+// cru ("Em Andamento"/"Pendente PO") normalmente em qualquer lugar que
+// exibe status -- so o AGRUPAMENTO usado nos KPIs/graficos agregados e
+// que muda.
 function gestorBalde(status) {
   if (status === 'Resolvido') return 'resolvido';
-  if (status === 'Aguardando Meta' || status === 'Em Andamento') return 'pendenteMeta';
+  if (status === 'Aguardando Meta' || status === 'Em Andamento' || status === 'Pendente PO') return 'pendenteMeta';
   if (status === 'Pendente SRG') return 'pendente';
-  if (status === 'Pendente PO') return 'pendentePO';
   return 'pendenteMeta'; // fallback -- na pratica nao deveria ocorrer, os 5 status conhecidos ja cobrem tudo
 }
 
@@ -3527,7 +3528,7 @@ function gestorRenderCrumbs() {
   if (gestorState.setor !== 'todos') crumbs.push({ label:`Setor: ${gestorState.setor}`, campo:'setor' });
   if (gestorState.atendente !== 'todos') crumbs.push({ label:`Solicitante: ${gestorState.atendente}`, campo:'atendente' });
   if (gestorState.statusFiltro.length && !gestorState.statusFiltro.includes('todos')) {
-    const nomes = { aberto:'Aberto', pendenteMeta:'Pendente Meta', pendente:'Pendente SRG', pendentePO:'Pendente PO', resolvido:'Resolvido', melhorias:'Melhorias pendentes' };
+    const nomes = { aberto:'Aberto', pendenteMeta:'Pendente Meta', pendente:'Pendente SRG', resolvido:'Resolvido', melhorias:'Melhorias pendentes' };
     crumbs.push({ label:`Status: ${gestorState.statusFiltro.map(s => nomes[s]||s).join(', ')}`, campo:'status' });
   }
   if (!crumbs.length) { wrap.style.display = 'none'; wrap.innerHTML=''; return; }
@@ -3919,20 +3920,18 @@ function gestorRenderSetores(filtrados) {
     const total = lista.length;
     const res = lista.filter(c=>c.balde==='resolvido').length;
     const pe = lista.filter(c=>c.balde==='pendente').length;
-    const pm = lista.filter(c=>c.balde==='pendenteMeta').length; // inclui "Em Andamento" + "Aguardando Meta" (mesmo balde desde 23/09/2026)
-    const pp = lista.filter(c=>c.balde==='pendentePO').length;
+    const pm = lista.filter(c=>c.balde==='pendenteMeta').length; // inclui "Em Andamento" + "Aguardando Meta" + "Pendente PO" (mesmo balde desde 24/09/2026)
     const pct = v => total ? (v/total*100) : 0;
     return `<div onclick="setGestorSetor('${setor}')" style="cursor:pointer">
       <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:3px">
         <span style="font:600 13.5px Manrope;color:#eaf1ff">${setor}</span>
-        <span style="font:500 11.5px Manrope;color:#93a6c4">${total} total · <span style="color:#3fa08c">${res} resolv.</span> · <span style="color:#c15c5c">${pe} pend. SRG</span> · <span style="color:#e0a888">${pm} pend. Meta</span>${pp ? ` · <span style="color:#a992e0">${pp} pend. PO</span>` : ''}</span>
+        <span style="font:500 11.5px Manrope;color:#93a6c4">${total} total · <span style="color:#3fa08c">${res} resolv.</span> · <span style="color:#c15c5c">${pe} pend. SRG</span> · <span style="color:#e0a888">${pm} pend. Meta</span></span>
       </div>
       <div style="font:600 11px Manrope;color:#a992e0;margin-bottom:7px">Pendente ${setor}: ${pe}</div>
       <div style="display:flex;height:10px;border-radius:6px;overflow:hidden;background:rgba(255,255,255,.06)">
         <span style="width:${pct(res)}%;background:#3fa08c"></span>
         <span style="width:${pct(pe)}%;background:#c15c5c"></span>
         <span style="width:${pct(pm)}%;background:#e0a888"></span>
-        <span style="width:${pct(pp)}%;background:#a992e0"></span>
       </div>
     </div>`;
   }).join('');
@@ -4241,7 +4240,7 @@ function gestorRenderTickets(filtrados) {
         <div style="font:500 12.5px Manrope;color:#b3c4e0">${diasLabel(dias)}</div>
         <div style="font:500 11px Manrope;color:#7186ab;margin-top:2px">${fmtDate(c.dataAbertura)}</div>
       </div>
-      <div style="width:90px;flex-shrink:0;display:flex;justify-content:center">
+      <div style="width:110px;flex-shrink:0;display:flex;justify-content:center">
         <span style="font:700 10.5px Manrope;padding:4px 10px;border-radius:999px;background:${corUrgencia}1e;color:${corUrgencia};border:1px solid ${corUrgencia}55;white-space:nowrap">${c.urgencia}</span>
       </div>
       <div style="width:170px;flex-shrink:0;display:flex;flex-direction:column;justify-content:center;align-items:flex-end;gap:5px">
