@@ -949,8 +949,8 @@ const WA_NUMBER = '5586989038851';
 // ══════════════════════════════════════════
 // AUTH — via Worker + Cloudflare KV
 // ══════════════════════════════════════════
-async function apiLogin(username, password) {
-  const r = await fetch(`${PROXY}/auth/login`, { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({username,password}) });
+async function apiLogin(username, password, manter) {
+  const r = await fetch(`${PROXY}/auth/login`, { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({username,password,manter:!!manter}) });
   return r.json();
 }
 async function apiValidate(token) {
@@ -1186,7 +1186,7 @@ async function doLogin() {
   const manter = document.getElementById('login-manter').checked;
   if (!login || !pass) return;
   btn.disabled = true; btnText.textContent = 'Entrando...';
-  const data = await apiLogin(login, pass);
+  const data = await apiLogin(login, pass, manter);
   btn.disabled = false; btnText.textContent = 'Entrar';
   if (data.ok) {
     currentUser = { username:data.username, nome:data.nome||'', role:data.role, unidades:data.unidades||[], token:data.token, gestor:!!data.gestor, verHistorico:!!data.verHistorico, verKPIs:!!data.verKPIs, verAcessoClientes:!!data.verAcessoClientes, atendenteSRG:data.atendenteSRG||'' };
