@@ -4200,7 +4200,8 @@ function gestorRenderTickets(filtrados) {
     if (!campoOrd) return new Date(b.lastEdited) - new Date(a.lastEdited); // padrao: atualizado mais recente primeiro
     if (campoOrd === 'titulo') return dirOrd * (a.cliente||'').localeCompare(b.cliente||'', 'pt-BR');
     if (campoOrd === 'descricao') {
-      const da = parseDataBR(a.dataAbertura), db = parseDataBR(b.dataAbertura);
+      const da = parseDataBR(a.balde==='resolvido' ? a.dataConclusao : a.dataAbertura);
+      const db = parseDataBR(b.balde==='resolvido' ? b.dataConclusao : b.dataAbertura);
       return dirOrd * ((da?da.getTime():0) - (db?db.getTime():0));
     }
     if (campoOrd === 'prioridade') return dirOrd * ((RANK_URGENCIA[a.urgencia]??1) - (RANK_URGENCIA[b.urgencia]??1));
@@ -4228,7 +4229,15 @@ function gestorRenderTickets(filtrados) {
     return;
   }
   el.innerHTML = ordenados.map(c => {
-    const dias = diasDesde(c.dataAbertura);
+    // Pra chamado resolvido, a coluna mostra ha quanto tempo foi
+    // RESOLVIDO (nao aberto) -- senao um ticket de 84 dias atras que
+    // acabou de ser fechado aparecia com "84 dias" em destaque, parecendo
+    // fora do lugar numa lista filtrada por "essa semana" (o "84 dias" e
+    // sobre a abertura, nao tem nada a ver com o filtro por conclusao que
+    // colocou ele ali). Mesma convencao de sempre: resolvido usa
+    // conclusao, resto usa abertura. Pedido do Sergio em 25/09/2026.
+    const resolvido = c.balde === 'resolvido';
+    const dias = diasDesde(resolvido ? c.dataConclusao : c.dataAbertura);
     const atualizadoHa = fmtAtualizadoHa(c.lastEdited);
     // Diferencia a ORIGEM da ultima atualizacao, nao so se foi recente:
     // - Retorno SRG (a propria SRG deu retorno dentro do chamado) -> verde.
@@ -4262,8 +4271,8 @@ function gestorRenderTickets(filtrados) {
       </div>
       <div style="width:140px;flex-shrink:0;font:600 12.5px Manrope;color:#dbe6fb;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${c.atendenteSRG || '—'}</div>
       <div style="width:170px;flex-shrink:0">
-        <div style="font:500 12.5px Manrope;color:#b3c4e0">${diasLabel(dias)}</div>
-        <div style="font:500 11px Manrope;color:#7186ab;margin-top:2px">${fmtDate(c.dataAbertura)}</div>
+        <div style="font:500 12.5px Manrope;color:${resolvido?'#5abfa0':'#b3c4e0'}">${resolvido?'resolvido há ':''}${diasLabel(dias)}</div>
+        <div style="font:500 11px Manrope;color:#7186ab;margin-top:2px">${fmtDate(resolvido ? c.dataConclusao : c.dataAbertura)}</div>
       </div>
       <div style="width:110px;flex-shrink:0;display:flex;justify-content:center">
         <span style="font:700 10.5px Manrope;padding:4px 10px;border-radius:999px;background:${corUrgencia}1e;color:${corUrgencia};border:1px solid ${corUrgencia}55;white-space:nowrap">${c.urgencia}</span>
