@@ -518,6 +518,10 @@ footer.foot{border-top:1px solid rgba(255,255,255,.07);background:rgba(10,16,36,
           <button class="chip" data-gstatus="resolvido" onclick="setGestorStatus('resolvido')">Resolvido</button>
           <button class="chip" data-gstatus="melhorias" onclick="setGestorStatus('melhorias')" style="color:#c3aef0">Melhorias pendentes</button>
         </div>
+        <div style="display:flex;align-items:center;gap:9px;margin-top:14px">
+          <input type="checkbox" id="gestor-chk-sem-ticket" onchange="setGestorSemTicket(this.checked)" style="width:16px;height:16px;accent-color:#5db4e6;cursor:pointer">
+          <label for="gestor-chk-sem-ticket" style="font:500 12.5px Manrope;color:#bcccea;cursor:pointer">Incluir chamados sem Ticket Meta <span id="gestor-sem-ticket-count" style="color:#7186ab"></span></label>
+        </div>
         <div style="display:flex;gap:14px;flex-wrap:wrap;margin-top:18px">
           <div style="flex:1;min-width:200px">
             <label style="display:block;font:600 12px Manrope;color:#bcccea;margin-bottom:7px">Setor</label>
@@ -2459,6 +2463,7 @@ const gestorState = {
   periodo: 30,          // 30 | 60 | 90 | 999
   statusFiltro: ['todos'], // array -- 'todos' e exclusivo, os demais combinam entre si (multi-select)
   listaStatusFiltro: 'todos', // filtro extra so da lista "Todos os chamados", pelo status exato (Em Andamento/Aguardando Meta/Pendente SRG/Pendente PO/Resolvido) -- pedido do Sergio em 24/09/2026, separado do filtro de status geral (baldes) la de cima
+  mostrarSemTicket: false, // por padrao, esconde chamados sem Ticket Meta (coluna O vazia na planilha) -- e o mesmo filtro que a Meta usa nas reunioes dela. Desmarcado = so os que tem ticket (bate com o numero da Meta); marcado = geral, com tudo. Pedido do Sergio em 25/09/2026.
   setor: 'todos',
   atendente: 'todos',
   setorSearch: '',
@@ -3400,6 +3405,7 @@ function setGestorStatus(s) {
 }
 function setGestorSetor(v) { gestorState.setor = v; gestorRenderTudo(); }
 function setGestorAtendente(v) { gestorState.atendente = v; gestorRenderTudo(); }
+function setGestorSemTicket(v) { gestorState.mostrarSemTicket = v; gestorRenderTudo(); }
 // Clicar num KPI/setor/responsável muda o filtro, mas o resultado
 // (lista "Todos os chamados") fica la embaixo -- sem isso, dava a
 // sensacao de que o clique nao fez nada. Rola suavemente ate a lista e
@@ -3488,9 +3494,20 @@ function gestorFiltrarStatus(lista) {
     return c.balde === s;
   }));
 }
+// Coluna O da planilha (Ticket Meta) -- quando vazia, a Meta simplesmente
+// nao traz esse chamado nos relatorios dela (é o filtro que ela usa nas
+// reunioes). Escondido por padrao aqui tambem, pra bater com o numero
+// que ela mostra, mas com o checkbox "Incluir chamados sem Ticket Meta"
+// pra ver o quadro completo quando precisar (esse dado ainda importa pro
+// SRG, mesmo que a Meta ignore). Pedido do Sergio em 25/09/2026.
+function gestorFiltrarTicket(lista) {
+  if (gestorState.mostrarSemTicket) return lista;
+  return lista.filter(c => !!c.ticketMeta);
+}
 function gestorAplicarFiltros(lista) {
   let r = gestorFiltrarPeriodo(lista);
   r = gestorFiltrarStatus(r);
+  r = gestorFiltrarTicket(r);
   if (gestorState.setor !== 'todos') r = r.filter(c => c.setor === gestorState.setor);
   if (gestorState.atendente !== 'todos') r = r.filter(c => c.atendenteSRG === gestorState.atendente);
   return r;
@@ -3598,6 +3615,7 @@ function gestorBacklogEm(lista, instante) {
 // selecionado (backlog, idade do backlog, chamados que exigem atencao).
 function gestorAplicarFiltrosSemPeriodo(lista) {
   let r = gestorFiltrarStatus(lista);
+  r = gestorFiltrarTicket(r);
   if (gestorState.setor !== 'todos') r = r.filter(c => c.setor === gestorState.setor);
   if (gestorState.atendente !== 'todos') r = r.filter(c => c.atendenteSRG === gestorState.atendente);
   return r;
@@ -4331,6 +4349,24 @@ function gestorRenderTudo() {
 
   gestorPopularSelects();
   gestorRenderCrumbs();
+
+  // Contador ao lado do checkbox "Incluir chamados sem Ticket Meta" --
+  // mostra quantos estao escondidos AGORA (respeitando status/setor/
+  // solicitante já selecionados, só não o corte de ticket em si), pra dar
+  // uma nocao de tamanho antes de marcar a caixa.
+  const chkSemTicket = document.getElementById('gestor-chk-sem-ticket');
+  if (chkSemTicket) chkSemTicket.checked = gestorState.mostrarSemTicket;
+  const contSemTicket = document.getElementById('gestor-sem-ticket-count');
+  if (contSemTicket) {
+    const baseTicket = gestorFiltrarStatus(todos).filter(c =>
+      (gestorState.setor === 'todos' || c.setor === gestorState.setor) &&
+      (gestorState.atendente === 'todos' || c.atendenteSRG === gestorState.atendente)
+    );
+    const qtdSemTicket = baseTicket.filter(c => !c.ticketMeta).length;
+    contSemTicket.textContent = qtdSemTicket
+      ? (gestorState.mostrarSemTicket ? `(${qtdSemTicket} incluído${qtdSemTicket === 1 ? '' : 's'})` : `(${qtdSemTicket} oculto${qtdSemTicket === 1 ? '' : 's'})`)
+      : '';
+  }
 
   const metricas = gestorRenderKPIs(baseSemPeriodo, janela);
   gestorRenderEvolucao(baseSemPeriodo);
