@@ -3458,16 +3458,20 @@ function gestorRangeAtivo() {
 function gestorFiltrarPeriodo(lista) {
   const { ini, fim } = gestorRangeAtivo();
   if (!ini) return lista;
-  // Quando o filtro de status e SO "Resolvido", o corte de periodo passa a
-  // usar a data de CONCLUSAO em vez de ABERTURA -- senao "Todos os
-  // chamados" e o card "Resolvidos" contavam coisas diferentes (o card usa
-  // conclusao, mas a lista usava abertura), entao um chamado aberto ha
-  // semanas e resolvido essa semana contava no card mas sumia da lista.
-  // Pedido do Sergio em 25/09/2026 ("queria ver os que foram resolvidos de
-  // fato dessa semana").
-  const porConclusao = gestorState.statusFiltro.length === 1 && gestorState.statusFiltro[0] === 'resolvido';
-  const campo = porConclusao ? 'dataConclusao' : 'dataAbertura';
-  return lista.filter(c => { const d = parseDataBR(c[campo]); return d && d >= ini && d <= fim; });
+  // Cada chamado e julgado pela data que FAZ SENTIDO pro estado dele: um
+  // resolvido conta pela data de CONCLUSAO, todo o resto conta pela data
+  // de ABERTURA -- é a MESMA convenção que os cards de KPI já usam
+  // (tituloAbertura vs tituloConclusao). Antes essa lista usava só
+  // abertura pra tudo, entao um chamado aberto ha semanas e resolvido
+  // essa semana sumia da lista mesmo contando no card "Resolvidos"; e um
+  // chamado aberto essa semana mas resolvido em outra semana aparecia
+  // mesmo sem ter nada de "resolvido essa semana". Corrigido em
+  // 25/09/2026 a pedido do Sergio pra bater com o que os cards mostram.
+  return lista.filter(c => {
+    const campo = c.balde === 'resolvido' ? c.dataConclusao : c.dataAbertura;
+    const d = parseDataBR(campo);
+    return d && d >= ini && d <= fim;
+  });
 }
 // "melhorias" nao e um balde normal (aberto/pendente/resolvido) -- e um
 // recorte a parte (categoria "Solicitação" ou status "Pendente PO"),
@@ -4186,11 +4190,8 @@ function gestorRenderTickets(filtrados) {
   if (selStatusEl && selStatusEl.value !== gestorState.listaStatusFiltro) selStatusEl.value = gestorState.listaStatusFiltro;
   const tituloEl = document.getElementById('gestor-lista-titulo');
   if (tituloEl) {
-    const porConclusao = gestorState.statusFiltro.length === 1 && gestorState.statusFiltro[0] === 'resolvido';
-    tituloEl.title = porConclusao
-      ? 'Filtra pela data de CONCLUSÃO dentro do período selecionado -- por isso pode incluir chamados abertos antes do período (mas resolvidos dentro dele), igual o card "Resolvidos".'
-      : 'Filtra pela data de ABERTURA dentro do período selecionado -- um chamado aberto antes do período e resolvido agora não aparece aqui, mesmo contando no card "Resolvidos".';
-    tituloEl.innerHTML = `Todos os chamados <span style="font-weight:500;font-size:13px;color:#5c7095">· por ${porConclusao ? 'conclusão' : 'abertura'}</span>`;
+    tituloEl.title = 'Cada chamado entra no período selecionado pela data que faz sentido pro estado dele: resolvido conta pela data de CONCLUSÃO, o resto conta pela data de ABERTURA -- mesma convenção dos cards de KPI acima.';
+    tituloEl.innerHTML = `Todos os chamados <span style="font-weight:500;font-size:13px;color:#5c7095">· abertura, ou conclusão se resolvido</span>`;
   }
   const campoOrd = gestorState.listaOrdenarPor;
   const dirOrd = gestorState.listaOrdenarDir === 'asc' ? 1 : -1;
