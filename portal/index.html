@@ -4351,14 +4351,16 @@ function gestorRenderTudo() {
   gestorRenderCrumbs();
 
   // Contador ao lado do checkbox "Incluir chamados sem Ticket Meta" --
-  // mostra quantos estao escondidos AGORA (respeitando status/setor/
-  // solicitante já selecionados, só não o corte de ticket em si), pra dar
-  // uma nocao de tamanho antes de marcar a caixa.
+  // mostra quantos estao escondidos AGORA dentro do PERIODO selecionado
+  // (respeitando periodo/status/setor/solicitante já escolhidos, só não o
+  // corte de ticket em si) -- antes contava sobre a base inteira (todos os
+  // tempos), entao "Esta semana" mostrava um numero gigante (217) que nao
+  // tinha nada a ver com o que estava filtrado. Corrigido em 25/09/2026.
   const chkSemTicket = document.getElementById('gestor-chk-sem-ticket');
   if (chkSemTicket) chkSemTicket.checked = gestorState.mostrarSemTicket;
   const contSemTicket = document.getElementById('gestor-sem-ticket-count');
   if (contSemTicket) {
-    const baseTicket = gestorFiltrarStatus(todos).filter(c =>
+    const baseTicket = gestorFiltrarStatus(gestorFiltrarPeriodo(todos)).filter(c =>
       (gestorState.setor === 'todos' || c.setor === gestorState.setor) &&
       (gestorState.atendente === 'todos' || c.atendenteSRG === gestorState.atendente)
     );
