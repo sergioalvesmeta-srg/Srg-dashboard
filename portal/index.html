@@ -558,7 +558,7 @@ footer.foot{border-top:1px solid rgba(255,255,255,.07);background:rgba(10,16,36,
           <span style="flex:1;min-width:0;cursor:pointer;display:flex;align-items:center;gap:5px" onclick="gestorOrdenarLista('titulo')" data-gordcampo="titulo">Título<span class="gestor-ord-seta"></span></span>
           <span style="width:140px;flex-shrink:0;cursor:pointer;display:flex;align-items:center;gap:5px" onclick="gestorOrdenarLista('atendente')" data-gordcampo="atendente">Atendente SRG<span class="gestor-ord-seta"></span></span>
           <span style="width:170px;flex-shrink:0;cursor:pointer;display:flex;align-items:center;gap:5px" onclick="gestorOrdenarLista('descricao')" data-gordcampo="descricao">Aberto há<span class="gestor-ord-seta"></span></span>
-          <span style="width:110px;flex-shrink:0;cursor:pointer;display:flex;align-items:center;gap:5px;justify-content:center;white-space:nowrap" onclick="gestorOrdenarLista('prioridade')" data-gordcampo="prioridade">Prioridade<span class="gestor-ord-seta"></span></span>
+          <span style="width:110px;flex-shrink:0;cursor:pointer;display:flex;align-items:center;gap:5px;justify-content:center;white-space:nowrap" onclick="gestorOrdenarLista('prioridade')" data-gordcampo="prioridade">Critério<span class="gestor-ord-seta"></span></span>
           <div style="width:170px;flex-shrink:0;display:flex;align-items:center;justify-content:flex-end;gap:8px">
             <span style="cursor:pointer;display:flex;align-items:center;gap:5px" onclick="gestorOrdenarLista('status')" data-gordcampo="status">Status<span class="gestor-ord-seta"></span></span>
             <select id="gestor-lista-status-select" onclick="event.stopPropagation()" onchange="setGestorListaStatus(this.value)" style="height:24px;padding:0 6px;border-radius:6px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.2);color:#bcccea;font:600 10px Manrope;text-transform:none;letter-spacing:0;cursor:pointer">
@@ -2094,7 +2094,7 @@ async function detalheRenderizar(found) {
   const diasParado = diasDesde(ultimaInt || editado);
   const parado5mais = !resolvido && diasParado !== null && diasParado >= 5;
   document.getElementById('details-body').innerHTML = [
-    ['Cliente', nomeContato||'—'], ['Assunto', nome||'—'], ['Setor', setor||'—'], ['Prioridade', urgencia||'Normal'],
+    ['Cliente', nomeContato||'—'], ['Assunto', nome||'—'], ['Setor', setor||'—'], ['Critério', urgencia||'Normal'],
     ['Aberto em', fmtDate(abertura)], ['Última atualização', fmtDateTime(editado)],
     ['Dias em aberto', diasLabel(diasAberto)],
     ...(resolvido ? [] : [['Dias parado', `<span style="${parado5mais?'color:#fc9a6a':''}">${diasLabel(diasParado)}</span>`]]),
