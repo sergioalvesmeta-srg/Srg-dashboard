@@ -544,7 +544,7 @@ footer.foot{border-top:1px solid rgba(255,255,255,.07);background:rgba(10,16,36,
         <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;cursor:pointer" onclick="gestorToggleLista()">
           <div style="display:flex;align-items:center;gap:10px">
             <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="#7fd4c0" stroke-width="1.9" stroke-linecap="round"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 9h18M8 4v16"/></svg>
-            <h3 style="font:700 17px Outfit,sans-serif;color:#f2f7ff;margin:0" title="Filtra pela data de ABERTURA dentro do período selecionado -- um chamado aberto antes do período e resolvido agora não aparece aqui, mesmo contando no card &quot;Resolvidos&quot;.">Todos os chamados <span style="font-weight:500;font-size:13px;color:#5c7095">· por abertura</span></h3>
+            <h3 id="gestor-lista-titulo" style="font:700 17px Outfit,sans-serif;color:#f2f7ff;margin:0" title="Filtra pela data de ABERTURA dentro do período selecionado -- um chamado aberto antes do período e resolvido agora não aparece aqui, mesmo contando no card &quot;Resolvidos&quot;.">Todos os chamados <span style="font-weight:500;font-size:13px;color:#5c7095">· por abertura</span></h3>
             <span id="gestor-toggle-lista-seta" style="color:#7fd4c0;transition:transform .2s;display:flex;align-items:center">
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="m18 15-6-6-6 6"/></svg>
             </span>
@@ -3458,7 +3458,16 @@ function gestorRangeAtivo() {
 function gestorFiltrarPeriodo(lista) {
   const { ini, fim } = gestorRangeAtivo();
   if (!ini) return lista;
-  return lista.filter(c => { const d = parseDataBR(c.dataAbertura); return d && d >= ini && d <= fim; });
+  // Quando o filtro de status e SO "Resolvido", o corte de periodo passa a
+  // usar a data de CONCLUSAO em vez de ABERTURA -- senao "Todos os
+  // chamados" e o card "Resolvidos" contavam coisas diferentes (o card usa
+  // conclusao, mas a lista usava abertura), entao um chamado aberto ha
+  // semanas e resolvido essa semana contava no card mas sumia da lista.
+  // Pedido do Sergio em 25/09/2026 ("queria ver os que foram resolvidos de
+  // fato dessa semana").
+  const porConclusao = gestorState.statusFiltro.length === 1 && gestorState.statusFiltro[0] === 'resolvido';
+  const campo = porConclusao ? 'dataConclusao' : 'dataAbertura';
+  return lista.filter(c => { const d = parseDataBR(c[campo]); return d && d >= ini && d <= fim; });
 }
 // "melhorias" nao e um balde normal (aberto/pendente/resolvido) -- e um
 // recorte a parte (categoria "Solicitação" ou status "Pendente PO"),
@@ -4175,9 +4184,17 @@ function gestorRenderTickets(filtrados) {
     ? filtrados.filter(c => c.status === gestorState.listaStatusFiltro) : filtrados;
   const selStatusEl = document.getElementById('gestor-lista-status-select');
   if (selStatusEl && selStatusEl.value !== gestorState.listaStatusFiltro) selStatusEl.value = gestorState.listaStatusFiltro;
+  const tituloEl = document.getElementById('gestor-lista-titulo');
+  if (tituloEl) {
+    const porConclusao = gestorState.statusFiltro.length === 1 && gestorState.statusFiltro[0] === 'resolvido';
+    tituloEl.title = porConclusao
+      ? 'Filtra pela data de CONCLUSÃO dentro do período selecionado -- por isso pode incluir chamados abertos antes do período (mas resolvidos dentro dele), igual o card "Resolvidos".'
+      : 'Filtra pela data de ABERTURA dentro do período selecionado -- um chamado aberto antes do período e resolvido agora não aparece aqui, mesmo contando no card "Resolvidos".';
+    tituloEl.innerHTML = `Todos os chamados <span style="font-weight:500;font-size:13px;color:#5c7095">· por ${porConclusao ? 'conclusão' : 'abertura'}</span>`;
+  }
   const campoOrd = gestorState.listaOrdenarPor;
   const dirOrd = gestorState.listaOrdenarDir === 'asc' ? 1 : -1;
-  const RANK_URGENCIA = { 'Alta': 2, 'Normal': 1, 'Baixa': 0 };
+  const RANK_URGENCIA = { 'Urgente': 3, 'Alta': 2, 'Normal': 1, 'Baixa': 0 };
   const ordenados = [...base].sort((a,b) => {
     if (!campoOrd) return new Date(b.lastEdited) - new Date(a.lastEdited); // padrao: atualizado mais recente primeiro
     if (campoOrd === 'titulo') return dirOrd * (a.cliente||'').localeCompare(b.cliente||'', 'pt-BR');
@@ -4234,7 +4251,7 @@ function gestorRenderTickets(filtrados) {
     // (nao chama atencao a toa), verde pra Baixa (calmo, mesma familia do
     // "Resolvido") -- antes as 3 cores eram tons parecidos de azul/rosa e
     // nao davam nenhuma pista visual de qual e mais urgente.
-    const corUrgencia = { 'Alta':'#e0685f', 'Normal':'#93a6c4', 'Baixa':'#5abfa0' }[c.urgencia] || '#93a6c4';
+    const corUrgencia = { 'Urgente':'#e0685f', 'Alta':'#e0955f', 'Normal':'#93a6c4', 'Baixa':'#5abfa0' }[c.urgencia] || '#93a6c4';
     return `
     <div onclick="gestorAbrirTicket('${c.id}')" style="display:flex;align-items:center;gap:16px;padding:14px 16px;border-radius:14px;cursor:pointer;background:rgba(255,255,255,.035);border:1px solid rgba(255,255,255,.08)">
       <span style="width:10px;height:10px;border-radius:50%;flex-shrink:0;background:${KIND_COLOR[statusKind(c.status)]}"></span>
