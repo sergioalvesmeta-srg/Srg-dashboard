@@ -3625,7 +3625,15 @@ function gestorAplicarFiltrosSemPeriodo(lista) {
 // isso e reaproveitada tanto pro painel inteiro quanto por responsavel.
 function gestorCalcularMetricas(lista, ini, fim) {
   const recebidosLista = ini ? lista.filter(c => gestorEmJanela(c.dataAbertura, ini, fim)) : lista.slice();
-  const resolvidosLista = ini ? lista.filter(c => gestorEmJanela(c.dataConclusao, ini, fim)) : lista.filter(c => c.dataConclusao);
+  // "Resolvidos" conta por ABERTURA, igual "Chamados recebidos" e igual a
+  // lista "Todos os chamados" -- dentre o que foi ABERTO no período,
+  // quantos já estão resolvidos. Até 25/09/2026 contava por CONCLUSÃO
+  // (podia incluir chamado aberto em período anterior e concluído agora,
+  // inflando o número acima de "Chamados recebidos" -- ex: 15 resolvidos
+  // vs 7 recebidos, taxa de 214%). O Sergio decidiu que os dois cards
+  // devem sempre bater com a mesma lista de baixo (por abertura), mesmo
+  // que isso deixe de fora um chamado antigo concluído essa semana.
+  const resolvidosLista = recebidosLista.filter(c => c.balde === 'resolvido');
   const recebidos = recebidosLista.length;
   const resolvidos = resolvidosLista.length;
   // Backlog = dentre os chamados RECEBIDOS na janela selecionada, quantos
@@ -3722,8 +3730,16 @@ function gestorRenderKPIs(baseSemPeriodo, janela) {
   // incluir chamados abertos antes do periodo selecionado -- por isso o
   // numero deles pode nao bater com o que aparece em "Todos os chamados".
   // Adicionado em 23/09/2026 depois do Sergio notar essa diferenca.
+  // Todos os cards contam pela data de ABERTURA dentro do período, exatamente
+  // igual "Todos os chamados" -- "Resolvidos" ate 25/09/2026 contava por
+  // CONCLUSAO (podia incluir chamado aberto em periodo anterior, inflando o
+  // numero acima de "Chamados recebidos" -- ex: 15 resolvidos vs 7
+  // recebidos, taxa de 214%, e nao batia com a lista de baixo). Mudado a
+  // pedido do Sergio: "a lista tem que ser igual o dash, vice e versa,
+  // ambos tem que bater" -- agora "Resolvidos" e sempre um subconjunto de
+  // "Chamados recebidos" (dentre o que abriu no periodo, quantos ja
+  // resolveram), entao taxa de resolucao nunca passa de 100%.
   const tituloAbertura = 'Conta pela data de ABERTURA dentro do período selecionado (mesmo critério de "Todos os chamados").';
-  const tituloConclusao = 'Conta pela data de CONCLUSÃO dentro do período -- pode incluir chamados abertos ANTES do período selecionado, por isso pode não bater com "Todos os chamados".';
   const cards = [
     { label:'Pendências do período <span style="font-weight:500;color:#5c7095">· fluxo</span>', val: atuais.backlog, click:`gestorFiltrarPorKPI('aberto')`, cor:'#a992e0', title: tituloAbertura,
       badge: (anteriores ? gestorBadge(atuais.backlog, anteriores.backlog, {modo:'desce-bom', sufixo}) : '') + `<div style="margin-top:6px;font:600 11px Manrope;color:#7186ab" title="Passivo total acumulado ate agora, independente do periodo selecionado.">Total atual: <span style="color:#dbe6fb;font-weight:700">${backlogTotalAtual}</span> <span style="color:${variacaoCor}">(${variacaoTxt})</span></div>` },
@@ -3731,9 +3747,9 @@ function gestorRenderKPIs(baseSemPeriodo, janela) {
       badge: anteriores ? gestorBadge(atuais.pendentesMeta, anteriores.pendentesMeta, {modo:'desce-bom', sufixo}) : '' },
     { label:'Pendentes SRG <span style="font-weight:500;color:#5c7095">· fluxo</span>', val: atuais.pendentes, click:`gestorFiltrarPorKPI('pendente')`, cor:'#c15c5c', title: tituloAbertura,
       badge: anteriores ? gestorBadge(atuais.pendentes, anteriores.pendentes, {modo:'desce-bom', sufixo}) : '' },
-    { label:'Resolvidos <span style="font-weight:500;color:#5c7095">· fluxo</span>', val: atuais.resolvidos, click:`gestorFiltrarPorKPI('resolvido')`, cor:'#3fa08c', title: tituloConclusao,
+    { label:'Resolvidos <span style="font-weight:500;color:#5c7095">· fluxo</span>', val: atuais.resolvidos, click:`gestorFiltrarPorKPI('resolvido')`, cor:'#3fa08c', title: tituloAbertura + ' Dentre os "Chamados recebidos" no período, quantos já estão resolvidos.',
       badge: anteriores ? gestorBadge(atuais.resolvidos, anteriores.resolvidos, {modo:'sobe-bom', sufixo}) : '' },
-    { label:'Taxa de resolução <span style="font-weight:500;color:#5c7095">· fluxo</span>', val: atuais.taxaResolucao.toFixed(0)+'%', click:`gestorFiltrarPorKPI('resolvido')`, cor:'#5db4e6', title: tituloConclusao + ' Divide Resolvidos (por conclusão) por Chamados recebidos (por abertura) -- por isso pode passar de 100%.',
+    { label:'Taxa de resolução <span style="font-weight:500;color:#5c7095">· fluxo</span>', val: atuais.taxaResolucao.toFixed(0)+'%', click:`gestorFiltrarPorKPI('resolvido')`, cor:'#5db4e6', title: tituloAbertura + ' Divide Resolvidos por Chamados recebidos (ambos por abertura) -- nunca passa de 100%.',
       badge: anteriores ? gestorBadge(atuais.taxaResolucao, anteriores.taxaResolucao, {modo:'sobe-bom', pontosPercentuais:true, casas:1, sufixo}) : '' },
     { label:'Chamados recebidos <span style="font-weight:500;color:#5c7095">· fluxo</span>', val: atuais.recebidos, click:`gestorFiltrarPorKPI('todos')`, cor:'#f2f7ff', title: tituloAbertura,
       badge: anteriores ? gestorBadge(atuais.recebidos, anteriores.recebidos, {modo:'neutro', sufixo}) : '' },
