@@ -3458,20 +3458,17 @@ function gestorRangeAtivo() {
 function gestorFiltrarPeriodo(lista) {
   const { ini, fim } = gestorRangeAtivo();
   if (!ini) return lista;
-  // Cada chamado e julgado pela data que FAZ SENTIDO pro estado dele: um
-  // resolvido conta pela data de CONCLUSAO, todo o resto conta pela data
-  // de ABERTURA -- é a MESMA convenção que os cards de KPI já usam
-  // (tituloAbertura vs tituloConclusao). Antes essa lista usava só
-  // abertura pra tudo, entao um chamado aberto ha semanas e resolvido
-  // essa semana sumia da lista mesmo contando no card "Resolvidos"; e um
-  // chamado aberto essa semana mas resolvido em outra semana aparecia
-  // mesmo sem ter nada de "resolvido essa semana". Corrigido em
-  // 25/09/2026 a pedido do Sergio pra bater com o que os cards mostram.
-  return lista.filter(c => {
-    const campo = c.balde === 'resolvido' ? c.dataConclusao : c.dataAbertura;
-    const d = parseDataBR(campo);
-    return d && d >= ini && d <= fim;
-  });
+  // SEMPRE por data de ABERTURA, pra todo chamado, resolvido ou nao --
+  // essa e a definicao de "no periodo" pro Sergio: "o que foi aberto
+  // dentro da semana selecionada" (e dentro desse conjunto, alguns ja
+  // estao resolvidos). Cheguei a testar filtrar resolvido pela CONCLUSAO
+  // (pra bater 1:1 com o card "Resolvidos", que conta por conclusao) mas
+  // isso trazia chamados antigos (abertos meses atras) só por terem sido
+  // fechados essa semana, o que o Sergio considerou errado -- "tem que
+  // pegar com base no aberto em". Reforcado em 25/09/2026: o card
+  // "Resolvidos" continua contando por conclusao (e um numero a parte,
+  // "quanto fechamos essa semana"), mas ESSA LISTA e sempre por abertura.
+  return lista.filter(c => { const d = parseDataBR(c.dataAbertura); return d && d >= ini && d <= fim; });
 }
 // "melhorias" nao e um balde normal (aberto/pendente/resolvido) -- e um
 // recorte a parte (categoria "Solicitação" ou status "Pendente PO"),
@@ -4190,8 +4187,8 @@ function gestorRenderTickets(filtrados) {
   if (selStatusEl && selStatusEl.value !== gestorState.listaStatusFiltro) selStatusEl.value = gestorState.listaStatusFiltro;
   const tituloEl = document.getElementById('gestor-lista-titulo');
   if (tituloEl) {
-    tituloEl.title = 'Cada chamado entra no período selecionado pela data que faz sentido pro estado dele: resolvido conta pela data de CONCLUSÃO, o resto conta pela data de ABERTURA -- mesma convenção dos cards de KPI acima.';
-    tituloEl.innerHTML = `Todos os chamados <span style="font-weight:500;font-size:13px;color:#5c7095">· abertura, ou conclusão se resolvido</span>`;
+    tituloEl.title = 'Filtra pela data de ABERTURA dentro do período selecionado, pra todo chamado (resolvido ou não) -- um chamado aberto antes do período e resolvido agora não aparece aqui, mesmo contando no card "Resolvidos" (que conta por conclusão, é um número à parte).';
+    tituloEl.innerHTML = `Todos os chamados <span style="font-weight:500;font-size:13px;color:#5c7095">· por abertura</span>`;
   }
   const campoOrd = gestorState.listaOrdenarPor;
   const dirOrd = gestorState.listaOrdenarDir === 'asc' ? 1 : -1;
@@ -4200,8 +4197,7 @@ function gestorRenderTickets(filtrados) {
     if (!campoOrd) return new Date(b.lastEdited) - new Date(a.lastEdited); // padrao: atualizado mais recente primeiro
     if (campoOrd === 'titulo') return dirOrd * (a.cliente||'').localeCompare(b.cliente||'', 'pt-BR');
     if (campoOrd === 'descricao') {
-      const da = parseDataBR(a.balde==='resolvido' ? a.dataConclusao : a.dataAbertura);
-      const db = parseDataBR(b.balde==='resolvido' ? b.dataConclusao : b.dataAbertura);
+      const da = parseDataBR(a.dataAbertura), db = parseDataBR(b.dataAbertura);
       return dirOrd * ((da?da.getTime():0) - (db?db.getTime():0));
     }
     if (campoOrd === 'prioridade') return dirOrd * ((RANK_URGENCIA[a.urgencia]??1) - (RANK_URGENCIA[b.urgencia]??1));
@@ -4229,15 +4225,7 @@ function gestorRenderTickets(filtrados) {
     return;
   }
   el.innerHTML = ordenados.map(c => {
-    // Pra chamado resolvido, a coluna mostra ha quanto tempo foi
-    // RESOLVIDO (nao aberto) -- senao um ticket de 84 dias atras que
-    // acabou de ser fechado aparecia com "84 dias" em destaque, parecendo
-    // fora do lugar numa lista filtrada por "essa semana" (o "84 dias" e
-    // sobre a abertura, nao tem nada a ver com o filtro por conclusao que
-    // colocou ele ali). Mesma convencao de sempre: resolvido usa
-    // conclusao, resto usa abertura. Pedido do Sergio em 25/09/2026.
-    const resolvido = c.balde === 'resolvido';
-    const dias = diasDesde(resolvido ? c.dataConclusao : c.dataAbertura);
+    const dias = diasDesde(c.dataAbertura);
     const atualizadoHa = fmtAtualizadoHa(c.lastEdited);
     // Diferencia a ORIGEM da ultima atualizacao, nao so se foi recente:
     // - Retorno SRG (a propria SRG deu retorno dentro do chamado) -> verde.
@@ -4271,8 +4259,8 @@ function gestorRenderTickets(filtrados) {
       </div>
       <div style="width:140px;flex-shrink:0;font:600 12.5px Manrope;color:#dbe6fb;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${c.atendenteSRG || '—'}</div>
       <div style="width:170px;flex-shrink:0">
-        <div style="font:500 12.5px Manrope;color:${resolvido?'#5abfa0':'#b3c4e0'}">${resolvido?'resolvido há ':''}${diasLabel(dias)}</div>
-        <div style="font:500 11px Manrope;color:#7186ab;margin-top:2px">${fmtDate(resolvido ? c.dataConclusao : c.dataAbertura)}</div>
+        <div style="font:500 12.5px Manrope;color:#b3c4e0">${diasLabel(dias)}</div>
+        <div style="font:500 11px Manrope;color:#7186ab;margin-top:2px">${fmtDate(c.dataAbertura)}</div>
       </div>
       <div style="width:110px;flex-shrink:0;display:flex;justify-content:center">
         <span style="font:700 10.5px Manrope;padding:4px 10px;border-radius:999px;background:${corUrgencia}1e;color:${corUrgencia};border:1px solid ${corUrgencia}55;white-space:nowrap">${c.urgencia}</span>
