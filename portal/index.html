@@ -1612,7 +1612,15 @@ function buildTimeline(chamado, idInterno, prefixo) {
     etapas.push({ordData: h.data ? new Date(h.data) : new Date(0), done:true, retorno:true, chaveRetorno: h.data||'', titulo:`Retorno SRG${h.autor ? ' — '+h.autor : ''}`, data: h.data ? fmtDateTime(h.data) : '', desc: h.texto||''});
   });
   etapas.push({ordData: new Date(editado), done: status==='Resolvido', titulo: label, data: fmtDateTime(editado), desc: status==='Resolvido' ? 'Chamado encerrado com sucesso.' : (solucao || 'Aguardando retorno da equipe responsável.') });
-  etapas.sort((a,b) => a.ordData - b.ordData);
+  // Salvar um Retorno SRG atualiza updated_at no MESMO instante (mesma
+  // escrita no D1) -- entao o retorno e a etapa de status atual quase
+  // sempre EMPATAM no horario. Sem empate, ordem cronologica normal; COM
+  // empate, o retorno fica por ULTIMO (pedido do Sergio em 28/09/2026 --
+  // "o retorno sempre ficar por ultimo de baixo pra cima"): conta uma
+  // historia mais coerente ("chamado ficou nesse status, e esse foi o
+  // ultimo retorno dado") em vez de parecer que o retorno veio ANTES do
+  // status mudar pro mesmo horario exato.
+  etapas.sort((a,b) => (a.ordData - b.ordData) || ((a.retorno?1:0) - (b.retorno?1:0)));
   etapas[etapas.length-1].last = true;
   return etapas.map(e => {
     const color = e.retorno ? '#5a96dc' : (e.done ? '#5abfa0' : '#f2b84b');
