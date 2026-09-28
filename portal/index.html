@@ -2016,6 +2016,15 @@ async function mostrarDetalhe(found) {
 // de detalhe estiver aberta.
 async function detalheAtualizar() {
   if (!detalheChamadoId) return;
+  // Se o usuario esta com o editor de "Novo retorno" aberto e ja
+  // digitou alguma coisa (ou o campo esta em foco), NAO re-renderiza --
+  // o auto-refresh a cada 30s reconstroi o HTML inteiro da tela, o que
+  // apaga a textarea (e o que foi digitado nela) no meio da digitacao.
+  // Reportado pelo Sergio em 28/09/2026 ("fico digitando e a caixa fecha
+  // sozinha"). O refresh so volta a acontecer quando o campo estiver
+  // vazio e sem foco de novo (editor fechado ou recem-aberto).
+  const campoRetorno = document.getElementById('cli-retorno-texto');
+  if (campoRetorno && (document.activeElement === campoRetorno || campoRetorno.value.trim())) return;
   try {
     const fresco = await fetchD1Chamado(detalheChamadoId);
     if (fresco) await detalheRenderizar(fresco);
