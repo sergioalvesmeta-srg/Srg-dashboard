@@ -1599,7 +1599,13 @@ function buildTimeline(chamado, idInterno, prefixo) {
   const abertura = chamado.data_abertura;
   const setor    = chamado.setor_suporte;
   const solucao  = chamado.solucao;
-  const editado  = chamado.updated_at || chamado.created_at || abertura;
+  // status_atualizado_em (novo em 28/09/2026, ver rota /d1/upsert no
+  // Worker): data/hora real da ultima MUDANCA de status, separada de
+  // updated_at (que reflete qualquer escrita na linha, inclusive um
+  // Retorno SRG que nao muda o status). Linhas antigas que ainda nao
+  // passaram por um sync depois dessa mudanca nao tem esse campo
+  // preenchido -- cai no updated_at de sempre nesse caso (fallback).
+  const editado  = chamado.status_atualizado_em || chamado.updated_at || chamado.created_at || abertura;
   const label    = statusLabel(status);
   const etapas = [];
   if (abertura) etapas.push({ordData: new Date(abertura+'T00:00:00'), done:true, titulo:'Chamado aberto', data:fmtDate(abertura), desc:'Chamado registrado no portal do cliente.'});
