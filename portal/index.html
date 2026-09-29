@@ -379,11 +379,6 @@ footer.foot{border-top:1px solid rgba(255,255,255,.07);background:rgba(10,16,36,
 
       <div class="glass" style="max-width:820px;padding:30px">
 
-        <label style="display:block;font:600 12.5px Manrope;color:#bcccea;margin-bottom:8px">Cliente</label>
-        <div class="field" style="height:52px;margin-bottom:22px;opacity:.75">
-          <input type="text" id="nt-cliente" disabled style="cursor:not-allowed">
-        </div>
-
         <div class="novo-chamado-grid" style="display:grid;grid-template-columns:1fr 1fr;gap:18px;margin-bottom:22px">
           <div>
             <label style="display:block;font:600 12.5px Manrope;color:#bcccea;margin-bottom:8px">Posto</label>
@@ -2540,9 +2535,7 @@ function buildNewTicketChips() {
     selSetor.innerHTML = NT_SETORES.map(v => `<option value="${v}">${v}</option>`).join('');
     selSetor.dataset.pronto = '1';
   }
-  // Cliente = quem está logado no portal; Data = hoje, por padrão
-  const nomeCliente = (currentUser?.nome && currentUser.nome.trim()) ? currentUser.nome.trim() : (currentUser?.username || '');
-  document.getElementById('nt-cliente').value = nomeCliente;
+  // Data = hoje, por padrão (campo Cliente foi removido da tela -- ver ntMontarMensagem)
   const dataInput = document.getElementById('nt-data');
   if (dataInput && !dataInput.value) {
     dataInput.value = hojeLocalStr();
@@ -2660,7 +2653,10 @@ function preencherComIA() {
 // Monta o texto no padrão -- usado pela pré-visualização, pelo Copiar e
 // pelo envio via WhatsApp (uma única fonte da verdade pro formato).
 function ntMontarMensagem() {
-  const cliente = document.getElementById('nt-cliente').value.trim();
+  // Campo Cliente saiu da tela (29/09). Pra equipe SRG a linha some da
+  // mensagem; se quem abre é cliente, o nome do login vai automático.
+  const ehEquipeSRG = !!(currentUser && (currentUser.atendenteSRG || currentUser.gestor || currentUser.role === 'admin'));
+  const cliente = ehEquipeSRG ? '' : ((currentUser?.nome || '').trim() || currentUser?.username || '');
   const posto = document.getElementById('nt-posto-select').value;
   const setorSel = document.getElementById('nt-setor-select').value;
   const setor = setorSel === 'Outro (digitar abaixo)' ? document.getElementById('nt-setor-custom').value.trim() : setorSel;
@@ -2678,7 +2674,7 @@ function ntMontarMensagem() {
   const linhas = [
     `*Novo chamado — Portal SRG*`,
     ``,
-    `• Cliente: ${cliente || '—'}`,
+    ...(cliente ? [`• Cliente: ${cliente}`] : []),
     `• Posto: ${posto}`,
     `• Grau de prioridade: ${ntPrio}`,
     `• Setor: ${setor || '—'}`,
