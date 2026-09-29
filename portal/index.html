@@ -690,6 +690,32 @@ footer.foot{border-top:1px solid rgba(255,255,255,.07);background:rgba(10,16,36,
         </div>
       </div>
 
+      <!-- LINHA 5.6 — Rede de segurança: resolvidos sem retorno confirmado -->
+      <!-- Adicionado em 29/09/2026: cobre o cenário em que o retorno foi
+           dado verbalmente/no grupo e o técnico esqueceu de registrar no
+           portal antes da Meta marcar o chamado como Resolvido. Ignora o
+           filtro de período de propósito (igual "exige atenção" acima) --
+           o objetivo é nunca deixar um caso pendente escondido atrás de um
+           filtro de data. -->
+      <div class="glass" style="padding:26px 28px;margin-bottom:20px" id="gestor-sem-retorno-card">
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-bottom:20px">
+          <div style="display:flex;align-items:center;gap:10px">
+            <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="#e29a9a" stroke-width="1.9" stroke-linecap="round"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg>
+            <h3 style="font:700 17px Outfit,sans-serif;color:#f2f7ff;margin:0">Resolvidos sem retorno confirmado</h3>
+          </div>
+          <span id="gestor-sem-retorno-count" style="font:600 12.5px Manrope;color:#93a6c4"></span>
+        </div>
+        <p style="font:400 12.5px Manrope;color:#93a6c4;margin:-10px 0 16px">Chamados que a Meta já marcou como resolvidos, mas ninguém marcou "Retorno dado ao cliente" ainda. Não respeita o filtro de período — sempre mostra tudo em aberto.</p>
+        <div class="gestor-scroll">
+          <table class="gestor-table" id="gestor-sem-retorno">
+            <thead><tr>
+              <th>Chamado</th><th>Cliente</th><th>Setor</th><th>Responsável</th><th>Resolvido há</th><th>Status</th><th></th>
+            </tr></thead>
+            <tbody id="gestor-sem-retorno-body"></tbody>
+          </table>
+        </div>
+      </div>
+
       <div style="margin-top:22px;font:400 12px Manrope;color:#7186ab;text-align:center" id="gestor-fonte-nota">
         Carregando fonte de dados...
       </div>
@@ -2136,7 +2162,7 @@ async function detalheRenderizar(found) {
   ].map(([label,value]) => `<div style="display:flex;justify-content:space-between;gap:14px;padding:11px 0;border-bottom:1px solid rgba(255,255,255,.07)"><span style="font:500 13px Manrope;color:#b3c4e0;flex-shrink:0">${label}</span><span style="font:600 13.5px Manrope;color:#e7eefb;text-align:right">${value}</span></div>`).join('');
 
   document.getElementById('details-body').innerHTML += buildExpandable('desc-expand', 'Descrição completa', descCompleta, true) + buildExpandable('sol-expand', 'Solução', solucaoTxt)
-    + (ehEquipeSRG && idInternoAtual ? buildRetornoSRGAdicionar(idInternoAtual, 'cli') : '');
+    + (ehEquipeSRG && idInternoAtual ? buildRetornoConfirmacao(found, idInternoAtual, 'cli') + buildRetornoSRGAdicionar(idInternoAtual, 'cli') : '');
 
   const waMsg = encodeURIComponent(`Olá, gostaria de informações sobre o chamado ${currentProto||''}.`);
   document.getElementById('wa-btn').onclick = () => window.open(`https://wa.me/${WA_NUMBER}?text=${waMsg}`,'_blank');
@@ -2274,6 +2300,65 @@ async function retornoSRGExcluir(idInterno, chaveData, prefixo) {
     if (timelineEl) timelineEl.innerHTML = buildTimeline(data.chamado, idInterno, p);
   } catch (e) {
     alert('Erro ao excluir retorno: ' + e.message);
+  }
+}
+// ---- Confirmação "Retorno dado ao cliente" ----
+// Flag manual e INDEPENDENTE do texto do Retorno SRG acima -- pensada
+// pra cobrir o caso (relatado pelo Sergio em 29/09/2026) em que o
+// retorno e dado verbalmente/no grupo do WhatsApp e o tecnico esquece
+// de registrar o texto formal antes da Meta marcar o chamado como
+// Resolvido. Aqui basta marcar a caixa: grava quem confirmou e quando
+// (retorno_confirmado/retorno_confirmado_por/retorno_confirmado_em no
+// D1, mesma rota PATCH do Retorno SRG). Alimenta a rede de seguranca
+// "Resolvidos sem retorno confirmado" no Painel do Gestor.
+function buildRetornoConfirmacao(chamado, idInterno, prefixo) {
+  if (!idInterno) return '';
+  const p = prefixo || 'cli';
+  const confirmado = !!(chamado && chamado.retorno_confirmado);
+  if (confirmado) {
+    const autor = (chamado.retorno_confirmado_por || '').trim() || 'alguém da equipe';
+    const quando = fmtDateTime(chamado.retorno_confirmado_em);
+    return `
+      <div id="${p}-retorno-confirmacao" style="margin-top:10px;display:flex;align-items:center;gap:10px;padding:10px 14px;border-radius:12px;background:rgba(63,160,140,.14);border:1px solid rgba(90,190,160,.3);flex-wrap:wrap">
+        <span style="font:600 13px Manrope;color:#7fe0c0">✅ Retorno dado ao cliente</span>
+        <span style="font:500 12px Manrope;color:#9fc9bd">por ${autor} em ${quando}</span>
+        <button class="chip" style="padding:4px 10px;font-size:11.5px;margin-left:auto" onclick="retornoConfirmarToggle('${idInterno}','${p}',false)">Desmarcar</button>
+      </div>`;
+  }
+  return `
+    <div id="${p}-retorno-confirmacao" style="margin-top:10px">
+      <button class="chip" style="padding:6px 14px;font-size:12px;border-color:rgba(224,149,95,.4);color:#e0955f" onclick="retornoConfirmarToggle('${idInterno}','${p}',true)">☐ Marcar "Retorno dado ao cliente"</button>
+    </div>`;
+}
+async function retornoConfirmarToggle(idInterno, prefixo, marcar) {
+  const p = prefixo || 'cli';
+  const autor = (currentUser && (currentUser.nome || currentUser.username)) || '';
+  const agora = new Date().toISOString();
+  try {
+    const r = await fetch(`${PROXY}/d1/chamados/id/${encodeURIComponent(idInterno)}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        retorno_confirmado: marcar ? 1 : 0,
+        retorno_confirmado_por: marcar ? autor : null,
+        retorno_confirmado_em: marcar ? agora : null,
+      })
+    });
+    const data = await r.json();
+    if (!data.ok) throw new Error(data.error || 'Erro ao salvar no D1');
+    if (p === 'gestor') {
+      const entry = (gestorChamadosCache||[]).find(x => x.idInterno === idInterno);
+      if (entry) {
+        entry.d1 = data.chamado;
+        entry.retornoConfirmado = !!data.chamado.retorno_confirmado;
+        await gestorAbrirTicket(entry.id);
+      }
+      gestorRenderTudo();
+    } else {
+      await detalheRenderizar(data.chamado);
+    }
+  } catch (e) {
+    alert('Erro ao salvar confirmação de retorno: ' + e.message);
   }
 }
 function buildExpandable(id, label, text, aberto=false) {
@@ -2593,6 +2678,11 @@ async function getChamados({ forcar=false } = {}) {
       // (status/campo alterado do lado da Meta) -- ver fmtAtualizadoHa
       // e gestorRenderTickets.
       retornoSrgData: row.retorno_srg_data || null,
+      // Flag "Retorno dado ao cliente" (checkbox manual, ver
+      // retornoConfirmarToggle) -- independente do texto do Retorno SRG,
+      // cobre tambem retorno dado verbalmente/no grupo. Usado pra alertar
+      // "Resolvidos sem retorno confirmado" (gestorCalcularAtencaoRetorno).
+      retornoConfirmado: !!row.retorno_confirmado,
       page: null,
     };
   });
@@ -4199,6 +4289,70 @@ function gestorRenderAtencao(resultado) {
   }).join('');
 }
 
+// ---- Rede de segurança: resolvidos sem retorno confirmado ----
+// Pega direto de baseSemPeriodo (setor/atendente/status já filtrados,
+// mas SEM o corte de período) -- de propósito, igual "exige atenção"
+// acima. Um chamado resolvido há 3 semanas sem retorno confirmado
+// continua sendo um problema hoje; não pode "sumir" só porque o gestor
+// está olhando "esta semana". Adicionado em 29/09/2026 a pedido do
+// Sergio, como rede de segurança pro esquecimento de retorno.
+function gestorCalcularSemRetorno(baseSemPeriodo) {
+  const todas = baseSemPeriodo
+    .filter(c => c.balde === 'resolvido' && !c.retornoConfirmado)
+    .map(c => ({ ...c, dias: diasDesde(c.dataConclusao || c.dataAbertura) || 0 }))
+    .sort((a,b) => b.dias - a.dias);
+  return { linhas: todas, total: todas.length };
+}
+function gestorRenderSemRetorno(resultado) {
+  const { linhas, total } = resultado;
+  const contagemEl = document.getElementById('gestor-sem-retorno-count');
+  if (contagemEl) contagemEl.textContent = total ? `${total} pendente${total === 1 ? '' : 's'}` : 'tudo em dia';
+  const card = document.getElementById('gestor-sem-retorno-card');
+  const el = document.getElementById('gestor-sem-retorno-body');
+  if (!linhas.length) {
+    if (card) card.style.opacity = '.55';
+    el.innerHTML = `<tr><td colspan="7" style="color:#7186ab">Nenhum -- todo chamado resolvido tem retorno confirmado.</td></tr>`;
+    return;
+  }
+  if (card) card.style.opacity = '1';
+  el.innerHTML = linhas.map(c => {
+    const corStatus = gestorCorStatusReal(c.status);
+    return `
+    <tr class="clicavel" onclick="gestorAbrirTicket('${c.id}')">
+      <td style="color:#8fd0f5;font-family:'IBM Plex Mono',monospace">${c.protocolo||'—'}</td>
+      <td style="color:#eaf1ff">${c.cliente}</td>
+      <td>${c.setor}</td>
+      <td>${c.atendenteSRG||'—'}</td>
+      <td>${diasLabel(c.dias)}</td>
+      <td><span style="font:700 11px Manrope;padding:3px 10px;border-radius:999px;background:${corStatus}22;color:${corStatus};border:1px solid ${corStatus}55;white-space:nowrap">${c.status}</span></td>
+      <td><button class="chip" style="padding:4px 10px;font-size:11.5px" onclick="event.stopPropagation();gestorMarcarRetornoInline('${c.idInterno}')">✓ Marcar retorno</button></td>
+    </tr>`;
+  }).join('');
+}
+// Marca a flag direto na tabela de rede de segurança, sem precisar abrir
+// o modal do chamado -- fluxo rápido pro gestor "zerar" a lista.
+async function gestorMarcarRetornoInline(idInterno) {
+  const autor = (currentUser && (currentUser.nome || currentUser.username)) || '';
+  try {
+    const r = await fetch(`${PROXY}/d1/chamados/id/${encodeURIComponent(idInterno)}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        retorno_confirmado: 1,
+        retorno_confirmado_por: autor,
+        retorno_confirmado_em: new Date().toISOString(),
+      })
+    });
+    const data = await r.json();
+    if (!data.ok) throw new Error(data.error || 'Erro ao salvar no D1');
+    const entry = (gestorChamadosCache||[]).find(x => x.idInterno === idInterno);
+    if (entry) { entry.d1 = data.chamado; entry.retornoConfirmado = true; }
+    gestorRenderTudo();
+  } catch (e) {
+    alert('Erro ao marcar retorno: ' + e.message);
+  }
+}
+
 // Recolhe/expande a lista "Todos os chamados" -- pode passar de 100+
 // linhas e empurrar o resto do painel pra baixo. So mexe na exibicao (nao
 // refaz a busca), entao e instantaneo.
@@ -4335,6 +4489,7 @@ function gestorRenderTickets(filtrados) {
       </div>
       <div style="width:170px;flex-shrink:0;display:flex;flex-direction:column;justify-content:center;align-items:flex-end;gap:5px">
         ${c.nivelAtendimento==='N3+' ? `<span style="font:700 10.5px Manrope;padding:3px 10px;border-radius:999px;background:rgba(224,149,95,.16);color:#e0a888;border:1px solid rgba(224,149,95,.35);white-space:nowrap">N3+</span>` : ''}
+        ${(c.balde==='resolvido' && !c.retornoConfirmado) ? `<span title="Resolvido pela Meta, mas ninguém marcou &quot;Retorno dado ao cliente&quot; ainda" style="font:700 10.5px Manrope;padding:3px 10px;border-radius:999px;background:rgba(226,154,154,.16);color:#e29a9a;border:1px solid rgba(226,154,154,.4);white-space:nowrap">⚠ sem retorno</span>` : ''}
         ${pillHtml(c.status)}
       </div>
     </div>`;
@@ -4387,7 +4542,7 @@ async function gestorAbrirTicket(id) {
     ${buildExpandable('gestor-sol-expand', 'Solução', d1.solucao || '')}
     <div style="font:600 13px Manrope;color:#bcccea;margin:18px 0 10px">Histórico</div>
     <div id="gestor-timeline-body">${buildTimeline(d1, c.idInterno, 'gestor')}</div>
-    ${c.idInterno ? buildRetornoSRGAdicionar(c.idInterno, 'gestor') : ''}`;
+    ${c.idInterno ? buildRetornoConfirmacao(d1, c.idInterno, 'gestor') + buildRetornoSRGAdicionar(c.idInterno, 'gestor') : ''}`;
 }
 function gestorFecharModal() { document.getElementById('gestor-modal').style.display = 'none'; }
 
@@ -4432,6 +4587,7 @@ function gestorRenderTudo() {
   gestorRenderN2N3(metricas);
 
   gestorRenderAtencao(gestorCalcularAtencao(baseSemPeriodo));
+  gestorRenderSemRetorno(gestorCalcularSemRetorno(baseSemPeriodo));
   gestorRenderTickets(filtrados);
 
   const nota = document.getElementById('gestor-fonte-nota');
