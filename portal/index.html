@@ -416,10 +416,18 @@ footer.foot{border-top:1px solid rgba(255,255,255,.07);background:rgba(10,16,36,
           </div>
         </div>
 
-        <div id="nt-solicitante-wrap" style="display:none;margin-bottom:22px">
-          <label style="display:block;font:600 12.5px Manrope;color:#bcccea;margin-bottom:8px">Solicitante <span style="font-weight:500;color:#7186ab">(equipe SRG)</span></label>
-          <div class="field" style="height:52px">
-            <input type="text" id="nt-solicitante" placeholder="Quem está abrindo o chamado">
+        <div id="nt-solicitante-wrap" class="novo-chamado-grid" style="display:none;grid-template-columns:1fr 1fr;gap:18px;margin-bottom:22px">
+          <div>
+            <label style="display:block;font:600 12.5px Manrope;color:#bcccea;margin-bottom:8px">Solicitante <span style="font-weight:500;color:#7186ab">(equipe SRG)</span></label>
+            <div class="field" style="height:52px">
+              <input type="text" id="nt-solicitante" placeholder="Quem está abrindo o chamado">
+            </div>
+          </div>
+          <div>
+            <label style="display:block;font:600 12.5px Manrope;color:#bcccea;margin-bottom:8px">Protocolo <span style="font-weight:500;color:#7186ab">(equipe SRG)</span></label>
+            <div class="field" style="height:52px">
+              <input type="text" id="nt-protocolo" inputmode="numeric" autocomplete="off" placeholder="Protocolo do atendimento">
+            </div>
           </div>
         </div>
 
@@ -445,7 +453,7 @@ footer.foot{border-top:1px solid rgba(255,255,255,.07);background:rgba(10,16,36,
         </div>
         <p style="font:400 12px Manrope;color:#7186ab;margin:0 0 26px">Prefere enviar a foto direto? Pode abrir o chamado e mandar a imagem em seguida, na própria conversa do WhatsApp.</p>
 
-        <p style="font:400 12px Manrope;color:#7186ab;margin:0">O protocolo é gerado automaticamente pela Meta depois que o chamado é aberto — por isso não aparece aqui.</p>
+        <p id="nt-protocolo-nota" style="font:400 12px Manrope;color:#7186ab;margin:0">O protocolo é gerado automaticamente pela Meta depois que o chamado é aberto — por isso não aparece aqui.</p>
 
       </div>
       </div>
@@ -2601,7 +2609,12 @@ function buildNewTicketChips() {
   const solWrap = document.getElementById('nt-solicitante-wrap');
   const solInput = document.getElementById('nt-solicitante');
   if (solWrap && solInput) {
-    solWrap.style.display = ehEquipeSRG ? 'block' : 'none';
+    // Protocolo: a equipe SRG já tem o número na hora de abrir -> campo
+    // aparece junto do Solicitante. Cliente não vê (segue em branco).
+    solWrap.style.display = ehEquipeSRG ? 'grid' : 'none';
+    const nota = document.getElementById('nt-protocolo-nota');
+    if (nota) nota.style.display = ehEquipeSRG ? 'none' : 'block';
+    if (!ehEquipeSRG) { const pr = document.getElementById('nt-protocolo'); if (pr) pr.value = ''; }
     if (!ehEquipeSRG) solInput.value = '';
     else if (!solInput.value) solInput.value = (currentUser.atendenteSRG || '').split(',')[0].trim() || (currentUser.nome || '').trim();
   }
@@ -2754,12 +2767,13 @@ function ntMontarMensagem() {
   const desc = document.getElementById('nt-desc').value.trim();
   const evidencia = document.getElementById('nt-evidencia').value.trim();
   const solicitante = (document.getElementById('nt-solicitante')?.value || '').trim();
+  const protocolo = (document.getElementById('nt-protocolo')?.value || '').trim();
 
   const dataFmt = dataProblema ? new Date(dataProblema+'T12:00:00').toLocaleDateString('pt-BR') : new Date().toLocaleDateString('pt-BR');
 
-  // Protocolo vai sempre em branco (gerado pela Meta). Solicitante só é
-  // preenchido quando quem abre é da equipe SRG (campo visível só pra
-  // ela); pra cliente segue em branco pro analista completar.
+  // Solicitante e Protocolo só são preenchidos quando quem abre é da equipe
+  // SRG (campos visíveis só pra ela); pra cliente seguem em branco pro
+  // analista completar.
   const linhas = [
     ...(cliente ? [`• *Cliente:* ${cliente}`] : []),
     `• *Posto:* ${posto}`,
@@ -2768,7 +2782,7 @@ function ntMontarMensagem() {
     `• *Solicitante:* ${solicitante}`,
     `• *Assunto:* ${assunto || '—'}`,
     `• *Data do problema:* ${dataFmt}`,
-    `• *Protocolo:* `,
+    `• *Protocolo:* ${protocolo}`,
     `• *Descrição do problema:* ${desc || '—'}`,
   ];
   if (evidencia) linhas.push(`• *Evidência:* ${evidencia}`);
