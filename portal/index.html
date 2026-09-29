@@ -2729,17 +2729,17 @@ function ntMontarMensagem() {
   // preenchido quando quem abre é da equipe SRG (campo visível só pra
   // ela); pra cliente segue em branco pro analista completar.
   const linhas = [
-    ...(cliente ? [`• Cliente: ${cliente}`] : []),
-    `• Posto: ${posto}`,
-    `• Grau de prioridade: ${ntPrio}`,
-    `• Setor: ${setor || '—'}`,
-    `• Solicitante: ${solicitante}`,
-    `• Assunto: ${assunto || '—'}`,
-    `• Data do problema: ${dataFmt}`,
-    `• Protocolo: `,
-    `• Descrição do problema: ${desc || '—'}`,
+    ...(cliente ? [`• *Cliente:* ${cliente}`] : []),
+    `• *Posto:* ${posto}`,
+    `• *Grau de prioridade:* ${ntPrio}`,
+    `• *Setor:* ${setor || '—'}`,
+    `• *Solicitante:* ${solicitante}`,
+    `• *Assunto:* ${assunto || '—'}`,
+    `• *Data do problema:* ${dataFmt}`,
+    `• *Protocolo:* `,
+    `• *Descrição do problema:* ${desc || '—'}`,
   ];
-  if (evidencia) linhas.push(`• Evidência: ${evidencia}`);
+  if (evidencia) linhas.push(`• *Evidência:* ${evidencia}`);
 
   return { texto: linhas.join('\n'), assunto, posto };
 }
