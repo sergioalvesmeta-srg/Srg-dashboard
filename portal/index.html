@@ -1248,6 +1248,9 @@ function goProfile() {
   window.scrollTo(0,0);
 }
 function showView(name) {
+  // Guarda a tela atual no endereço (#kpis, #gestor...) pra um F5 reabrir
+  // a mesma tela. replaceState: não enche o histórico do navegador.
+  try { history.replaceState(null, '', name === 'dashboard' ? location.pathname + location.search : '#' + name); } catch (e) {}
   document.getElementById('view-dashboard').style.display = name==='dashboard' ? 'block' : 'none';
   document.getElementById('view-newticket').style.display = name==='newticket' ? 'block' : 'none';
   document.getElementById('view-profile').style.display = name==='profile' ? 'block' : 'none';
@@ -1298,6 +1301,7 @@ async function doLogout() {
   sessionStorage.removeItem('srg_user');
   localStorage.removeItem('srg_user');
   localStorage.removeItem('srg_manter');
+  try { history.replaceState(null, '', location.pathname + location.search); } catch (e) {}
   showLogin();
   document.getElementById('login-user').value = '';
   document.getElementById('login-pass').value = '';
@@ -1325,13 +1329,34 @@ function enterApp() {
 // nome/telefones/atendenteSRG) de alguem que já está logado nesse
 // navegador, a mudança aparece sem precisar deslogar e logar de novo
 // (antes so pegava o dado do momento do login e ficava preso nele).
+// Reabre a tela que estava no endereço (#kpis etc.) depois do F5 -- só se
+// o usuário tiver permissão pra ela; senão fica na tela inicial.
+function restaurarTelaDoEndereco(tela) {
+  const u = currentUser || {};
+  const ehGestor = !!u.gestor || u.role === 'admin';
+  const rotas = {
+    gestor:            [ehGestor, goGestor],
+    kpis:              [!!u.verKPIs || u.role === 'admin', goKPIs],
+    'acesso-clientes': [!!u.verAcessoClientes || ehGestor, goAcessoClientes],
+    newticket:         [true, goNew],
+    profile:           [true, goProfile],
+  };
+  const r = rotas[tela];
+  if (!r || !r[0]) { goHome(); return; }
+  try { r[1](); } catch (e) { console.warn('[restaurarTela]', e); goHome(); }
+}
+
 (function initSession(){
   const manter = localStorage.getItem('srg_manter') === '1';
   const saved = manter ? localStorage.getItem('srg_user') : sessionStorage.getItem('srg_user');
   if (saved) {
     currentUser = JSON.parse(saved);
     document.getElementById('login-manter').checked = manter;
+    const telaSalva = (location.hash || '').replace('#', ''); // lê antes: enterApp volta pro dashboard
     enterApp();
+    // setTimeout 0: roda depois que o script inteiro terminou de carregar
+    // (variáveis como kpisModo/ntPreviewEditado são declaradas mais abaixo)
+    if (telaSalva) setTimeout(() => restaurarTelaDoEndereco(telaSalva), 0);
     revalidarSessao();
   } else {
     showLogin();
