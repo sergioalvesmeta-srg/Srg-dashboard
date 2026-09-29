@@ -572,6 +572,7 @@ footer.foot{border-top:1px solid rgba(255,255,255,.07);background:rgba(10,16,36,
               <option value="Pendente SRG">Aguardando ação SRG</option>
               <option value="Pendente PO">Aguardando aprovação</option>
               <option value="Resolvido">Resolvido</option>
+              <option value="Resolvido Paliativo">Resolvido Paliativo</option>
             </select>
           </div>
         </div>
@@ -1546,7 +1547,7 @@ function diasLabel(n) {
 const KIND_COLOR = { andamento:'#f2b84b', aberto:'#5aa0e6', resolvido:'#5abfa0', aguardando:'#a992e0' };
 function statusKind(s) {
   if (s==='Em Andamento' || s==='Pendente SRG') return 'andamento';
-  if (s==='Resolvido') return 'resolvido';
+  if (s==='Resolvido' || s==='Resolvido Paliativo') return 'resolvido';
   if (s==='Aguardando Meta' || s==='Pendente PO') return 'aguardando';
   return 'aberto';
 }
@@ -1557,6 +1558,10 @@ function statusLabel(s) {
   if (s==='Pendente SRG')     return 'Aguardando ação SRG';
   if (s==='Pendente PO')      return 'Aguardando aprovação';
   if (s==='Resolvido')        return 'Resolvido';
+  // Continua contando como resolvido pro painel (mesmo balde/KPI), so o
+  // rotulo distingue solucao definitiva de paliativa -- pedido do Sergio
+  // em 29/09/2026.
+  if (s==='Resolvido Paliativo') return 'Resolvido Paliativo';
   return s;
 }
 function pillHtml(status) {
@@ -1617,7 +1622,8 @@ function buildTimeline(chamado, idInterno, prefixo) {
   historicoRetorno.forEach(h => {
     etapas.push({ordData: h.data ? new Date(h.data) : new Date(0), done:true, retorno:true, chaveRetorno: h.data||'', titulo:`Retorno SRG${h.autor ? ' — '+h.autor : ''}`, data: h.data ? fmtDateTime(h.data) : '', desc: h.texto||''});
   });
-  etapas.push({ordData: new Date(editado), done: status==='Resolvido', titulo: label, data: fmtDateTime(editado), desc: status==='Resolvido' ? 'Chamado encerrado com sucesso.' : (solucao || 'Aguardando retorno da equipe responsável.') });
+  const statusResolvido = status==='Resolvido' || status==='Resolvido Paliativo';
+  etapas.push({ordData: new Date(editado), done: statusResolvido, titulo: label, data: fmtDateTime(editado), desc: statusResolvido ? 'Chamado encerrado com sucesso.' : (solucao || 'Aguardando retorno da equipe responsável.') });
   // Salvar um Retorno SRG atualiza updated_at no MESMO instante (mesma
   // escrita no D1) -- entao o retorno e a etapa de status atual quase
   // sempre EMPATAM no horario. Sem empate, ordem cronologica normal; COM
@@ -1758,7 +1764,7 @@ async function carregarMeusChamados() {
     // aparecem sem limite nenhum.
     let resolvidosContados = 0;
     results = results.filter(row => {
-      if (row.status === 'Resolvido') {
+      if (row.status === 'Resolvido' || row.status === 'Resolvido Paliativo') {
         resolvidosContados++;
         return resolvidosContados <= 10;
       }
@@ -1778,7 +1784,7 @@ async function carregarMeusChamados() {
       const ultimaInt = row.ultima_interacao_data;
       const nomeContatoLista = row.contato_digisac_nome;
       const kind = statusKind(status);
-      const resolvido = status === 'Resolvido';
+      const resolvido = status === 'Resolvido' || status === 'Resolvido Paliativo';
       const diasAberto = diasDesde(abertura);
       const diasParado = diasDesde(ultimaInt || row.updated_at);
       const parado5mais = !resolvido && diasParado !== null && diasParado >= 5;
@@ -2116,7 +2122,7 @@ async function detalheRenderizar(found) {
   // inclusos) -- nao precisa de um fetch extra separado igual antes.
   document.getElementById('timeline-body').innerHTML = buildTimeline(found, ehEquipeSRG ? idInternoAtual : null, 'cli');
   const ultimaInt = found.ultima_interacao_data;
-  const resolvido = status === 'Resolvido';
+  const resolvido = status === 'Resolvido' || status === 'Resolvido Paliativo';
   const diasAberto = diasDesde(abertura);
   const diasParado = diasDesde(ultimaInt || editado);
   const parado5mais = !resolvido && diasParado !== null && diasParado >= 5;
@@ -2522,10 +2528,14 @@ const gestorState = {
 // exibe status -- so o AGRUPAMENTO usado nos KPIs/graficos agregados e
 // que muda.
 function gestorBalde(status) {
-  if (status === 'Resolvido') return 'resolvido';
+  // "Resolvido Paliativo" (status novo em 29/09/2026, ver STATUS_MAP no
+  // meta_to_notion.py) conta como resolvido igual "Resolvido" puro pra
+  // todo KPI/backlog/filtro -- so o ROTULO exibido diferencia solucao
+  // definitiva de paliativa (ver statusLabel).
+  if (status === 'Resolvido' || status === 'Resolvido Paliativo') return 'resolvido';
   if (status === 'Aguardando Meta' || status === 'Em Andamento' || status === 'Pendente PO') return 'pendenteMeta';
   if (status === 'Pendente SRG') return 'pendente';
-  return 'pendenteMeta'; // fallback -- na pratica nao deveria ocorrer, os 5 status conhecidos ja cobrem tudo
+  return 'pendenteMeta'; // fallback -- na pratica nao deveria ocorrer, os status conhecidos ja cobrem tudo
 }
 
 // Camada de dados -- unico ponto que fala com a fonte real (Notion, por
@@ -4156,6 +4166,7 @@ function gestorToggleAtencao() {
 // 'pendentePO'=roxo, 'resolvido'=verde).
 function gestorCorStatusReal(status) {
   if (status === 'Resolvido') return '#3fa08c';
+  if (status === 'Resolvido Paliativo') return '#5abfa0';
   if (status === 'Pendente SRG') return '#c15c5c';
   if (status === 'Pendente PO') return '#a992e0';
   return '#e0a888'; // Aguardando Meta / Em Andamento
