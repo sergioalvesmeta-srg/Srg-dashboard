@@ -373,7 +373,7 @@ footer.foot{border-top:1px solid rgba(255,255,255,.07);background:rgba(10,16,36,
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v3M12 18v3M3 12h3M18 12h3M5.6 5.6l2.1 2.1M16.3 16.3l2.1 2.1M18.4 5.6l-2.1 2.1M7.7 16.3l-2.1 2.1"/><circle cx="12" cy="12" r="3.5"/></svg>
           <span id="nt-ia-btn-text">Preencher automaticamente</span>
         </button>
-        <p style="font:400 11.5px Manrope;color:#7186ab;margin:8px 0 0">Detecta posto (ex: "CAC10"), setor e prioridade por palavras-chave. Sempre confira antes de enviar.</p>
+        <p style="font:400 11.5px Manrope;color:#7186ab;margin:8px 0 0">Detecta posto (ex: "CAC10"), setor e prioridade por palavras-chave e reescreve o relato em tom profissional (IA). Sempre confira antes de enviar.</p>
         <div id="nt-ia-erro" style="display:none;margin-top:10px;font:500 12.5px Manrope;color:#fc8181"></div>
       </div>
 
@@ -428,8 +428,8 @@ footer.foot{border-top:1px solid rgba(255,255,255,.07);background:rgba(10,16,36,
           <span>Mensagem no padrão (pré-visualização)</span>
           <span id="nt-copiar-status" style="font:600 12px Manrope;color:#7fd4c0"></span>
         </label>
-        <textarea id="nt-preview" rows="12" title="Pode editar o texto antes de copiar/enviar" style="width:100%;padding:14px 16px;border-radius:13px;background:rgba(0,0,0,.22);border:1px dashed rgba(127,212,192,.4);color:#dff5ec;font:500 13.5px ui-monospace,Consolas,monospace;line-height:1.55;margin-bottom:6px;resize:vertical"></textarea>
-        <p id="nt-preview-hint" style="font:400 12px Manrope;color:#7186ab;margin:0 0 22px">Pode ajustar o texto direto aqui antes de copiar ou enviar.</p>
+        <textarea id="nt-preview" readonly rows="12" style="width:100%;padding:14px 16px;border-radius:13px;background:rgba(0,0,0,.22);border:1px dashed rgba(127,212,192,.4);color:#dff5ec;font:500 13.5px ui-monospace,Consolas,monospace;line-height:1.55;margin-bottom:6px;resize:vertical"></textarea>
+        <p id="nt-preview-hint" style="font:400 12px Manrope;color:#7186ab;margin:0 0 22px"></p>
 
         <div style="display:flex;gap:12px;flex-wrap:wrap">
           <button class="btn-ghost" onclick="copiarNovoChamado()" style="display:inline-flex;align-items:center;gap:8px">
@@ -2620,6 +2620,39 @@ function ntResumirAssunto(texto) {
   return s;
 }
 
+// Reescreve Assunto/Descrição em tom profissional via Worker (Workers AI).
+// Se falhar (sem sessão, sem cota, IA fora), mantém o preenchimento local.
+async function ntReformularIA(texto) {
+  const btn = document.getElementById('nt-ia-btn');
+  const txt = document.getElementById('nt-ia-btn-text');
+  const erroEl = document.getElementById('nt-ia-erro');
+  const rotuloOriginal = txt ? txt.textContent : '';
+  if (btn) btn.disabled = true;
+  if (txt) txt.textContent = 'Reformulando o texto...';
+  try {
+    const r = await fetch(`${PROXY}/ia/reformular-chamado`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${currentUser?.token || ''}` },
+      body: JSON.stringify({ texto }),
+    });
+    const d = await r.json().catch(() => ({}));
+    if (!r.ok || !d.ok) throw new Error(d.error || `HTTP ${r.status}`);
+    // Só aplica se o usuário não trocou o relato enquanto a IA respondia
+    if (document.getElementById('nt-texto-livre').value.trim() !== texto) return;
+    document.getElementById('nt-assunto').value = d.assunto;
+    document.getElementById('nt-desc').value = d.descricao;
+    ntAtualizarPreview();
+  } catch (e) {
+    console.warn('[ntReformularIA]', e);
+    const aviso = 'Não consegui reformular o texto agora — mantive o relato original na descrição.';
+    erroEl.textContent = erroEl.style.display === 'block' ? erroEl.textContent + ' ' + aviso : aviso;
+    erroEl.style.display = 'block';
+  } finally {
+    if (btn) btn.disabled = false;
+    if (txt) txt.textContent = rotuloOriginal;
+  }
+}
+
 function preencherComIA() {
   const texto = document.getElementById('nt-texto-livre').value.trim();
   const erroEl = document.getElementById('nt-ia-erro');
@@ -2643,6 +2676,7 @@ function preencherComIA() {
   if (c.assunto) document.getElementById('nt-assunto').value = c.assunto;
   if (c.descricao) document.getElementById('nt-desc').value = c.descricao;
   ntAtualizarPreview();
+  ntReformularIA(texto);
 
   if (!c.posto || !c.setor) {
     erroEl.textContent = `Não reconheci ${!c.posto?'o posto':''}${!c.posto && !c.setor?' nem ':''}${!c.setor?'o setor':''} automaticamente — confere/preenche esse campo antes de enviar.`;
@@ -2703,9 +2737,26 @@ let ntPreviewEditado = false;
 function ntRenderPreviewHint() {
   const h = document.getElementById('nt-preview-hint');
   if (!h) return;
+  // Edição só por ação explícita ("Editar texto") -- antes qualquer tecla
+  // digitada sem querer dentro da prévia travava a atualização automática
+  // e o usuário preenchia os campos sem ver a mensagem mudar.
+  const el = document.getElementById('nt-preview');
+  if (el) el.readOnly = !ntPreviewEditado;
+  // Só redesenha se o modo mudou: o "change" de um campo dispara no
+  // mousedown do link e recriar o <a> ali fazia o clique se perder.
+  const modo = ntPreviewEditado ? 'edit' : 'auto';
+  if (h.dataset.modo === modo) return;
+  h.dataset.modo = modo;
   h.innerHTML = ntPreviewEditado
-    ? `<span style="color:#f6c177">Texto editado manualmente — mudanças nos campos acima não atualizam mais a mensagem.</span> <a href="#" onclick="ntRestaurarPreview();return false" style="color:#7fd4c0;font-weight:600">Restaurar padrão</a>`
-    : 'Pode ajustar o texto direto aqui antes de copiar ou enviar.';
+    ? `<span style="color:#f6c177">Editando o texto à mão — os campos acima não atualizam mais a mensagem.</span> <a href="#" onclick="ntRestaurarPreview();return false" style="color:#7fd4c0;font-weight:600">Restaurar padrão</a>`
+    : `A mensagem acompanha os campos acima. <a href="#" onclick="ntEditarPreview();return false" style="color:#7fd4c0;font-weight:600">Editar texto</a>`;
+}
+
+function ntEditarPreview() {
+  ntPreviewEditado = true;
+  ntRenderPreviewHint();
+  const el = document.getElementById('nt-preview');
+  if (el) { el.focus(); el.setSelectionRange(el.value.length, el.value.length); }
 }
 
 function ntRestaurarPreview() {
@@ -2718,9 +2769,6 @@ function ntTextoFinal(m) {
   return (ntPreviewEditado && el && el.value.trim()) ? el.value : m.texto;
 }
 
-document.addEventListener('input', e => {
-  if (e.target.id === 'nt-preview' && !ntPreviewEditado) { ntPreviewEditado = true; ntRenderPreviewHint(); }
-});
 
 function ntAtualizarPreview() {
   ntRenderPreviewHint();
