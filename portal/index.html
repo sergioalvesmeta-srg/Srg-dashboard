@@ -74,6 +74,12 @@ header.navbar{position:sticky;top:0;z-index:20;display:flex;align-items:center;j
 main.shell{flex:1;width:100%;max-width:1600px;margin:0 auto;padding:38px 30px 60px}
 footer.foot{border-top:1px solid rgba(255,255,255,.07);background:rgba(10,16,36,.4);backdrop-filter:blur(14px)}
 
+/* IA reformulando: spinner no botão + campos pulsando/travados */
+@keyframes ntSpin{to{transform:rotate(360deg)}}
+@keyframes ntPulse{0%,100%{box-shadow:0 0 0 0 rgba(127,212,192,0);border-color:rgba(127,212,192,.25)}50%{box-shadow:0 0 0 3px rgba(127,212,192,.35);border-color:rgba(127,212,192,.8)}}
+.nt-spin{width:15px;height:15px;border:2px solid rgba(255,255,255,.35);border-top-color:#fff;border-radius:50%;animation:ntSpin .8s linear infinite;display:inline-block;flex:0 0 auto}
+.nt-spin.verde{border-color:rgba(127,212,192,.3);border-top-color:#7fd4c0;width:13px;height:13px}
+.nt-ia-pulsando{animation:ntPulse 1.1s ease-in-out infinite!important;opacity:.6;cursor:progress!important}
 /* Novo chamado: formulário à esquerda, prévia + botões fixos à direita */
 .nt-layout{display:grid;grid-template-columns:minmax(0,1fr) minmax(360px,440px);gap:22px;align-items:start}
 .nt-col-preview{position:sticky;top:88px}
@@ -396,6 +402,7 @@ footer.foot{border-top:1px solid rgba(255,255,255,.07);background:rgba(10,16,36,
           <span id="nt-ia-btn-text">Preencher automaticamente</span>
         </button>
         <p style="font:400 11.5px Manrope;color:#7186ab;margin:8px 0 0">Detecta posto (ex: "CAC10"), setor e prioridade por palavras-chave e reescreve o relato em tom profissional (IA). Sempre confira antes de enviar.</p>
+        <div id="nt-ia-status" style="display:none;align-items:center;gap:9px;margin-top:10px;font:600 12.5px Manrope;color:#7fd4c0"></div>
         <div id="nt-ia-erro" style="display:none;margin-top:10px;font:500 12.5px Manrope;color:#f6c177"></div>
         <div id="nt-ia-falha" style="display:none;margin-top:6px;font:500 12.5px Manrope;color:#fc8181"></div>
       </div>
@@ -2689,12 +2696,51 @@ function ntResumirAssunto(texto) {
 
 // Reescreve Assunto/Descrição em tom profissional via Worker (Workers AI).
 // Se falhar (sem sessão, sem cota, IA fora), mantém o preenchimento local.
-async function ntReformularIA(texto) {
+// Estado visual enquanto a IA escreve: spinner no botão, status com
+// contador de segundos, Assunto/Descrição/prévia pulsando e travados
+// (evita digitar algo que seria sobrescrito quando a IA responder).
+function ntIACarregando(ligado) {
   const btn = document.getElementById('nt-ia-btn');
   const txt = document.getElementById('nt-ia-btn-text');
-  const rotuloOriginal = txt ? txt.textContent : '';
-  if (btn) btn.disabled = true;
-  if (txt) txt.textContent = 'Reformulando o texto...';
+  const icone = btn ? btn.querySelector('svg') : null;
+  const st = document.getElementById('nt-ia-status');
+  const assuntoWrap = document.getElementById('nt-assunto')?.closest('.field');
+  const campos = [document.getElementById('nt-assunto'), document.getElementById('nt-desc')];
+  const alvosPulso = [assuntoWrap, document.getElementById('nt-desc'), document.getElementById('nt-preview')];
+  clearInterval(ntIACarregando._t);
+  if (ligado) {
+    if (btn) btn.disabled = true;
+    if (icone) icone.style.display = 'none';
+    if (btn && !btn.querySelector('.nt-spin')) btn.insertAdjacentHTML('afterbegin', '<span class="nt-spin"></span>');
+    if (txt) txt.textContent = 'Reescrevendo com IA...';
+    campos.forEach(c => c && (c.readOnly = true));
+    alvosPulso.forEach(a => a && a.classList.add('nt-ia-pulsando'));
+    const ini = Date.now();
+    const pinta = () => { st.innerHTML = `<span class="nt-spin verde"></span> Reescrevendo o relato em tom profissional… ${Math.floor((Date.now()-ini)/1000)}s`; };
+    st.style.display = 'flex'; pinta();
+    ntIACarregando._t = setInterval(pinta, 1000);
+  } else {
+    if (btn) btn.disabled = false;
+    if (icone) icone.style.display = '';
+    btn?.querySelector('.nt-spin')?.remove();
+    if (txt) txt.textContent = 'Preencher automaticamente';
+    campos.forEach(c => c && (c.readOnly = false));
+    alvosPulso.forEach(a => a && a.classList.remove('nt-ia-pulsando'));
+    st.style.display = 'none';
+  }
+}
+
+function ntIASucesso() {
+  const st = document.getElementById('nt-ia-status');
+  st.innerHTML = '✓ Texto reformulado — confira o Assunto e a Descrição antes de enviar.';
+  st.style.display = 'flex';
+  clearTimeout(ntIASucesso._t);
+  ntIASucesso._t = setTimeout(() => { st.style.display = 'none'; }, 5000);
+}
+
+async function ntReformularIA(texto) {
+  ntIACarregando(true);
+  let ok = false;
   try {
     const r = await fetch(`${PROXY}/ia/reformular-chamado`, {
       method: 'POST',
@@ -2708,15 +2754,16 @@ async function ntReformularIA(texto) {
     if (document.getElementById('nt-texto-livre').value.trim() !== texto) return;
     document.getElementById('nt-assunto').value = d.assunto;
     document.getElementById('nt-desc').value = d.descricao;
-    ntAtualizarPreview();
+    ok = true;
   } catch (e) {
     console.warn('[ntReformularIA]', e);
     const falhaEl = document.getElementById('nt-ia-falha');
     falhaEl.textContent = `Não consegui reformular o texto agora — mantive o relato original na descrição. (Motivo: ${e.message})`;
     falhaEl.style.display = 'block';
   } finally {
-    if (btn) btn.disabled = false;
-    if (txt) txt.textContent = rotuloOriginal;
+    ntIACarregando(false);
+    ntAtualizarPreview();
+    if (ok) ntIASucesso();
   }
 }
 
@@ -2725,6 +2772,7 @@ function preencherComIA() {
   const erroEl = document.getElementById('nt-ia-erro');
   erroEl.style.display = 'none';
   document.getElementById('nt-ia-falha').style.display = 'none';
+  clearTimeout(ntIASucesso._t); document.getElementById('nt-ia-status').style.display = 'none';
   if (!texto) { document.getElementById('nt-texto-livre').focus(); return; }
 
   const c = ntExtrairCampos(texto);
