@@ -20,6 +20,11 @@ textarea{resize:vertical;font-family:Manrope,sans-serif}
    fica ilegivel/"em branco" ate passar o mouse. Forca o popup nativo a
    renderizar no esquema escuro, igual o resto do portal. */
 select{color-scheme:dark}
+/* Lista aberta dos <select>: no Chrome/Windows o popup vinha branco com
+   texto claro herdado (ilegível). Cor explícita nas opções vale pra todos os menus. */
+select option,select optgroup{background-color:#141d3a;color:#eaf1ff}
+select option:checked{background-color:#2f5fb0;color:#fff}
+select option:disabled{color:#7186ab}
 button{font-family:inherit}
 ::-webkit-scrollbar{width:9px;height:9px}
 ::-webkit-scrollbar-track{background:transparent}
