@@ -2609,9 +2609,11 @@ function ntExtrairCampos(texto) {
 // complementos tipo "e gostaria que...", tira a menção ao posto (que já
 // vai num campo separado) e limita a ~60 caracteres sem quebrar palavra.
 function ntResumirAssunto(texto) {
-  let s = texto.trim().split(/[.\n]/)[0].trim();
+  // Ponto só encerra frase se vier seguido de espaço/fim -- senão "6.612,62"
+  // (valor em reais) cortava o assunto em "totalizando 6".
+  let s = texto.trim().split(/\.(?=\s|$)|[!?\n]/)[0].trim();
   s = s.split(/\s+(?:e\s+gostaria|gostaria|por favor|pois|porque|já que|ja que|obrigado|obrigada)\b.*/i)[0].trim();
-  s = s.replace(/,?\s*(lá\s+)?(no|na)\s+cac(?:ique)?\s*0*\d{1,2}\b/gi, '');
+  s = s.replace(/,?\s*(lá\s+)?(no|na|do|da)\s+cac(?:ique)?\s*0*\d{1,2}\b/gi, '');
   s = s.replace(/,?\s*(lá\s+)?(no|na)\s+matriz[\wÀ-ÿ\s]*$/gi, '');
   s = s.replace(/\s{2,}/g, ' ').trim();
   const LIMITE = 60;
