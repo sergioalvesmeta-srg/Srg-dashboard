@@ -433,7 +433,8 @@ footer.foot{border-top:1px solid rgba(255,255,255,.07);background:rgba(10,16,36,
           <span>Mensagem no padrão (pré-visualização)</span>
           <span id="nt-copiar-status" style="font:600 12px Manrope;color:#7fd4c0"></span>
         </label>
-        <textarea id="nt-preview" readonly rows="12" style="width:100%;padding:14px 16px;border-radius:13px;background:rgba(0,0,0,.22);border:1px dashed rgba(127,212,192,.4);color:#dff5ec;font:500 13.5px ui-monospace,Consolas,monospace;line-height:1.55;margin-bottom:22px;resize:vertical"></textarea>
+        <textarea id="nt-preview" rows="12" title="Pode editar o texto antes de copiar/enviar" style="width:100%;padding:14px 16px;border-radius:13px;background:rgba(0,0,0,.22);border:1px dashed rgba(127,212,192,.4);color:#dff5ec;font:500 13.5px ui-monospace,Consolas,monospace;line-height:1.55;margin-bottom:6px;resize:vertical"></textarea>
+        <p id="nt-preview-hint" style="font:400 12px Manrope;color:#7186ab;margin:0 0 22px">Pode ajustar o texto direto aqui antes de copiar ou enviar.</p>
 
         <div style="display:flex;gap:12px;flex-wrap:wrap">
           <button class="btn-ghost" onclick="copiarNovoChamado()" style="display:inline-flex;align-items:center;gap:8px">
@@ -1213,6 +1214,7 @@ function atualizarNavAtiva(view) {
   acesso.style.cssText += view==='acesso-clientes' ? ativo : inativo;
 }
 function goNew() {
+  ntPreviewEditado = false;
   buildNewTicketChips();
   showView('newticket');
   window.scrollTo(0,0);
@@ -2695,7 +2697,36 @@ function ntValidar(m) {
   return true;
 }
 
+// Pré-visualização editável: enquanto ninguém mexe nela, acompanha os
+// campos. Depois que o usuário edita o texto direto, ela "trava" (pra não
+// perder a edição) e Copiar/WhatsApp passam a usar o texto editado.
+let ntPreviewEditado = false;
+
+function ntRenderPreviewHint() {
+  const h = document.getElementById('nt-preview-hint');
+  if (!h) return;
+  h.innerHTML = ntPreviewEditado
+    ? `<span style="color:#f6c177">Texto editado manualmente — mudanças nos campos acima não atualizam mais a mensagem.</span> <a href="#" onclick="ntRestaurarPreview();return false" style="color:#7fd4c0;font-weight:600">Restaurar padrão</a>`
+    : 'Pode ajustar o texto direto aqui antes de copiar ou enviar.';
+}
+
+function ntRestaurarPreview() {
+  ntPreviewEditado = false;
+  ntAtualizarPreview();
+}
+
+function ntTextoFinal(m) {
+  const el = document.getElementById('nt-preview');
+  return (ntPreviewEditado && el && el.value.trim()) ? el.value : m.texto;
+}
+
+document.addEventListener('input', e => {
+  if (e.target.id === 'nt-preview' && !ntPreviewEditado) { ntPreviewEditado = true; ntRenderPreviewHint(); }
+});
+
 function ntAtualizarPreview() {
+  ntRenderPreviewHint();
+  if (ntPreviewEditado) return;
   const el = document.getElementById('nt-preview');
   if (el) el.value = ntMontarMensagem().texto;
   const st = document.getElementById('nt-copiar-status');
@@ -2710,9 +2741,10 @@ async function copiarNovoChamado() {
   const m = ntMontarMensagem();
   if (!ntValidar(m)) return;
   ntAtualizarPreview();
+  const texto = ntTextoFinal(m);
   const st = document.getElementById('nt-copiar-status');
   try {
-    await navigator.clipboard.writeText(m.texto);
+    await navigator.clipboard.writeText(texto);
   } catch (_) {
     // fallback pra navegador sem Clipboard API / contexto sem permissão
     const el = document.getElementById('nt-preview');
@@ -2726,7 +2758,7 @@ async function copiarNovoChamado() {
 function enviarNovoChamado() {
   const m = ntMontarMensagem();
   if (!ntValidar(m)) return;
-  window.open(`https://wa.me/${WA_NUMBER}?text=${encodeURIComponent(m.texto)}`,'_blank');
+  window.open(`https://wa.me/${WA_NUMBER}?text=${encodeURIComponent(ntTextoFinal(m))}`,'_blank');
 }
 
 // =====================================================================
