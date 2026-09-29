@@ -398,6 +398,13 @@ footer.foot{border-top:1px solid rgba(255,255,255,.07);background:rgba(10,16,36,
           </div>
         </div>
 
+        <div id="nt-solicitante-wrap" style="display:none;margin-bottom:22px">
+          <label style="display:block;font:600 12.5px Manrope;color:#bcccea;margin-bottom:8px">Solicitante <span style="font-weight:500;color:#7186ab">(equipe SRG)</span></label>
+          <div class="field" style="height:52px">
+            <input type="text" id="nt-solicitante" placeholder="Quem está abrindo o chamado">
+          </div>
+        </div>
+
         <label style="display:block;font:600 12.5px Manrope;color:#bcccea;margin-bottom:10px">Grau de prioridade</label>
         <div id="nt-prios" style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:22px"></div>
 
@@ -422,7 +429,17 @@ footer.foot{border-top:1px solid rgba(255,255,255,.07);background:rgba(10,16,36,
 
         <p style="font:400 12px Manrope;color:#7186ab;margin:0 0 20px">O protocolo é gerado automaticamente pela Meta depois que o chamado é aberto — por isso não aparece aqui.</p>
 
+        <label style="display:flex;align-items:center;justify-content:space-between;gap:8px;font:600 12.5px Manrope;color:#9fe0cc;margin-bottom:8px">
+          <span>Mensagem no padrão (pré-visualização)</span>
+          <span id="nt-copiar-status" style="font:600 12px Manrope;color:#7fd4c0"></span>
+        </label>
+        <textarea id="nt-preview" readonly rows="12" style="width:100%;padding:14px 16px;border-radius:13px;background:rgba(0,0,0,.22);border:1px dashed rgba(127,212,192,.4);color:#dff5ec;font:500 13.5px ui-monospace,Consolas,monospace;line-height:1.55;margin-bottom:22px;resize:vertical"></textarea>
+
         <div style="display:flex;gap:12px;flex-wrap:wrap">
+          <button class="btn-ghost" onclick="copiarNovoChamado()" style="display:inline-flex;align-items:center;gap:8px">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+            Copiar mensagem
+          </button>
           <button class="btn-primary" onclick="enviarNovoChamado()">
             <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
             Abrir chamado via WhatsApp
@@ -2528,6 +2545,18 @@ function buildNewTicketChips() {
   if (dataInput && !dataInput.value) {
     dataInput.value = hojeLocalStr();
   }
+  // Solicitante: só a equipe SRG vê o campo; vem preenchido com a 1a
+  // variação do atendenteSRG do usuário (pode ter aliases separados por
+  // vírgula). Cliente não vê -- segue em branco pro analista preencher.
+  const ehEquipeSRG = !!(currentUser && (currentUser.atendenteSRG || currentUser.gestor || currentUser.role === 'admin'));
+  const solWrap = document.getElementById('nt-solicitante-wrap');
+  const solInput = document.getElementById('nt-solicitante');
+  if (solWrap && solInput) {
+    solWrap.style.display = ehEquipeSRG ? 'block' : 'none';
+    if (!ehEquipeSRG) solInput.value = '';
+    else if (!solInput.value) solInput.value = (currentUser.atendenteSRG || '').split(',')[0].trim() || (currentUser.nome || '').trim();
+  }
+  ntAtualizarPreview();
 }
 
 // Preenchimento automático 100% local (sem API paga nenhuma) -- lê o
@@ -2616,6 +2645,7 @@ function preencherComIA() {
   if (c.prioridade) { ntPrio = c.prioridade; buildNewTicketChips(); }
   if (c.assunto) document.getElementById('nt-assunto').value = c.assunto;
   if (c.descricao) document.getElementById('nt-desc').value = c.descricao;
+  ntAtualizarPreview();
 
   if (!c.posto || !c.setor) {
     erroEl.textContent = `Não reconheci ${!c.posto?'o posto':''}${!c.posto && !c.setor?' nem ':''}${!c.setor?'o setor':''} automaticamente — confere/preenche esse campo antes de enviar.`;
@@ -2623,7 +2653,9 @@ function preencherComIA() {
   }
 }
 
-function enviarNovoChamado() {
+// Monta o texto no padrão -- usado pela pré-visualização, pelo Copiar e
+// pelo envio via WhatsApp (uma única fonte da verdade pro formato).
+function ntMontarMensagem() {
   const cliente = document.getElementById('nt-cliente').value.trim();
   const posto = document.getElementById('nt-posto-select').value;
   const setorSel = document.getElementById('nt-setor-select').value;
@@ -2632,15 +2664,13 @@ function enviarNovoChamado() {
   const dataProblema = document.getElementById('nt-data').value;
   const desc = document.getElementById('nt-desc').value.trim();
   const evidencia = document.getElementById('nt-evidencia').value.trim();
-
-  if (!assunto) { document.getElementById('nt-assunto').focus(); return; }
-  if (!posto) { document.getElementById('nt-posto-search').focus(); return; }
+  const solicitante = (document.getElementById('nt-solicitante')?.value || '').trim();
 
   const dataFmt = dataProblema ? new Date(dataProblema+'T12:00:00').toLocaleDateString('pt-BR') : new Date().toLocaleDateString('pt-BR');
 
-  // Solicitante e Protocolo vão sempre em branco -- ficam a cargo do
-  // analista preencher na Meta antes de encaminhar, por isso nem tem
-  // campo de input pra eles no formulário.
+  // Protocolo vai sempre em branco (gerado pela Meta). Solicitante só é
+  // preenchido quando quem abre é da equipe SRG (campo visível só pra
+  // ela); pra cliente segue em branco pro analista completar.
   const linhas = [
     `*Novo chamado — Portal SRG*`,
     ``,
@@ -2648,16 +2678,55 @@ function enviarNovoChamado() {
     `• Posto: ${posto}`,
     `• Grau de prioridade: ${ntPrio}`,
     `• Setor: ${setor || '—'}`,
-    `• Solicitante: `,
-    `• Assunto: ${assunto}`,
+    `• Solicitante: ${solicitante}`,
+    `• Assunto: ${assunto || '—'}`,
     `• Data do problema: ${dataFmt}`,
     `• Protocolo: `,
     `• Descrição do problema: ${desc || '—'}`,
   ];
   if (evidencia) linhas.push(`• Evidência: ${evidencia}`);
 
-  const msg = encodeURIComponent(linhas.join('\n'));
-  window.open(`https://wa.me/${WA_NUMBER}?text=${msg}`,'_blank');
+  return { texto: linhas.join('\n'), assunto, posto };
+}
+
+function ntValidar(m) {
+  if (!m.assunto) { document.getElementById('nt-assunto').focus(); return false; }
+  if (!m.posto) { document.getElementById('nt-posto-search').focus(); return false; }
+  return true;
+}
+
+function ntAtualizarPreview() {
+  const el = document.getElementById('nt-preview');
+  if (el) el.value = ntMontarMensagem().texto;
+  const st = document.getElementById('nt-copiar-status');
+  if (st) st.textContent = '';
+}
+
+// Atualiza a pré-visualização enquanto o usuário digita/troca qualquer campo
+document.addEventListener('input',  e => { if (e.target.closest && e.target.closest('#view-newticket') && e.target.id !== 'nt-preview') ntAtualizarPreview(); });
+document.addEventListener('change', e => { if (e.target.closest && e.target.closest('#view-newticket') && e.target.id !== 'nt-preview') ntAtualizarPreview(); });
+
+async function copiarNovoChamado() {
+  const m = ntMontarMensagem();
+  if (!ntValidar(m)) return;
+  ntAtualizarPreview();
+  const st = document.getElementById('nt-copiar-status');
+  try {
+    await navigator.clipboard.writeText(m.texto);
+  } catch (_) {
+    // fallback pra navegador sem Clipboard API / contexto sem permissão
+    const el = document.getElementById('nt-preview');
+    el.focus(); el.select();
+    try { document.execCommand('copy'); } catch (__) {}
+    el.setSelectionRange(0, 0); el.blur();
+  }
+  if (st) { st.textContent = '✓ Copiado — é só colar no WhatsApp'; setTimeout(() => { if (st.textContent.startsWith('✓')) st.textContent = ''; }, 3500); }
+}
+
+function enviarNovoChamado() {
+  const m = ntMontarMensagem();
+  if (!ntValidar(m)) return;
+  window.open(`https://wa.me/${WA_NUMBER}?text=${encodeURIComponent(m.texto)}`,'_blank');
 }
 
 // =====================================================================
