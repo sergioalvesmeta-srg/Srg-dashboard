@@ -500,6 +500,12 @@ footer.foot{border-top:1px solid rgba(255,255,255,.07);background:rgba(10,16,36,
         </div>
       </div>
 
+      <!-- Alerta "Resolvidos sem retorno confirmado" -- visao GERAL (todo
+           mundo, nao so o proprio usuario), so pra role==='admin' (Sergio),
+           pra ele cobrar o time. Diferente do banner da home (que e por
+           usuario). Pedido em 29/09/2026. -->
+      <div id="gestor-alerta-retorno" style="display:none;margin:20px 0"></div>
+
       <div id="gestor-crumbs" style="display:none;align-items:center;gap:10px;flex-wrap:wrap;margin:16px 0 4px"></div>
 
       <div class="glass" style="padding:24px 26px;margin:20px 0 26px">
@@ -4447,6 +4453,29 @@ async function gestorMarcarRetornoInline(idInterno) {
   }
 }
 
+// Banner GERAL (empresa toda, nao so os chamados do usuario logado) no
+// topo do Painel do Gestor -- so pra role==='admin' (Sergio), pra ele
+// cobrar o time sem precisar rolar a tela ate a tabela mais abaixo.
+function gestorRenderAlertaRetorno(resultado) {
+  const el = document.getElementById('gestor-alerta-retorno');
+  if (!el) return;
+  const ehAdmin = !!(currentUser && currentUser.role === 'admin');
+  const { total } = resultado;
+  if (!ehAdmin || !total) { el.style.display = 'none'; el.innerHTML = ''; return; }
+  el.style.display = 'block';
+  el.innerHTML = `
+    <div style="display:flex;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap;padding:18px 24px;border-radius:18px;background:linear-gradient(135deg,rgba(193,92,92,.22),rgba(224,149,95,.15));border:1.5px solid rgba(226,154,154,.55);box-shadow:0 0 0 4px rgba(193,92,92,.08)">
+      <div style="display:flex;align-items:center;gap:14px">
+        <span style="font-size:26px;line-height:1">⚠️</span>
+        <div>
+          <div style="font:700 15.5px Outfit,sans-serif;color:#fbdada">${total} chamado${total===1?'':'s'} resolvido${total===1?'':'s'} no time inteiro sem retorno confirmado ao cliente.</div>
+          <div style="font:500 12.5px Manrope;color:#e0b6b6;margin-top:3px">Visível só pra você -- use pra cobrar quem ainda não marcou "Retorno dado ao cliente".</div>
+        </div>
+      </div>
+      <button class="btn-primary" style="height:38px;padding:0 18px;font-size:13px;background:linear-gradient(135deg,#c15c5c,#e0955f);flex-shrink:0" onclick="document.getElementById('gestor-sem-retorno-card').scrollIntoView({behavior:'smooth',block:'start'})">Ver quem falta</button>
+    </div>`;
+}
+
 // Recolhe/expande a lista "Todos os chamados" -- pode passar de 100+
 // linhas e empurrar o resto do painel pra baixo. So mexe na exibicao (nao
 // refaz a busca), entao e instantaneo.
@@ -4681,7 +4710,9 @@ function gestorRenderTudo() {
   gestorRenderN2N3(metricas);
 
   gestorRenderAtencao(gestorCalcularAtencao(baseSemPeriodo));
-  gestorRenderSemRetorno(gestorCalcularSemRetorno(baseSemPeriodo));
+  const resultadoSemRetorno = gestorCalcularSemRetorno(baseSemPeriodo);
+  gestorRenderSemRetorno(resultadoSemRetorno);
+  gestorRenderAlertaRetorno(resultadoSemRetorno);
   gestorRenderTickets(filtrados);
 
   const nota = document.getElementById('gestor-fonte-nota');
