@@ -396,7 +396,8 @@ footer.foot{border-top:1px solid rgba(255,255,255,.07);background:rgba(10,16,36,
           <span id="nt-ia-btn-text">Preencher automaticamente</span>
         </button>
         <p style="font:400 11.5px Manrope;color:#7186ab;margin:8px 0 0">Detecta posto (ex: "CAC10"), setor e prioridade por palavras-chave e reescreve o relato em tom profissional (IA). Sempre confira antes de enviar.</p>
-        <div id="nt-ia-erro" style="display:none;margin-top:10px;font:500 12.5px Manrope;color:#fc8181"></div>
+        <div id="nt-ia-erro" style="display:none;margin-top:10px;font:500 12.5px Manrope;color:#f6c177"></div>
+        <div id="nt-ia-falha" style="display:none;margin-top:6px;font:500 12.5px Manrope;color:#fc8181"></div>
       </div>
 
       <div class="glass" style="padding:30px">
@@ -2614,7 +2615,7 @@ function buildNewTicketChips() {
 // isso sempre deixa tudo editável pro usuário conferir antes de enviar.
 const NT_SETOR_PALAVRAS = {
   'PDV':           ['pdv','venda','vendas','caixa','frente de loja','maquineta','tef'],
-  'Fiscal':        ['fiscal','nota fiscal','nfce','sat','sped','cupom fiscal'],
+  'Fiscal':        ['fiscal','nota fiscal','nfce','nfc-e','nfe','nf-e','cte','ct-e','mdfe','mdf-e','xml','sat','sped','cupom fiscal','sefaz'],
   'Financeiro':    ['financeiro','pagamento','boleto','conta a pagar','conta a receber','fatura'],
   'Auditoria':     ['auditoria','divergência','divergencia','conferência','conferencia'],
   'Contabilidade': ['contabilidade','contábil','contabil','balancete'],
@@ -2678,7 +2679,6 @@ function ntResumirAssunto(texto) {
 async function ntReformularIA(texto) {
   const btn = document.getElementById('nt-ia-btn');
   const txt = document.getElementById('nt-ia-btn-text');
-  const erroEl = document.getElementById('nt-ia-erro');
   const rotuloOriginal = txt ? txt.textContent : '';
   if (btn) btn.disabled = true;
   if (txt) txt.textContent = 'Reformulando o texto...';
@@ -2689,7 +2689,8 @@ async function ntReformularIA(texto) {
       body: JSON.stringify({ texto }),
     });
     const d = await r.json().catch(() => ({}));
-    if (!r.ok || !d.ok) throw new Error(d.error || `HTTP ${r.status}`);
+    // d.ok indefinido = resposta não veio da rota de IA (Worker antigo, sem a rota)
+    if (!r.ok || !d.ok) throw new Error(d.error || (d.ok === undefined ? `rota de IA não encontrada no Worker (HTTP ${r.status}) — Worker desatualizado?` : `HTTP ${r.status}`));
     // Só aplica se o usuário não trocou o relato enquanto a IA respondia
     if (document.getElementById('nt-texto-livre').value.trim() !== texto) return;
     document.getElementById('nt-assunto').value = d.assunto;
@@ -2697,9 +2698,9 @@ async function ntReformularIA(texto) {
     ntAtualizarPreview();
   } catch (e) {
     console.warn('[ntReformularIA]', e);
-    const aviso = 'Não consegui reformular o texto agora — mantive o relato original na descrição.';
-    erroEl.textContent = erroEl.style.display === 'block' ? erroEl.textContent + ' ' + aviso : aviso;
-    erroEl.style.display = 'block';
+    const falhaEl = document.getElementById('nt-ia-falha');
+    falhaEl.textContent = `Não consegui reformular o texto agora — mantive o relato original na descrição. (Motivo: ${e.message})`;
+    falhaEl.style.display = 'block';
   } finally {
     if (btn) btn.disabled = false;
     if (txt) txt.textContent = rotuloOriginal;
@@ -2710,6 +2711,7 @@ function preencherComIA() {
   const texto = document.getElementById('nt-texto-livre').value.trim();
   const erroEl = document.getElementById('nt-ia-erro');
   erroEl.style.display = 'none';
+  document.getElementById('nt-ia-falha').style.display = 'none';
   if (!texto) { document.getElementById('nt-texto-livre').focus(); return; }
 
   const c = ntExtrairCampos(texto);
@@ -2732,7 +2734,7 @@ function preencherComIA() {
   ntReformularIA(texto);
 
   if (!c.posto || !c.setor) {
-    erroEl.textContent = `Não reconheci ${!c.posto?'o posto':''}${!c.posto && !c.setor?' nem ':''}${!c.setor?'o setor':''} automaticamente — confere/preenche esse campo antes de enviar.`;
+    erroEl.textContent = `Lembrete: não identifiquei ${!c.posto?'o posto':''}${!c.posto && !c.setor?' nem ':''}${!c.setor?'o setor':''} no texto — selecione manualmente abaixo. (O texto é reformulado normalmente.)`;
     erroEl.style.display = 'block';
   }
 }
