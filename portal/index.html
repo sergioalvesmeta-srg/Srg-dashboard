@@ -2729,8 +2729,6 @@ function ntMontarMensagem() {
   // preenchido quando quem abre é da equipe SRG (campo visível só pra
   // ela); pra cliente segue em branco pro analista completar.
   const linhas = [
-    `*Novo chamado — Portal SRG*`,
-    ``,
     ...(cliente ? [`• Cliente: ${cliente}`] : []),
     `• Posto: ${posto}`,
     `• Grau de prioridade: ${ntPrio}`,
