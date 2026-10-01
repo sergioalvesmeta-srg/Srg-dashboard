@@ -660,7 +660,6 @@ footer.foot{border-top:1px solid rgba(255,255,255,.07);background:rgba(10,16,36,
             <div id="gestor-evo-legenda" style="display:flex;gap:16px;flex-wrap:wrap">
               <span style="display:flex;align-items:center;gap:7px;font:500 12px Manrope;color:#b3c4e0"><span style="width:10px;height:3px;border-radius:2px;background:#5db4e6"></span>Recebidos</span>
               <span style="display:flex;align-items:center;gap:7px;font:500 12px Manrope;color:#b3c4e0"><span style="width:10px;height:3px;border-radius:2px;background:#3fa08c"></span>Resolvidos</span>
-              <span style="display:flex;align-items:center;gap:7px;font:500 12px Manrope;color:#b3c4e0"><span style="width:10px;height:3px;border-radius:2px;background:#a992e0"></span>Pendências</span>
             </div>
           </div>
           <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:16px">
@@ -1044,6 +1043,12 @@ footer.foot{border-top:1px solid rgba(255,255,255,.07);background:rgba(10,16,36,
 <script>
 const PROXY = 'https://srgdashboard.sergioalvesmeta.workers.dev';
 const DB    = '3761388c50a68096bf2edd5a97daffe1';
+// Cabeçalho de login pras rotas /d1/chamados* -- fechadas no Worker em
+// 01/10/2026 (antes qualquer um na internet lia todos os chamados, com nome
+// e telefone dos contatos, e alterava os campos de retorno).
+function authD1(extra) {
+  return { ...(extra || {}), 'Authorization': `Bearer ${currentUser?.token || ''}` };
+}
 const WA_NUMBER = '5586989038851';
 
 // ══════════════════════════════════════════
@@ -1710,7 +1715,7 @@ function copy(text, btn) {
 async function fetchD1Chamado(idInterno) {
   if (!idInterno) return null;
   try {
-    const r = await fetch(`${PROXY}/d1/chamados/id/${encodeURIComponent(idInterno)}`);
+    const r = await fetch(`${PROXY}/d1/chamados/id/${encodeURIComponent(idInterno)}`, { headers: authD1() });
     const d = await r.json();
     return (d && d.ok) ? d.chamado : null;
   } catch (e) {
@@ -1841,7 +1846,7 @@ function voltarLista() {
 // unico fetch + filtro em JS, ja que o D1 nao tem (ainda) um endpoint de
 // query por campo. Pra volume de centenas de chamados isso e trivial.
 async function fetchTodosChamadosD1() {
-  const r = await fetch(`${PROXY}/d1/chamados`);
+  const r = await fetch(`${PROXY}/d1/chamados`, { headers: authD1() });
   const d = await r.json();
   if (!r.ok || !d.ok) throw new Error(d.error || 'Erro ao consultar D1');
   return d.chamados || [];
@@ -2434,7 +2439,7 @@ async function retornoSRGSalvar(idInterno, prefixo) {
     const novoHistorico = [{ autor, data: agora.toISOString(), texto }, ...historicoAtual];
     const r = await fetch(`${PROXY}/d1/chamados/id/${encodeURIComponent(idInterno)}`, {
       method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
+      headers: authD1({ 'Content-Type': 'application/json' }),
       body: JSON.stringify({
         retorno_srg_json: JSON.stringify(novoHistorico),
         retorno_srg_data: agora.toISOString(),
@@ -2470,7 +2475,7 @@ async function retornoSRGExcluir(idInterno, chaveData, prefixo) {
     const ultimo = novoHistorico[0];
     const r = await fetch(`${PROXY}/d1/chamados/id/${encodeURIComponent(idInterno)}`, {
       method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
+      headers: authD1({ 'Content-Type': 'application/json' }),
       body: JSON.stringify({
         retorno_srg_json: JSON.stringify(novoHistorico),
         retorno_srg_data: (ultimo && ultimo.data) || null,
@@ -2520,7 +2525,7 @@ async function retornoConfirmarToggle(idInterno, prefixo, marcar) {
   try {
     const r = await fetch(`${PROXY}/d1/chamados/id/${encodeURIComponent(idInterno)}`, {
       method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
+      headers: authD1({ 'Content-Type': 'application/json' }),
       body: JSON.stringify({
         retorno_confirmado: marcar ? 1 : 0,
         retorno_confirmado_por: marcar ? autor : null,
@@ -2998,7 +3003,7 @@ async function getChamados({ forcar=false } = {}) {
   // ciclo do cron (dual-write), direto da planilha, independente do
   // Notion estar funcionando ou nao. Ver worker-final-completo.js,
   // rota GET /d1/chamados.
-  const r = await fetch(`${PROXY}/d1/chamados`);
+  const r = await fetch(`${PROXY}/d1/chamados`, { headers: authD1() });
   const d = await r.json();
   if (!r.ok || !d.ok) throw new Error(d.error || 'Erro ao consultar D1');
 
@@ -4372,38 +4377,93 @@ function setGestorCoorte(dias) {
 }
 function gestorRenderEvolucao(baseSemPeriodo) {
   if (gestorState.coorteDias) { gestorRenderEvolucaoCoorte(baseSemPeriodo, gestorState.coorteDias); return; }
-  document.getElementById('gestor-evo-coorte-nota').style.display = 'none';
-  document.getElementById('gestor-evo-svg').setAttribute('viewBox', '0 0 720 240');
-  document.getElementById('gestor-evo-svg').style.height = '240px';
-  document.getElementById('gestor-evo-svg').style.width = '100%';
+  // 30/09/2026: visão padrão refeita. Antes eram 3 linhas com Pendências
+  // numa escala própria SEM eixo (dual-axis) -- a linha tracejada parecia
+  // "passar" os recebidos e confundia; com 2 dias virava 2 pontos ligados
+  // e as datas encavalavam. Agora: barras lado a lado Recebidos x
+  // Resolvidos por dia, com eixo Y, valores e datas legíveis. Pendências
+  // saem do gráfico e viram resumo em texto (a visão dia a dia delas
+  // continua nos chips 7/15/30 dias). Cores validadas p/ fundo escuro e
+  // daltonismo (CVD ΔE 20, contraste >= 3:1).
+  const COR_REC = '#5b8ff0', COR_RES = '#2ea56d';
+  const diarios = gestorSerieEvolucao(baseSemPeriodo, gestorState.periodo);
+  // Mais de 31 dias: agrupa por semana (7 dias, contando de trás pra
+  // frente a partir do último dia) -- 90 barras diárias viram "código de barras".
+  const semanal = diarios.length > 31;
+  let pontos = diarios;
+  if (semanal) {
+    pontos = [];
+    for (let fimI = diarios.length - 1; fimI >= 0; fimI -= 7) {
+      const fatia = diarios.slice(Math.max(0, fimI - 6), fimI + 1);
+      pontos.unshift({ data: fatia[0].data, dataFim: fatia[fatia.length-1].data,
+        recebidos: fatia.reduce((a,p)=>a+p.recebidos,0), resolvidos: fatia.reduce((a,p)=>a+p.resolvidos,0) });
+    }
+  }
+  const n = pontos.length;
+  const totRec = pontos.reduce((a,p)=>a+p.recebidos,0), totRes = pontos.reduce((a,p)=>a+p.resolvidos,0);
+
+  // Resumo de pendências (chamados em aberto de verdade, não escala própria)
+  const antesIni = new Date(pontos[0].data); antesIni.setMilliseconds(-1);
+  const pendIni = gestorBacklogEm(baseSemPeriodo, antesIni);
+  const fimJanela = new Date(pontos[n-1].dataFim || pontos[n-1].data); fimJanela.setHours(23,59,59,999);
+  const pendFim = gestorBacklogEm(baseSemPeriodo, fimJanela);
+  const dv = pendFim - pendIni;
+  const corDv = dv > 0 ? '#e0955f' : (dv < 0 ? '#5abfa0' : '#93a6c4');
+  const fmtD = d => d.toLocaleDateString('pt-BR',{day:'2-digit',month:'2-digit'});
+  const nota = document.getElementById('gestor-evo-coorte-nota');
+  nota.style.display = 'block';
+  nota.innerHTML = `No período: <strong style="color:#dbe6fb">${totRec}</strong> recebidos · <strong style="color:#dbe6fb">${totRes}</strong> resolvidos. `
+    + `Em aberto: <strong style="color:#dbe6fb">${pendIni}</strong> antes de ${fmtD(pontos[0].data)} → <strong style="color:#dbe6fb">${pendFim}</strong> em ${fmtD(fimJanela)} <span style="color:${corDv};font-weight:700">(${dv>0?'+':''}${dv})</span>.`;
+
+  const sw = c => `<span style="width:10px;height:10px;border-radius:3px;background:${c}"></span>`;
   document.getElementById('gestor-evo-legenda').innerHTML = `
-    <span style="display:flex;align-items:center;gap:7px;font:500 12px Manrope;color:#b3c4e0"><span style="width:10px;height:3px;border-radius:2px;background:#5db4e6"></span>Recebidos</span>
-    <span style="display:flex;align-items:center;gap:7px;font:500 12px Manrope;color:#b3c4e0"><span style="width:10px;height:3px;border-radius:2px;background:#3fa08c"></span>Resolvidos</span>
-    <span style="display:flex;align-items:center;gap:7px;font:500 12px Manrope;color:#b3c4e0"><span style="width:10px;height:3px;border-radius:2px;background:#a992e0"></span>Pendências</span>`;
-  const pontos = gestorSerieEvolucao(baseSemPeriodo, gestorState.periodo);
-  // Recebidos/resolvidos (fluxo diario, escala pequena) e backlog (estoque
-  // acumulado, escala bem maior) usam eixos Y SEPARADOS -- senao o backlog
-  // achata as outras duas linhas no grafico. Backlog fica em linha
-  // tracejada e ganha a propria escala (maxBacklog), independente.
-  const maxFluxo = Math.max(1, ...pontos.map(p => Math.max(p.recebidos, p.resolvidos)));
-  const maxBacklog = Math.max(1, ...pontos.map(p => p.backlog));
-  const W = 720, H = 240, padX = 26, padY = 20;
-  const stepX = pontos.length > 1 ? (W - padX*2) / (pontos.length-1) : 0;
-  const yFluxo = v => H - padY - (v/maxFluxo)*(H - padY*2);
-  const yBacklog = v => H - padY - (v/maxBacklog)*(H - padY*2);
-  const linha = (campo, escala) => pontos.map((p,i) => `${padX+i*stepX},${escala(p[campo])}`).join(' ');
-  const pontosHit = (campo, cor, escala) => pontos.map((p,i) => `<circle cx="${padX+i*stepX}" cy="${escala(p[campo])}" r="9" fill="transparent"><title>${p.data.toLocaleDateString('pt-BR')} — ${campo}: ${p[campo]}</title></circle><circle cx="${padX+i*stepX}" cy="${escala(p[campo])}" r="3" fill="${cor}" style="pointer-events:none"/>`).join('');
-  document.getElementById('gestor-evo-svg').innerHTML = `
-    <polyline points="${linha('backlog', yBacklog)}" fill="none" stroke="#a992e0" stroke-width="2.2" stroke-dasharray="4 3" opacity=".85"/>
-    <polyline points="${linha('recebidos', yFluxo)}" fill="none" stroke="#5db4e6" stroke-width="2.4"/>
-    <polyline points="${linha('resolvidos', yFluxo)}" fill="none" stroke="#3fa08c" stroke-width="2.4"/>
-    ${pontosHit('backlog','#a992e0',yBacklog)}${pontosHit('recebidos','#5db4e6',yFluxo)}${pontosHit('resolvidos','#3fa08c',yFluxo)}`;
-  const passo = Math.max(1, Math.ceil(pontos.length/7));
-  document.getElementById('gestor-evo-labels').innerHTML = pontos.map((p,i) =>
-    i % passo === 0 || i === pontos.length-1
-      ? `<span style="font:500 10.5px Manrope;color:#7186ab">${p.data.toLocaleDateString('pt-BR',{day:'2-digit',month:'2-digit'})}</span>`
-      : ''
-  ).join('') + `<span style="font:500 10px Manrope;color:#a992e0;margin-left:auto">Pendências em escala própria (linha tracejada)</span>`;
+    <span style="display:flex;align-items:center;gap:7px;font:500 12px Manrope;color:#b3c4e0">${sw(COR_REC)}Recebidos</span>
+    <span style="display:flex;align-items:center;gap:7px;font:500 12px Manrope;color:#b3c4e0">${sw(COR_RES)}Resolvidos</span>`
+    + (semanal ? `<span style="font:500 11.5px Manrope;color:#7186ab">· por semana</span>` : '');
+
+  // Escala "redonda" (1/2/5 x 10^k) com 4 divisões
+  const maxDado = Math.max(1, ...pontos.map(p => Math.max(p.recebidos, p.resolvidos)));
+  const passoBruto = maxDado / 4, mag = Math.pow(10, Math.floor(Math.log10(passoBruto)));
+  const passoY = Math.max(1, [1,2,5,10].map(m=>m*mag).find(v => v >= passoBruto) || mag*10); // contagem: passo inteiro
+  const maxY = Math.max(passoY, Math.ceil(maxDado / passoY) * passoY);
+
+  const wrap = document.getElementById('gestor-evo-svg-wrap');
+  const W = Math.max(320, wrap.clientWidth || 720), H = 250;
+  const padL = 34, padR = 8, padT = 20, padB = 26;
+  const plotW = W - padL - padR, plotH = H - padT - padB;
+  const y = v => padT + plotH - (v / maxY) * plotH;
+  const grupoW = plotW / n;
+  const barW = Math.max(3, Math.min(26, (grupoW * 0.72 - 2) / 2));
+  const mostrarValores = barW >= 9; // só quando o número cabe sobre a barra
+  const passoData = Math.max(1, Math.ceil(n / 10));
+  // barra com topo arredondado (4px) e base reta ancorada no eixo
+  const barra = (x, v, cor) => {
+    if (v <= 0) return '';
+    const yt = y(v), yb = padT + plotH, r = Math.min(4, barW/2, yb-yt);
+    return `<path d="M${x},${yb} V${yt+r} Q${x},${yt} ${x+r},${yt} H${x+barW-r} Q${x+barW},${yt} ${x+barW},${yt+r} V${yb} Z" fill="${cor}"/>`;
+  };
+  let grade = '';
+  for (let v = 0; v <= maxY; v += passoY) {
+    grade += `<line x1="${padL}" x2="${W-padR}" y1="${y(v)}" y2="${y(v)}" stroke="rgba(255,255,255,${v===0?'.18':'.07'})" stroke-width="1"/>`
+           + `<text x="${padL-7}" y="${y(v)+3.5}" text-anchor="end" font-size="10" fill="#7186ab" font-family="Manrope">${v}</text>`;
+  }
+  const grupos = pontos.map((p, i) => {
+    const cx = padL + grupoW * i + grupoW / 2;
+    const xRec = cx - barW - 1, xRes = cx + 1;
+    const rot = (x, v) => (mostrarValores && v > 0) ? `<text x="${x + barW/2}" y="${y(v) - 5}" text-anchor="middle" font-size="10.5" font-weight="700" fill="#c9d6ee" font-family="Manrope">${v}</text>` : '';
+    const data = (i % passoData === 0 || (i === n-1 && (n-1) % passoData > passoData/2)) ? `<text x="${cx}" y="${H - 8}" text-anchor="middle" font-size="10.5" fill="#7186ab" font-family="Manrope">${fmtD(p.data)}</text>` : '';
+    return `<g class="evo-grp">
+      <rect class="evo-bg" x="${padL + grupoW*i + 1}" y="${padT}" width="${Math.max(1, grupoW-2)}" height="${plotH}" rx="6" fill="rgba(255,255,255,.06)" opacity="0"/>
+      ${barra(xRec, p.recebidos, COR_REC)}${barra(xRes, p.resolvidos, COR_RES)}${rot(xRec, p.recebidos)}${rot(xRes, p.resolvidos)}${data}
+      <rect x="${padL + grupoW*i}" y="${padT}" width="${grupoW}" height="${plotH + padB}" fill="transparent"><title>${p.dataFim ? 'Semana de '+fmtD(p.data)+' a '+fmtD(p.dataFim) : p.data.toLocaleDateString('pt-BR')} — Recebidos: ${p.recebidos} · Resolvidos: ${p.resolvidos}</title></rect>
+    </g>`;
+  }).join('');
+  const svg = document.getElementById('gestor-evo-svg');
+  svg.setAttribute('viewBox', `0 0 ${W} ${H}`);
+  svg.style.height = H + 'px';
+  svg.style.width = '100%';
+  svg.innerHTML = `<style>.evo-grp:hover .evo-bg{opacity:1}</style>${grade}${grupos}`;
+  document.getElementById('gestor-evo-labels').innerHTML = '';
 }
 
 // ---- LINHA 2 (direita): situação atual -- leitura automática do
@@ -4698,7 +4758,7 @@ async function gestorMarcarRetornoInline(idInterno) {
   try {
     const r = await fetch(`${PROXY}/d1/chamados/id/${encodeURIComponent(idInterno)}`, {
       method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
+      headers: authD1({ 'Content-Type': 'application/json' }),
       body: JSON.stringify({
         retorno_confirmado: 1,
         retorno_confirmado_por: autor,
