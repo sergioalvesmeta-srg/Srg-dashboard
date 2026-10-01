@@ -438,6 +438,16 @@ footer.foot{border-top:1px solid rgba(255,255,255,.07);background:rgba(10,16,36,
           </div>
         </div>
 
+        <!-- Cliente que pediu (01/10/2026): pessoas cadastradas no SRG Dispatch
+             da Cacique (quem usa qual máquina). Escolhida -> quando o chamado
+             for resolvido, o cliente recebe no computador dele "Já está
+             resolvido? Sim/Não". Só equipe SRG e só postos com pessoas. -->
+        <div id="nt-cliente-wrap" style="display:none;margin-bottom:22px">
+          <label style="display:block;font:600 12.5px Manrope;color:#bcccea;margin-bottom:8px">Cliente que pediu <span style="font-weight:500;color:#7186ab">(equipe SRG)</span></label>
+          <select id="nt-cliente-pessoa" onchange="ntAtualizarPreview()" style="width:100%;height:52px;padding:0 14px;border-radius:13px;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.22);color:#eaf1ff;font:500 14px Manrope"></select>
+          <p id="nt-cliente-nota" style="font:400 12px Manrope;color:#7186ab;margin:8px 0 0">Quando o chamado for resolvido, essa pessoa recebe no computador dela a pergunta "Já está resolvido?". Exige o Protocolo.</p>
+        </div>
+
         <label style="display:block;font:600 12.5px Manrope;color:#bcccea;margin-bottom:10px">Grau de prioridade</label>
         <div id="nt-prios" style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:22px"></div>
 
@@ -2630,7 +2640,67 @@ function buildNewTicketChips() {
     if (!ehEquipeSRG) solInput.value = '';
     else if (!solInput.value) solInput.value = (currentUser.atendenteSRG || '').split(',')[0].trim() || (currentUser.nome || '').trim();
   }
+  if (ehEquipeSRG) ntCarregarPessoasCliente();
   ntAtualizarPreview();
+}
+
+// ---- Cliente que pediu (ponte com o SRG Dispatch, 01/10/2026) ----
+// Lista de pessoas que o Dispatch da Cacique manda pro Worker (quem usa qual
+// máquina). Carrega uma vez por sessão; a opção depende do posto escolhido
+// (pessoas daquele posto + as "da rede toda", que abrem pra qualquer posto).
+var ntPessoasCliente = null; // var (não let): evita o erro de TDZ se algo chamar antes desta linha
+async function ntCarregarPessoasCliente() {
+  if (ntPessoasCliente) { ntAtualizarClientes(true); return; }
+  try {
+    const r = await fetch(`${PROXY}/d1/pessoas-cliente`, { headers: authD1() });
+    const d = await r.json();
+    ntPessoasCliente = (r.ok && d.ok) ? (d.pessoas || []) : [];
+  } catch (e) { ntPessoasCliente = []; }
+  ntAtualizarClientes(true);
+}
+
+function ntPessoaEscolhida() {
+  const sel = document.getElementById('nt-cliente-pessoa');
+  const wrap = document.getElementById('nt-cliente-wrap');
+  if (!sel || !sel.value || !wrap || wrap.style.display === 'none') return null;
+  return (ntPessoasCliente || []).find(p => p.id === sel.value) || null;
+}
+
+function ntAtualizarClientes(forcar) {
+  const wrap = document.getElementById('nt-cliente-wrap');
+  const sel = document.getElementById('nt-cliente-pessoa');
+  if (!wrap || !sel) return;
+  const ehEquipeSRG = !!(currentUser && (currentUser.atendenteSRG || currentUser.gestor || currentUser.role === 'admin'));
+  const posto = document.getElementById('nt-posto-select')?.value || '';
+  // Só redesenha quando o posto muda (senão cada tecla digitada recriava o select).
+  if (!forcar && sel.dataset.posto === posto) return;
+  sel.dataset.posto = posto;
+  const opcoes = (ntPessoasCliente || [])
+    .filter(p => !p.posto || p.posto === posto)
+    .sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR'));
+  if (!ehEquipeSRG || !opcoes.length) { wrap.style.display = 'none'; sel.value = ''; return; }
+  const atual = sel.value;
+  const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[c]));
+  sel.innerHTML = '<option value="">— não informar —</option>' + opcoes.map(p =>
+    `<option value="${esc(p.id)}">${esc(p.nome)}${p.posto ? ' · ' + esc(p.posto) : ''}${p.tem_maquina ? '' : ' (sem computador cadastrado no Dispatch)'}</option>`).join('');
+  sel.value = opcoes.some(p => p.id === atual) ? atual : '';
+  wrap.style.display = 'block';
+}
+
+// Guarda quem pediu + protocolo. Quando o chamado chega pela planilha da
+// Meta, o protocolo liga os dois e o Dispatch sabe pra quem perguntar
+// "Já está resolvido?". Best-effort: falha aqui não impede abrir o chamado.
+function ntRegistrarAcionamento(m) {
+  if (!m.pessoa || !m.protocolo) return;
+  fetch(`${PROXY}/d1/acionamentos`, {
+    method: 'POST',
+    headers: authD1({ 'Content-Type': 'application/json' }),
+    body: JSON.stringify({
+      protocolo: m.protocolo, posto: m.posto, assunto: m.assunto,
+      pessoa_id: m.pessoa.id, pessoa_nome: m.pessoa.nome,
+      solicitante: (document.getElementById('nt-solicitante')?.value || '').trim(),
+    }),
+  }).catch(() => {});
 }
 
 // Preenchimento automático 100% local (sem API paga nenhuma) -- lê o
@@ -2811,7 +2881,9 @@ function ntMontarMensagem() {
   // Campo Cliente saiu da tela (29/09). Pra equipe SRG a linha some da
   // mensagem; se quem abre é cliente, o nome do login vai automático.
   const ehEquipeSRG = !!(currentUser && (currentUser.atendenteSRG || currentUser.gestor || currentUser.role === 'admin'));
-  const cliente = ehEquipeSRG ? '' : ((currentUser?.nome || '').trim() || currentUser?.username || '');
+  // Equipe SRG: a linha Cliente volta quando escolhe "Cliente que pediu".
+  const pessoa = ehEquipeSRG ? ntPessoaEscolhida() : null;
+  const cliente = ehEquipeSRG ? (pessoa ? pessoa.nome : '') : ((currentUser?.nome || '').trim() || currentUser?.username || '');
   const posto = document.getElementById('nt-posto-select').value;
   const setorSel = document.getElementById('nt-setor-select').value;
   const setor = setorSel === 'Outro (digitar abaixo)' ? document.getElementById('nt-setor-custom').value.trim() : setorSel;
@@ -2840,12 +2912,21 @@ function ntMontarMensagem() {
   ];
   if (evidencia) linhas.push(`• *Evidência:* ${evidencia}`);
 
-  return { texto: linhas.join('\n'), assunto, posto };
+  return { texto: linhas.join('\n'), assunto, posto, pessoa, protocolo };
 }
 
 function ntValidar(m) {
   if (!m.assunto) { document.getElementById('nt-assunto').focus(); return false; }
   if (!m.posto) { document.getElementById('nt-posto-search').focus(); return false; }
+  // Com cliente escolhido, o protocolo é o que liga este acionamento ao
+  // chamado que a Meta registra na planilha -- sem ele, o aviso não chega.
+  const nota = document.getElementById('nt-cliente-nota');
+  if (m.pessoa && !m.protocolo) {
+    if (nota) nota.style.color = '#f6a37a';
+    document.getElementById('nt-protocolo').focus();
+    return false;
+  }
+  if (nota) nota.style.color = '#7186ab';
   return true;
 }
 
@@ -2891,6 +2972,7 @@ function ntTextoFinal(m) {
 
 
 function ntAtualizarPreview() {
+  ntAtualizarClientes(false);
   ntRenderPreviewHint();
   if (ntPreviewEditado) return;
   const el = document.getElementById('nt-preview');
@@ -2907,6 +2989,7 @@ async function copiarNovoChamado() {
   const m = ntMontarMensagem();
   if (!ntValidar(m)) return;
   ntAtualizarPreview();
+  ntRegistrarAcionamento(m);
   const texto = ntTextoFinal(m);
   const st = document.getElementById('nt-copiar-status');
   try {
@@ -2924,6 +3007,7 @@ async function copiarNovoChamado() {
 function enviarNovoChamado() {
   const m = ntMontarMensagem();
   if (!ntValidar(m)) return;
+  ntRegistrarAcionamento(m);
   window.open(`https://wa.me/${WA_NUMBER}?text=${encodeURIComponent(ntTextoFinal(m))}`,'_blank');
 }
 
