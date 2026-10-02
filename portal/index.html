@@ -3160,7 +3160,7 @@ async function buscarUltimaSincronizacao() {
     const r = await fetch(`${PROXY}/d1/ultima-sincronizacao`);
     const d = await r.json();
     if (!r.ok || !d.ok) throw new Error(d.error||'Erro');
-    if (d.ultima) gestorSyncReal = new Date(d.ultima);
+    if (d.ultima) { gestorSyncReal = new Date(d.ultima); gestorLiveUltima = String(d.ultima); }
   } catch(e) { /* silencioso -- cai no fallback do ultimo fetch local */ }
 }
 
@@ -3903,6 +3903,7 @@ async function carregarPainelGestor(forcar=false) {
     if (gestorAgoTimer) clearInterval(gestorAgoTimer);
     gestorAtualizarAgo();
     gestorAgoTimer = setInterval(gestorAtualizarAgo, 1000);
+    gestorLiveIniciar();
   } catch(e) {
     if (nota) nota.textContent = `Erro ao carregar dados: ${e.message}`;
   }
@@ -5306,6 +5307,82 @@ function buscarPorProtocolo(proto) {
   buscar();
 }
 document.addEventListener('keydown', e => { if (e.key === 'Escape' && document.getElementById('dg-overlay')) dgFechar(); });
+
+// ---- Painel do gestor ao vivo (02/10/2026) ----
+// A cada 15s (so com a tela do gestor aberta e a aba visivel) pergunta ao
+// Worker "quando foi a ultima escrita no D1?" -- rota barata, devolve so um
+// horario. Se mudou, rebusca os chamados e redesenha SEM mexer em filtros
+// nem na posicao da tela. Modal aberto ou campo em edicao: nao interfere.
+// Rede de seguranca: a cada 5 min faz a recarga completa mesmo sem mudanca.
+var gestorLiveUltima = null;
+var gestorLiveTimer = null;
+var gestorLiveOcupado = false;
+var gestorLiveCheioEm = Date.now();
+
+function gestorLiveAtivo() {
+  const v = document.getElementById('view-gestor');
+  return !!(currentUser && v && v.style.display === 'block' && !document.hidden);
+}
+function gestorLiveAssinatura(lista) {
+  const m = new Map();
+  (lista || []).forEach(c => m.set(c.idInterno, [c.status, c.atendente, c.atendenteSRG, c.lastEdited, c.retornoConfirmado ? 1 : 0].join('|')));
+  return m;
+}
+function gestorLiveAviso(texto) {
+  let el = document.getElementById('gestor-live-toast');
+  if (!el) {
+    el = document.createElement('div');
+    el.id = 'gestor-live-toast';
+    el.style.cssText = 'position:fixed;right:22px;bottom:22px;z-index:9000;padding:12px 18px;border-radius:14px;font:600 13.5px Manrope;color:#e6fbf4;background:rgba(20,60,56,.94);border:1px solid rgba(90,190,160,.5);box-shadow:0 10px 30px rgba(0,0,0,.4);transition:opacity .4s,transform .4s;opacity:0;transform:translateY(8px)';
+    document.body.appendChild(el);
+  }
+  el.textContent = texto;
+  requestAnimationFrame(() => { el.style.opacity = '1'; el.style.transform = 'translateY(0)'; });
+  clearTimeout(gestorLiveAviso._t);
+  gestorLiveAviso._t = setTimeout(() => { el.style.opacity = '0'; el.style.transform = 'translateY(8px)'; }, 6000);
+}
+async function gestorLiveTick() {
+  if (gestorLiveOcupado || !gestorLiveAtivo()) return;
+  const modal = document.getElementById('gestor-modal');
+  if (modal && modal.style.display === 'flex') return;
+  const ae = document.activeElement;
+  if (ae && ae.closest && ae.closest('#view-gestor') && /^(TEXTAREA)$/.test(ae.tagName)) return;
+  gestorLiveOcupado = true;
+  try {
+    const r = await fetch(`${PROXY}/d1/ultima-sincronizacao`, { cache: 'no-store' });
+    const d = await r.json();
+    if (!r.ok || !d.ok) return;
+    if (d.ultima) gestorSyncReal = new Date(d.ultima);
+    const marca = String(d.ultima || '');
+    const cheio = Date.now() - gestorLiveCheioEm > 5 * 60 * 1000;
+    if (marca === gestorLiveUltima && !cheio) { gestorAtualizarAgo(); return; }
+    const antes = gestorLiveAssinatura(gestorChamadosCache);
+    await getChamados({ forcar: true });
+    gestorLiveUltima = marca;
+    gestorLiveCheioEm = Date.now();
+    const depois = gestorLiveAssinatura(gestorChamadosCache);
+    let novos = 0, mudou = 0;
+    depois.forEach((v, k) => { if (!antes.has(k)) novos++; else if (antes.get(k) !== v) mudou++; });
+    if (novos || mudou || antes.size !== depois.size) {
+      const y = window.scrollY;
+      gestorRenderTudo();
+      window.scrollTo(0, y);
+      const partes = [];
+      if (novos) partes.push(`${novos} chamado${novos > 1 ? 's' : ''} novo${novos > 1 ? 's' : ''}`);
+      if (mudou) partes.push(`${mudou} atualizado${mudou > 1 ? 's' : ''}`);
+      if (partes.length) gestorLiveAviso('Painel atualizado: ' + partes.join(' · '));
+    }
+    gestorAtualizarAgo();
+  } catch (e) { /* sem rede: tenta de novo no proximo ciclo */ }
+  finally { gestorLiveOcupado = false; }
+}
+function gestorLiveIniciar() {
+  if (gestorLiveTimer) return;
+  gestorLiveCheioEm = Date.now();
+  gestorLiveTimer = setInterval(gestorLiveTick, 15000);
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) gestorLiveTick(); });
+  window.addEventListener('focus', gestorLiveTick);
+}
 </script>
 </body>
 </html>
