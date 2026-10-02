@@ -3028,7 +3028,7 @@ const gestorState = {
   periodo: 30,          // 30 | 60 | 90 | 999
   statusFiltro: ['todos'], // array -- 'todos' e exclusivo, os demais combinam entre si (multi-select)
   listaStatusFiltro: 'todos', // filtro extra so da lista "Todos os chamados", pelo status exato (Em Andamento/Aguardando Meta/Pendente SRG/Pendente PO/Resolvido) -- pedido do Sergio em 24/09/2026, separado do filtro de status geral (baldes) la de cima
-  mostrarSemTicket: false, // por padrao, esconde chamados sem Ticket Meta (coluna O vazia na planilha) -- e o mesmo filtro que a Meta usa nas reunioes dela. Desmarcado = so os que tem ticket (bate com o numero da Meta); marcado = geral, com tudo. Pedido do Sergio em 25/09/2026.
+  mostrarSemTicket: true, // 02/10/2026: MARCADO por padrao (pedido do Sergio) -- mostra tudo, inclusive sem Ticket Meta. Historico: em 25/09 o padrao era desmarcado; texto antigo: por padrao, esconde chamados sem Ticket Meta (coluna O vazia na planilha) -- e o mesmo filtro que a Meta usa nas reunioes dela. Desmarcado = so os que tem ticket (bate com o numero da Meta); marcado = geral, com tudo. Pedido do Sergio em 25/09/2026.
   setor: 'todos',
   atendente: 'todos',
   setorSearch: '',
