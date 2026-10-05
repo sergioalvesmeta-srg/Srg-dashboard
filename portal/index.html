@@ -646,7 +646,8 @@ footer.foot{border-top:1px solid rgba(255,255,255,.07);background:rgba(10,16,36,
           <span style="width:10px;flex-shrink:0"></span>
           <span style="flex:1;min-width:0;cursor:pointer;display:flex;align-items:center;gap:5px" onclick="gestorOrdenarLista('titulo')" data-gordcampo="titulo">Título<span class="gestor-ord-seta"></span></span>
           <span style="width:140px;flex-shrink:0;cursor:pointer;display:flex;align-items:center;gap:5px" onclick="gestorOrdenarLista('atendente')" data-gordcampo="atendente">Atendente SRG<span class="gestor-ord-seta"></span></span>
-          <span style="width:170px;flex-shrink:0;cursor:pointer;display:flex;align-items:center;gap:5px" onclick="gestorOrdenarLista('descricao')" data-gordcampo="descricao">Aberto há<span class="gestor-ord-seta"></span></span>
+          <span style="width:120px;flex-shrink:0;cursor:pointer;display:flex;align-items:center;gap:5px" onclick="gestorOrdenarLista('descricao')" data-gordcampo="descricao">Aberto há<span class="gestor-ord-seta"></span></span>
+          <span style="width:130px;flex-shrink:0;cursor:pointer;display:flex;align-items:center;gap:5px" onclick="gestorOrdenarLista('entrega')" data-gordcampo="entrega">Entrega prevista<span class="gestor-ord-seta"></span></span>
           <span style="width:110px;flex-shrink:0;cursor:pointer;display:flex;align-items:center;gap:5px;justify-content:center;white-space:nowrap" onclick="gestorOrdenarLista('prioridade')" data-gordcampo="prioridade">Critério<span class="gestor-ord-seta"></span></span>
           <div style="width:170px;flex-shrink:0;display:flex;align-items:center;justify-content:flex-end;gap:8px">
             <span style="cursor:pointer;display:flex;align-items:center;gap:5px" onclick="gestorOrdenarLista('status')" data-gordcampo="status">Status<span class="gestor-ord-seta"></span></span>
@@ -1257,6 +1258,8 @@ function goKPIs() {
   kpisIniciarAutoRefresh();
 }
 function goAcessoClientes() {
+  // Permissao: so quem tem o flag "Acesso Clientes" (ou admin). Ser gestor NAO libera (05/10/2026).
+  if (!(currentUser && (currentUser.verAcessoClientes || currentUser.role === 'admin'))) { goHome(); return; }
   showView('acesso-clientes');
   atualizarNavAtiva('acesso-clientes');
   window.scrollTo(0,0);
@@ -1356,7 +1359,7 @@ function enterApp() {
   atualizarNavAtiva('dashboard');
   document.getElementById('nav-gestor').style.display = (currentUser.gestor || currentUser.role === 'admin') ? 'inline-block' : 'none';
   document.getElementById('nav-kpis').style.display = (currentUser.verKPIs || currentUser.role === 'admin') ? 'inline-block' : 'none';
-  document.getElementById('nav-acesso-clientes').style.display = (currentUser.verAcessoClientes || currentUser.gestor || currentUser.role === 'admin') ? 'inline-block' : 'none';
+  document.getElementById('nav-acesso-clientes').style.display = (currentUser.verAcessoClientes || currentUser.role === 'admin') ? 'inline-block' : 'none';
   limpar();
   carregarGertecCards();
 }
@@ -1375,7 +1378,7 @@ function restaurarTelaDoEndereco(tela) {
   const rotas = {
     gestor:            [ehGestor, goGestor],
     kpis:              [!!u.verKPIs || u.role === 'admin', goKPIs],
-    'acesso-clientes': [!!u.verAcessoClientes || ehGestor, goAcessoClientes],
+    'acesso-clientes': [!!u.verAcessoClientes || u.role === 'admin', goAcessoClientes],
     newticket:         [true, goNew],
     profile:           [true, goProfile],
   };
@@ -1409,7 +1412,7 @@ async function revalidarSessao() {
     salvarSessaoLocal();
     document.getElementById('nav-gestor').style.display = (currentUser.gestor || currentUser.role === 'admin') ? 'inline-block' : 'none';
     document.getElementById('nav-kpis').style.display = (currentUser.verKPIs || currentUser.role === 'admin') ? 'inline-block' : 'none';
-    document.getElementById('nav-acesso-clientes').style.display = (currentUser.verAcessoClientes || currentUser.gestor || currentUser.role === 'admin') ? 'inline-block' : 'none';
+    document.getElementById('nav-acesso-clientes').style.display = (currentUser.verAcessoClientes || currentUser.role === 'admin') ? 'inline-block' : 'none';
     document.getElementById('admin-btn').style.display = currentUser.role === 'admin' ? 'inline-flex' : 'none';
   } catch(e) { /* falha de rede na revalidacao -- mantem sessao local, tenta de novo no proximo load */ }
 }
@@ -1647,6 +1650,24 @@ function botaoCopiar(valor) {
     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
   </button>`;
 }
+// Entrega prevista (coluna S da planilha). Devolve {l1, l2, cor, data}:
+// l1 = data dd/mm/aaaa (ou o texto cru), l2 = "em 5 dias"/"hoje"/"atrasada 2 dias".
+// So colore/alerta quando o chamado ainda nao esta resolvido.
+function entregaInfo(valor, resolvido) {
+  const v = String(valor || '').trim();
+  if (!v) return { l1: '—', l2: '', cor: '#5c7095', data: null };
+  const m = v.match(/^(\d{4})-(\d{2})-(\d{2})/) || null;
+  if (!m) return { l1: v, l2: '', cor: '#b3c4e0', data: null };
+  const alvo = new Date(+m[1], +m[2]-1, +m[3], 12, 0, 0);
+  const hoje = new Date(); hoje.setHours(12,0,0,0);
+  const dif = Math.round((alvo - hoje) / 86400000);
+  const l1 = `${m[3]}/${m[2]}/${m[1]}`;
+  if (resolvido) return { l1, l2: '', cor: '#7186ab', data: alvo };
+  if (dif < 0)  return { l1, l2: `atrasada ${-dif} dia${dif === -1 ? '' : 's'}`, cor: '#e29a9a', data: alvo };
+  if (dif === 0) return { l1, l2: 'hoje', cor: '#f2b84b', data: alvo };
+  if (dif <= 3) return { l1, l2: `em ${dif} dia${dif === 1 ? '' : 's'}`, cor: '#f2b84b', data: alvo };
+  return { l1, l2: `em ${dif} dias`, cor: '#b3c4e0', data: alvo };
+}
 // Botao de copiar pequeno pra usar DENTRO de linhas clicaveis (lista do
 // gestor, resultados da busca): para a propagacao pra nao abrir o chamado.
 function miniCopiar(valor) {
@@ -1704,7 +1725,8 @@ const KIND_COLOR = { andamento:'#f2b84b', aberto:'#5aa0e6', resolvido:'#5abfa0',
 function statusKind(s) {
   if (s==='Em Andamento' || s==='Pendente SRG') return 'andamento';
   if (s==='Resolvido' || s==='Resolvido Paliativo') return 'resolvido';
-  if (s==='Aguardando Meta' || s==='Pendente PO' || s==='Solicitação') return 'aguardando';
+  if (s==='Aguardando Meta') return 'aguardando';
+  // Solicitação e Pendente PO (Aguardando aprovação) = azul ('aberto'), pedido do Sergio em 05/10/2026.
   return 'aberto';
 }
 function statusLabel(s) {
@@ -1981,6 +2003,7 @@ async function carregarMeusChamados() {
 // sem duplicar o template do card. "results" sempre vem de ultimosResultados
 // (mesmo array usado por abrirDetalheIndex/i).
 function dashRenderListaChamados(results) {
+  const equipe = dgEhEquipe();
   return results.map((row,i) => {
     const nome = row.cliente;
     const status = row.status;
@@ -2004,10 +2027,39 @@ function dashRenderListaChamados(results) {
           ${!resolvido ? `<span style="${parado5mais?'color:#fc9a6a;font-weight:700':''}">· ${diasLabel(diasParado)} parado</span>` : ''}
         </div>
       </div>
-      ${pillHtml(status)}
+      ${equipe ? `<div style="width:130px;flex-shrink:0">
+        <div style="font:600 10px Manrope;letter-spacing:.08em;text-transform:uppercase;color:#7186ab">Solicitante</div>
+        <div style="font:600 13px Manrope;color:#dbe6fb;margin-top:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="${escTxt(row.solicitante||'')}">${escTxt(row.solicitante||'—')}</div>
+      </div>
+      <div style="width:150px;flex-shrink:0;display:flex;justify-content:center">
+        ${(resolvido && !row.retorno_confirmado)
+          ? `<button class="chip" style="padding:6px 12px;font-size:12px;white-space:nowrap" onclick="event.stopPropagation();dashMarcarRetornoInline('${escTxt(row.id_interno)}', this)">✓ Marcar retorno</button>`
+          : (resolvido ? `<span style="font:600 11.5px Manrope;color:#5abfa0;white-space:nowrap">✓ Retorno dado</span>` : '')}
+      </div>` : ''}
+      ${equipe ? `<div style="width:190px;flex-shrink:0;display:flex;justify-content:flex-end">${pillHtml(status)}</div>` : pillHtml(status)}
       <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#8399be" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg>
     </div>`;
   }).join('');
+}
+// Marca "Retorno dado ao cliente" direto na lista do inicio, sem abrir o
+// chamado (mesmo PATCH do Painel do Gestor). Recarrega a lista no fim --
+// o chamado sai sozinho do filtro "sem retorno" e do alerta.
+async function dashMarcarRetornoInline(idInterno, btn) {
+  if (btn) { btn.disabled = true; btn.textContent = 'Salvando…'; }
+  const autor = (currentUser && (currentUser.nome || currentUser.username)) || '';
+  try {
+    const r = await fetch(`${PROXY}/d1/chamados/id/${encodeURIComponent(idInterno)}`, {
+      method: 'PATCH',
+      headers: authD1({ 'Content-Type': 'application/json' }),
+      body: JSON.stringify({ retorno_confirmado: 1, retorno_confirmado_por: autor, retorno_confirmado_em: new Date().toISOString() })
+    });
+    const data = await r.json();
+    if (!r.ok || !data.ok) throw new Error(data.error || 'Erro ao salvar no D1');
+    await carregarMeusChamados();
+  } catch (e) {
+    if (btn) { btn.disabled = false; btn.textContent = '✓ Marcar retorno'; }
+    alert('Erro ao marcar retorno: ' + e.message);
+  }
 }
 function abrirDetalheIndex(i) { mostrarDetalhe(ultimosResultados[i]); }
 
@@ -2414,6 +2466,7 @@ async function detalheRenderizar(found) {
         <div style="font:600 10.5px Manrope;letter-spacing:.1em;text-transform:uppercase;color:#c3aef0">Contato</div>
         <div style="font:600 15px Manrope;color:#eaf3ff;margin-top:3px">${nomeContato||'—'}</div>
       </div>
+      ${found.entrega_prevista ? (() => { const e = entregaInfo(found.entrega_prevista, statusKind(status)==='resolvido'); return `<div style="padding:10px 16px;border-radius:12px;background:rgba(240,180,60,.10);border:1px solid rgba(240,180,60,.32)"><div style="font:600 10.5px Manrope;letter-spacing:.1em;text-transform:uppercase;color:#e8cf8f">Entrega prevista</div><div style="font:600 15px Manrope;color:#eaf3ff;margin-top:3px">${e.l1}${e.l2?` <span style="font:600 12px Manrope;color:${e.cor}">· ${e.l2}</span>`:''}</div></div>`; })() : ''}
       ${(proto && dgEhEquipe()) ? `<button class="btn-ghost" style="height:auto;align-self:stretch;padding:0 16px" onclick="dgAbrirProtocolo('${String(proto).replace(/\D/g,'')}')">💬 Ver conversa no Digisac</button>` : ''}
     </div>`;
 
@@ -3204,6 +3257,8 @@ async function getChamados({ forcar=false } = {}) {
       dataAbertura,
       dataConclusao,
       lastEdited: row.updated_at,
+      // Coluna S da planilha (05/10/2026): prazo de entrega. ISO (AAAA-MM-DD) quando e data, texto cru senao.
+      entregaPrevista: row.entrega_prevista || '',
       // Usado so pra diferenciar, na lista "Todos os chamados", se a
       // ultima atualizacao foi um Retorno SRG (dado pela propria SRG,
       // dentro do chamado) ou uma mudanca vinda do sync da planilha
@@ -4846,7 +4901,7 @@ function gestorCorStatusReal(status) {
   if (status === 'Resolvido') return '#3fa08c';
   if (status === 'Resolvido Paliativo') return '#5abfa0';
   if (status === 'Pendente SRG') return '#c15c5c';
-  if (status === 'Pendente PO' || status === 'Solicitação') return '#a992e0';
+  if (status === 'Pendente PO' || status === 'Solicitação') return '#5aa0e6';
   return '#e0a888'; // Aguardando Meta / Em Andamento
 }
 function gestorRenderAtencao(resultado) {
@@ -4997,7 +5052,7 @@ function gestorOrdenarLista(campo) {
     gestorState.listaOrdenarDir = gestorState.listaOrdenarDir === 'asc' ? 'desc' : 'asc';
   } else {
     gestorState.listaOrdenarPor = campo;
-    gestorState.listaOrdenarDir = campo === 'titulo' ? 'asc' : 'desc';
+    gestorState.listaOrdenarDir = (campo === 'titulo' || campo === 'entrega') ? 'asc' : 'desc'; // entrega: 1o clique = mais proxima/atrasada primeiro
   }
   gestorRenderTudo();
 }
@@ -5032,6 +5087,12 @@ function gestorRenderTickets(filtrados) {
     if (campoOrd === 'descricao') {
       const da = parseDataBR(a.dataAbertura), db = parseDataBR(b.dataAbertura);
       return dirOrd * ((da?da.getTime():0) - (db?db.getTime():0));
+    }
+    if (campoOrd === 'entrega') {
+      // vazios sempre no fim, independente da direcao
+      const ea = entregaInfo(a.entregaPrevista, false).data, eb = entregaInfo(b.entregaPrevista, false).data;
+      if (!ea && !eb) return 0; if (!ea) return 1; if (!eb) return -1;
+      return dirOrd * (ea - eb);
     }
     if (campoOrd === 'prioridade') return dirOrd * ((RANK_URGENCIA[a.urgencia]??1) - (RANK_URGENCIA[b.urgencia]??1));
     if (campoOrd === 'status') return dirOrd * (a.status||'').localeCompare(b.status||'', 'pt-BR');
@@ -5082,6 +5143,7 @@ function gestorRenderTickets(filtrados) {
     // (nao chama atencao a toa), verde pra Baixa (calmo, mesma familia do
     // "Resolvido") -- antes as 3 cores eram tons parecidos de azul/rosa e
     // nao davam nenhuma pista visual de qual e mais urgente.
+    const ent = entregaInfo(c.entregaPrevista, c.balde === 'resolvido');
     const corUrgencia = { 'Urgente':'#e0685f', 'Alta':'#e0955f', 'Normal':'#93a6c4', 'Baixa':'#5abfa0' }[c.urgencia] || '#93a6c4';
     return `
     <div onclick="gestorAbrirTicket('${c.id}')" style="display:flex;align-items:center;gap:16px;padding:14px 16px;border-radius:14px;cursor:pointer;background:rgba(255,255,255,.035);border:1px solid rgba(255,255,255,.08)">
@@ -5091,9 +5153,13 @@ function gestorRenderTickets(filtrados) {
         <div style="font:500 12px Manrope;color:#93a6c4;margin-top:3px">Protocolo ${c.protocolo||'—'}${miniCopiar(c.protocolo)} · Ticket ${c.ticketMeta||'—'}${miniCopiar(c.ticketMeta)} · ${c.setor} · ${c.atendente}${atualizadoHa?` · <span style="color:${corAtualizado};font-weight:${atualizadoDestaque?'700':'500'}">atualizado ${atualizadoHa}</span>`:''}</div>
       </div>
       <div style="width:140px;flex-shrink:0;font:600 12.5px Manrope;color:#dbe6fb;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${c.atendenteSRG || '—'}</div>
-      <div style="width:170px;flex-shrink:0">
+      <div style="width:120px;flex-shrink:0">
         <div style="font:500 12.5px Manrope;color:#b3c4e0">${diasLabel(dias)}</div>
         <div style="font:500 11px Manrope;color:#7186ab;margin-top:2px">${fmtDate(c.dataAbertura)}</div>
+      </div>
+      <div style="width:130px;flex-shrink:0" title="${(c.entregaPrevista||'').replace(/"/g,'&quot;')}">
+        <div style="font:600 12.5px Manrope;color:${ent.cor};white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${ent.l1}</div>
+        ${ent.l2 ? `<div style="font:600 11px Manrope;color:${ent.cor};margin-top:2px">${ent.l2}</div>` : ''}
       </div>
       <div style="width:110px;flex-shrink:0;display:flex;justify-content:center">
         <span style="font:700 10.5px Manrope;padding:4px 10px;border-radius:999px;background:${corUrgencia}1e;color:${corUrgencia};border:1px solid ${corUrgencia}55;white-space:nowrap">${c.urgencia}</span>
@@ -5146,6 +5212,7 @@ async function gestorAbrirTicket(id) {
       <div><div style="font:600 11.5px Manrope;color:#93a6c4">Nível de atendimento</div><div style="font:600 14px Manrope;color:${c.nivelAtendimento==='N3+'?'#e0a888':'#eaf1ff'}">${c.nivelAtendimento==='N3+'?'N3+ (escalado)':(c.nivelAtendimento||'N2')}</div></div>
       <div><div style="font:600 11.5px Manrope;color:#93a6c4">Atendente Meta</div><div style="font:600 14px Manrope;color:#eaf1ff">${c.atendente}</div></div>
       <div><div style="font:600 11.5px Manrope;color:#93a6c4">Atendente SRG</div><div style="font:600 14px Manrope;color:#eaf1ff">${c.atendenteSRG||'—'}</div></div>
+      <div><div style="font:600 11.5px Manrope;color:#93a6c4">Entrega prevista</div><div style="font:600 14px Manrope;color:${entregaInfo(c.entregaPrevista, c.balde==='resolvido').cor}">${entregaInfo(c.entregaPrevista, c.balde==='resolvido').l1}${entregaInfo(c.entregaPrevista, c.balde==='resolvido').l2 ? ' · ' + entregaInfo(c.entregaPrevista, c.balde==='resolvido').l2 : ''}</div></div>
       <div><div style="font:600 11.5px Manrope;color:#93a6c4">Aberto em</div><div style="font:600 14px Manrope;color:#eaf1ff">${fmtDate(c.dataAbertura)}</div></div>
       <div><div style="font:600 11.5px Manrope;color:#93a6c4">Conclusão</div><div style="font:600 14px Manrope;color:#eaf1ff">${c.dataConclusao?fmtDate(c.dataConclusao):'—'}</div></div>
     </div>
@@ -5400,7 +5467,7 @@ function gestorLiveAtivo() {
 }
 function gestorLiveAssinatura(lista) {
   const m = new Map();
-  (lista || []).forEach(c => m.set(c.idInterno, [c.status, c.atendente, c.atendenteSRG, c.lastEdited, c.retornoConfirmado ? 1 : 0].join('|')));
+  (lista || []).forEach(c => m.set(c.idInterno, [c.status, c.atendente, c.atendenteSRG, c.lastEdited, c.retornoConfirmado ? 1 : 0, c.entregaPrevista].join('|')));
   return m;
 }
 function gestorLiveAviso(texto) {
