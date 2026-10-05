@@ -403,10 +403,20 @@ footer.foot{border-top:1px solid rgba(255,255,255,.07);background:rgba(10,16,36,
           Descreva o problema com suas palavras (opcional) — preenchimento automático
         </label>
         <textarea id="nt-texto-livre" rows="3" placeholder="Ex: o PDV está com venda aguardando solução lá no CAC10 e gostaria que fosse visto." style="width:100%;padding:14px 16px;border-radius:13px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.2);color:#eaf1ff;font:500 14px Manrope;line-height:1.5;margin-bottom:12px"></textarea>
+        <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
         <button class="btn-primary" id="nt-ia-btn" onclick="preencherComIA()" style="height:44px;padding:0 20px">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v3M12 18v3M3 12h3M18 12h3M5.6 5.6l2.1 2.1M16.3 16.3l2.1 2.1M18.4 5.6l-2.1 2.1M7.7 16.3l-2.1 2.1"/><circle cx="12" cy="12" r="3.5"/></svg>
           <span id="nt-ia-btn-text">Preencher automaticamente</span>
         </button>
+        <button type="button" class="btn-ghost" id="nt-voz-btn" onclick="ntVozAlternar()" title="Grave um áudio: ele vira texto aqui no campo" style="height:44px;padding:0 18px;display:inline-flex;align-items:center;gap:8px">
+          <svg id="nt-voz-icone" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="2" width="6" height="12" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v4"/></svg>
+          <span id="nt-voz-btn-text">Falar</span>
+        </button>
+        <label style="display:flex;align-items:center;gap:7px;font:500 12px Manrope;color:#93a6c4;cursor:pointer" title="Depois de transcrever, já faz o preenchimento automático">
+          <input type="checkbox" id="nt-voz-auto" checked onchange="try{localStorage.setItem('srg_nt_voz_auto', this.checked?'1':'0')}catch(e){}"> preencher sozinho depois de falar
+        </label>
+        </div>
+        <div id="nt-voz-status" style="display:none;align-items:center;gap:10px;margin-top:12px;font:600 13px Manrope;color:#f2a6a6"></div>
         <p style="font:400 11.5px Manrope;color:#7186ab;margin:8px 0 0">Detecta posto (ex: "CAC10"), setor e prioridade por palavras-chave e reescreve o relato em tom profissional (IA). Sempre confira antes de enviar.</p>
         <div id="nt-ia-status" style="display:none;align-items:center;gap:9px;margin-top:10px;font:600 12.5px Manrope;color:#7fd4c0"></div>
         <div id="nt-ia-erro" style="display:none;margin-top:10px;font:500 12.5px Manrope;color:#f6c177"></div>
@@ -5639,6 +5649,105 @@ function gestorLiveIniciar() {
   document.addEventListener('visibilitychange', () => { if (!document.hidden) gestorLiveTick(); });
   window.addEventListener('focus', gestorLiveTick);
 }
+
+// ---- Falar em vez de digitar (05/10/2026) ----
+// Grava o áudio no navegador (MediaRecorder), manda pro Worker
+// (/ia/transcrever -> Whisper) e coloca o texto no campo do relato. Nada é
+// guardado: o áudio só passa pela transcrição. Máx. 2 minutos por gravação.
+let ntVoz = { rec: null, stream: null, chunks: [], t0: 0, timer: null, cancelado: false, mime: '' };
+const NT_VOZ_MAX_SEG = 120;
+function ntVozStatus(html, cor) {
+  const el = document.getElementById('nt-voz-status');
+  if (!el) return;
+  if (!html) { el.style.display = 'none'; el.innerHTML = ''; return; }
+  el.style.display = 'flex'; el.style.color = cor || '#f2a6a6'; el.innerHTML = html;
+}
+function ntVozBotao(estado) {
+  const b = document.getElementById('nt-voz-btn'), t = document.getElementById('nt-voz-btn-text');
+  if (!b || !t) return;
+  b.disabled = estado === 'transcrevendo';
+  if (estado === 'gravando') { t.textContent = 'Parar'; b.style.borderColor = 'rgba(240,120,120,.6)'; b.style.color = '#f2a6a6'; }
+  else if (estado === 'transcrevendo') { t.textContent = 'Transcrevendo…'; b.style.borderColor = ''; b.style.color = ''; }
+  else { t.textContent = 'Falar'; b.style.borderColor = ''; b.style.color = ''; }
+}
+function ntVozEscolherMime() {
+  const opcoes = ['audio/webm;codecs=opus', 'audio/webm', 'audio/mp4', 'audio/ogg;codecs=opus'];
+  if (!window.MediaRecorder) return null;
+  for (const m of opcoes) { try { if (MediaRecorder.isTypeSupported(m)) return m; } catch (e) {} }
+  return '';
+}
+function ntVozLiberarMic() {
+  clearInterval(ntVoz.timer); ntVoz.timer = null;
+  if (ntVoz.stream) { ntVoz.stream.getTracks().forEach(t => t.stop()); ntVoz.stream = null; }
+}
+async function ntVozAlternar() {
+  if (ntVoz.rec && ntVoz.rec.state === 'recording') { ntVoz.rec.stop(); return; }
+  const erroEl = document.getElementById('nt-ia-erro'); if (erroEl) erroEl.style.display = 'none';
+  const mime = ntVozEscolherMime();
+  if (mime === null || !navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+    ntVozStatus('Este navegador não permite gravar áudio. Use Chrome, Edge ou Safari atualizado.', '#f6c177'); return;
+  }
+  try {
+    ntVoz.stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true } });
+  } catch (e) {
+    const negou = e && (e.name === 'NotAllowedError' || e.name === 'SecurityError');
+    ntVozStatus(negou ? 'Permissão do microfone negada. Libere o microfone para este site (ícone de cadeado na barra de endereço) e tente de novo.' : 'Não encontrei um microfone neste computador.', '#f6c177');
+    return;
+  }
+  ntVoz.chunks = []; ntVoz.cancelado = false; ntVoz.mime = mime || '';
+  const rec = new MediaRecorder(ntVoz.stream, mime ? { mimeType: mime } : undefined);
+  ntVoz.rec = rec;
+  rec.ondataavailable = ev => { if (ev.data && ev.data.size) ntVoz.chunks.push(ev.data); };
+  rec.onstop = ntVozAoParar;
+  rec.start(1000);
+  ntVoz.t0 = Date.now();
+  ntVozBotao('gravando');
+  const pinta = () => {
+    const seg = Math.floor((Date.now() - ntVoz.t0) / 1000);
+    ntVozStatus(`<span style="width:10px;height:10px;border-radius:50%;background:#f06a6a;animation:ntPulse 1s infinite"></span> Gravando… ${String(Math.floor(seg/60)).padStart(1,'0')}:${String(seg%60).padStart(2,'0')} — fale o problema e clique em <b>Parar</b> <a href="#" onclick="ntVozCancelar();return false" style="margin-left:8px;color:#9fb4d8;font-weight:500">cancelar</a>`);
+    if (seg >= NT_VOZ_MAX_SEG && ntVoz.rec && ntVoz.rec.state === 'recording') ntVoz.rec.stop();
+  };
+  pinta(); ntVoz.timer = setInterval(pinta, 500);
+}
+function ntVozCancelar() {
+  ntVoz.cancelado = true;
+  if (ntVoz.rec && ntVoz.rec.state === 'recording') ntVoz.rec.stop();
+}
+async function ntVozAoParar() {
+  ntVozLiberarMic();
+  const duracao = (Date.now() - ntVoz.t0) / 1000;
+  if (ntVoz.cancelado) { ntVozStatus(''); ntVozBotao('idle'); return; }
+  const tipo = (ntVoz.rec && ntVoz.rec.mimeType) || ntVoz.mime || 'audio/webm';
+  const blob = new Blob(ntVoz.chunks, { type: tipo });
+  ntVoz.chunks = [];
+  if (duracao < 1 || blob.size < 1500) { ntVozStatus('Gravação muito curta. Tente de novo e fale um pouco mais.', '#f6c177'); ntVozBotao('idle'); return; }
+  ntVozBotao('transcrevendo');
+  ntVozStatus('<span class="nt-spin"></span> Transcrevendo o áudio…', '#7fd4c0');
+  try {
+    const r = await fetch(`${PROXY}/ia/transcrever`, {
+      method: 'POST',
+      headers: { 'Authorization': `Bearer ${currentUser?.token || ''}`, 'Content-Type': tipo.split(';')[0] },
+      body: blob,
+    });
+    const d = await r.json().catch(() => ({}));
+    if (!r.ok || !d.ok) throw new Error(d.error || ('Erro ' + r.status));
+    const campo = document.getElementById('nt-texto-livre');
+    const atual = (campo.value || '').trim();
+    campo.value = atual ? atual + '\n' + d.texto : d.texto;
+    campo.dispatchEvent(new Event('input', { bubbles: true }));
+    ntVozStatus('✓ Áudio transcrito. Confira o texto abaixo.', '#7fd4c0');
+    setTimeout(() => ntVozStatus(''), 4000);
+    ntVozBotao('idle');
+    const auto = document.getElementById('nt-voz-auto');
+    if (auto && auto.checked && typeof preencherComIA === 'function') preencherComIA();
+  } catch (e) {
+    ntVozStatus('Não consegui transcrever: ' + e.message + '. Você pode tentar de novo ou digitar o texto.', '#f6c177');
+    ntVozBotao('idle');
+  }
+}
+(function ntVozRestaurarPref() {
+  try { const v = localStorage.getItem('srg_nt_voz_auto'); const c = document.getElementById('nt-voz-auto'); if (c && v === '0') c.checked = false; } catch (e) {}
+})();
 </script>
 </body>
 </html>
