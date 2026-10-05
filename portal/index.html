@@ -1650,6 +1650,28 @@ function botaoCopiar(valor) {
     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
   </button>`;
 }
+// Nome do posto a partir da coluna Situação (J) da planilha. A Situação vem
+// do formulário padrão ("• *Posto:* CAC 05 • *Grau de prioridade:* ...").
+// Procura o rótulo "Posto:" e pega o texto até o próximo rótulo/bullet.
+// Sem rótulo "Posto:" -> devolve '' e a lista segue com o nome de sempre.
+function extrairPostoDaSituacao(texto) {
+  const t = String(texto || '');
+  if (!t) return '';
+  const m = t.match(/(?:^|[\s•\-*])Posto\s*\*?\s*:\s*\*?\s*(.+?)\s*(?=•|\*?\s*(?:Grau de prioridade|Prioridade|Crit[eé]rio|Setor|Solicitante|Assunto|Data do problema|Protocolo|Descri[cç][aã]o|Evid[eê]ncia|Cliente)\b|$)/i);
+  if (!m) return '';
+  let v = m[1].replace(/[*_]+/g, '').replace(/\s+/g, ' ').trim();
+  if (!v || v === '—' || v === '-') return '';
+  return v.length > 60 ? v.slice(0, 60).trim() + '…' : v;
+}
+// Título exibido na lista do gestor: "<Posto da Situação> — <assunto>".
+// O título gravado é "<Un ou Cliente> — <assunto>"; troca só o prefixo.
+function tituloComPosto(c) {
+  const base = c.cliente || 'Sem assunto';
+  const posto = extrairPostoDaSituacao(c.descricaoCompleta);
+  if (!posto) return base;
+  const i = base.indexOf(' — ');
+  return i >= 0 ? `${posto}${base.slice(i)}` : `${posto} — ${base}`;
+}
 // Entrega prevista (coluna S da planilha). Devolve {l1, l2, cor, data}:
 // l1 = data dd/mm/aaaa (ou o texto cru), l2 = "em 5 dias"/"hoje"/"atrasada 2 dias".
 // So colore/alerta quando o chamado ainda nao esta resolvido.
@@ -5149,7 +5171,7 @@ function gestorRenderTickets(filtrados) {
     <div onclick="gestorAbrirTicket('${c.id}')" style="display:flex;align-items:center;gap:16px;padding:14px 16px;border-radius:14px;cursor:pointer;background:rgba(255,255,255,.035);border:1px solid rgba(255,255,255,.08)">
       <span style="width:10px;height:10px;border-radius:50%;flex-shrink:0;background:${KIND_COLOR[statusKind(c.status)]}"></span>
       <div style="flex:1;min-width:0">
-        <div style="font:700 14px Manrope;color:#eaf1ff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${c.cliente}</div>
+        <div style="font:700 14px Manrope;color:#eaf1ff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="${escTxt(c.cliente)}">${escTxt(tituloComPosto(c))}</div>
         <div style="font:500 12px Manrope;color:#93a6c4;margin-top:3px">Protocolo ${c.protocolo||'—'}${miniCopiar(c.protocolo)} · Ticket ${c.ticketMeta||'—'}${miniCopiar(c.ticketMeta)} · ${c.setor} · ${c.atendente}${atualizadoHa?` · <span style="color:${corAtualizado};font-weight:${atualizadoDestaque?'700':'500'}">atualizado ${atualizadoHa}</span>`:''}</div>
       </div>
       <div style="width:140px;flex-shrink:0;font:600 12.5px Manrope;color:#dbe6fb;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${c.atendenteSRG || '—'}</div>
