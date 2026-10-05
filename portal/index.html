@@ -803,7 +803,12 @@ footer.foot{border-top:1px solid rgba(255,255,255,.07);background:rgba(10,16,36,
         <div class="gestor-scroll">
           <table class="gestor-table" id="gestor-sem-retorno">
             <thead><tr>
-              <th>Chamado</th><th>Cliente</th><th>Setor</th><th>Responsável</th><th>Resolvido há</th><th>Status</th><th></th>
+              <th class="sr-th" data-sr="chamado" onclick="gestorSemRetornoOrdenar('chamado')" title="Ordenar por protocolo">Chamado<span class="sr-seta"></span></th>
+              <th class="sr-th" data-sr="cliente" onclick="gestorSemRetornoOrdenar('cliente')" title="Ordenar por nome do chamado">Cliente<span class="sr-seta"></span></th>
+              <th class="sr-th" data-sr="setor" onclick="gestorSemRetornoOrdenar('setor')" title="Ordenar por setor">Setor<span class="sr-seta"></span></th>
+              <th class="sr-th" data-sr="responsavel" onclick="gestorSemRetornoOrdenar('responsavel')" title="Ordenar por nome do responsável">Responsável<span class="sr-seta"></span></th>
+              <th class="sr-th" data-sr="dias" onclick="gestorSemRetornoOrdenar('dias')" title="Ordenar por tempo desde a resolução">Resolvido há<span class="sr-seta"></span></th>
+              <th>Status</th><th></th>
             </tr></thead>
             <tbody id="gestor-sem-retorno-body"></tbody>
           </table>
@@ -1985,7 +1990,7 @@ async function carregarMeusChamados() {
     if (dashFiltroSemRetorno) {
       // Modo "so os pendentes de retorno": ignora periodo/status/limite de
       // 10 resolvidos -- o gestor/tecnico precisa ver TODOS de uma vez.
-      results = semRetorno;
+      results = dashOrdenarSemRetorno(semRetorno);
       ultimosResultados = results;
       count.textContent = results.length + (results.length===1?' chamado':' chamados') + ' · sem retorno confirmado';
       if (!results.length) {
@@ -2098,6 +2103,22 @@ async function dashMarcarRetornoInline(idInterno, btn) {
 function abrirDetalheIndex(i) { mostrarDetalhe(ultimosResultados[i]); }
 
 // ---- Alerta "Retorno dado ao cliente" pendente (home) ----
+// Ordem da lista "so sem retorno confirmado" (05/10/2026): padrao = como veio
+// (atualizados mais recentes primeiro); ou por Solicitante / nome do chamado (A-Z).
+let dashOrdemSemRetorno = 'padrao';
+function dashOrdenarSemRetorno(lista) {
+  const txt = (v) => (v || '').toString();
+  if (dashOrdemSemRetorno === 'solicitante') {
+    return [...lista].sort((a, b) => {
+      const ea = !a.solicitante, eb = !b.solicitante;
+      if (ea !== eb) return ea ? 1 : -1; // sem solicitante no fim
+      return txt(a.solicitante).localeCompare(txt(b.solicitante), 'pt-BR') || txt(a.cliente).localeCompare(txt(b.cliente), 'pt-BR');
+    });
+  }
+  if (dashOrdemSemRetorno === 'nome') return [...lista].sort((a, b) => txt(a.cliente).localeCompare(txt(b.cliente), 'pt-BR'));
+  return lista;
+}
+function dashMudarOrdemSemRetorno(v) { dashOrdemSemRetorno = v; carregarMeusChamados(); }
 function dashRenderAlertaRetorno(semRetorno) {
   const el = document.getElementById('dash-alerta-retorno');
   if (!el) return;
@@ -2113,7 +2134,16 @@ function dashRenderAlertaRetorno(semRetorno) {
     el.innerHTML = `
       <div style="display:flex;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap;padding:16px 22px;border-radius:16px;background:rgba(193,92,92,.14);border:1.5px solid rgba(226,154,154,.45)">
         <span style="font:700 14px Manrope;color:#f0b8b8">⚠️ Mostrando ${n} chamado${n===1?'':'s'} seu${n===1?'':'s'} resolvido${n===1?'':'s'} sem retorno confirmado.</span>
-        <button class="chip" style="padding:6px 14px;font-size:12.5px" onclick="dashLimparFiltroSemRetorno()">Voltar ao normal</button>
+        <span style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+          <label style="font:600 12.5px Manrope;color:#e0b6b6">Ordenar por
+            <select onchange="dashMudarOrdemSemRetorno(this.value)" style="margin-left:6px;height:32px;padding:0 10px;border-radius:8px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.22);color:#eaf1ff;font:600 12.5px Manrope;cursor:pointer">
+              <option value="padrao"${dashOrdemSemRetorno==='padrao'?' selected':''}>Mais recentes</option>
+              <option value="solicitante"${dashOrdemSemRetorno==='solicitante'?' selected':''}>Solicitante (A–Z)</option>
+              <option value="nome"${dashOrdemSemRetorno==='nome'?' selected':''}>Nome do chamado (A–Z)</option>
+            </select>
+          </label>
+          <button class="chip" style="padding:6px 14px;font-size:12.5px" onclick="dashLimparFiltroSemRetorno()">Voltar ao normal</button>
+        </span>
       </div>`;
     return;
   }
@@ -4982,8 +5012,45 @@ function gestorCalcularSemRetorno(baseSemPeriodo) {
     .sort((a,b) => b.dias - a.dias);
   return { linhas: todas, total: todas.length };
 }
+// Ordenacao da tabela "Resolvidos sem retorno confirmado" (05/10/2026): clique
+// no cabecalho ordena; 2o clique inverte. Padrao (sem clique) = mais antigos
+// primeiro. Empate sempre desempata por mais antigo primeiro.
+let gestorSemRetornoOrd = { campo: null, dir: 'asc' };
+let gestorSemRetornoUltimo = null;
+function gestorSemRetornoOrdenar(campo) {
+  if (gestorSemRetornoOrd.campo === campo) gestorSemRetornoOrd.dir = gestorSemRetornoOrd.dir === 'asc' ? 'desc' : 'asc';
+  else gestorSemRetornoOrd = { campo, dir: (campo === 'dias') ? 'desc' : 'asc' };
+  if (gestorSemRetornoUltimo) gestorRenderSemRetorno(gestorSemRetornoUltimo);
+}
+function gestorSemRetornoAplicarOrdem(linhas) {
+  const { campo, dir } = gestorSemRetornoOrd;
+  if (!campo) return linhas;
+  const m = dir === 'asc' ? 1 : -1;
+  const txt = (v) => (v || '').toString();
+  const cmp = {
+    chamado:     (a, b) => txt(a.protocolo).localeCompare(txt(b.protocolo), 'pt-BR', { numeric: true }),
+    cliente:     (a, b) => txt(a.cliente).localeCompare(txt(b.cliente), 'pt-BR'),
+    setor:       (a, b) => txt(a.setor).localeCompare(txt(b.setor), 'pt-BR'),
+    responsavel: (a, b) => {
+      // sem responsavel vai sempre pro fim, independente da direcao
+      const ea = !a.atendenteSRG, eb = !b.atendenteSRG;
+      if (ea !== eb) return ea ? 1 / m : -1 / m;
+      return txt(a.atendenteSRG).localeCompare(txt(b.atendenteSRG), 'pt-BR');
+    },
+    dias:        (a, b) => (a.dias || 0) - (b.dias || 0),
+  }[campo];
+  return [...linhas].sort((a, b) => (m * cmp(a, b)) || ((b.dias || 0) - (a.dias || 0)));
+}
 function gestorRenderSemRetorno(resultado) {
-  const { linhas, total } = resultado;
+  gestorSemRetornoUltimo = resultado;
+  document.querySelectorAll('#gestor-sem-retorno .sr-th').forEach(th => {
+    const ativo = gestorSemRetornoOrd.campo === th.dataset.sr;
+    th.style.cursor = 'pointer'; th.style.userSelect = 'none';
+    th.style.color = ativo ? '#8fd0f5' : '';
+    th.querySelector('.sr-seta').textContent = ativo ? (gestorSemRetornoOrd.dir === 'asc' ? ' ▲' : ' ▼') : '';
+  });
+  const { total } = resultado;
+  const linhas = gestorSemRetornoAplicarOrdem(resultado.linhas);
   const contagemEl = document.getElementById('gestor-sem-retorno-count');
   if (contagemEl) contagemEl.textContent = total ? `${total} pendente${total === 1 ? '' : 's'}` : 'tudo em dia';
   const card = document.getElementById('gestor-sem-retorno-card');
