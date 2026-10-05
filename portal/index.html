@@ -305,6 +305,7 @@ footer.foot{border-top:1px solid rgba(255,255,255,.07);background:rgba(10,16,36,
           <button class="chip active" data-status="Aguardando Meta" onclick="toggleStatusFiltro('Aguardando Meta',this)">Em análise técnica</button>
           <button class="chip active" data-status="Pendente SRG" onclick="toggleStatusFiltro('Pendente SRG',this)">Aguardando ação SRG</button>
           <button class="chip active" data-status="Pendente PO" onclick="toggleStatusFiltro('Pendente PO',this)">Aguardando aprovação</button>
+          <button class="chip active" data-status="Solicitação" onclick="toggleStatusFiltro('Solicitação',this)">Solicitação</button>
         </div>
       </div>
 
@@ -655,6 +656,7 @@ footer.foot{border-top:1px solid rgba(255,255,255,.07);background:rgba(10,16,36,
               <option value="Aguardando Meta">Em análise técnica</option>
               <option value="Pendente SRG">Aguardando ação SRG</option>
               <option value="Pendente PO">Aguardando aprovação</option>
+              <option value="Solicitação">Solicitação</option>
               <option value="Resolvido">Resolvido</option>
               <option value="Resolvido Paliativo">Resolvido Paliativo</option>
             </select>
@@ -1181,7 +1183,7 @@ let currentUser = null;
 let currentPeriodo = 0;
 let currentDataDe = null;   // 'YYYY-MM-DD' -- quando preenchido, substitui os chips de periodo
 let currentDataAte = null;
-let currentStatusFiltro = ['Em Andamento','Aguardando Meta','Pendente SRG','Pendente PO'];
+let currentStatusFiltro = ['Em Andamento','Aguardando Meta','Pendente SRG','Pendente PO','Solicitação'];
 let currentProto = '';
 let ultimosResultados = [];
 // Quando true, "Meus chamados" ignora período/status e mostra só os
@@ -1694,7 +1696,7 @@ const KIND_COLOR = { andamento:'#f2b84b', aberto:'#5aa0e6', resolvido:'#5abfa0',
 function statusKind(s) {
   if (s==='Em Andamento' || s==='Pendente SRG') return 'andamento';
   if (s==='Resolvido' || s==='Resolvido Paliativo') return 'resolvido';
-  if (s==='Aguardando Meta' || s==='Pendente PO') return 'aguardando';
+  if (s==='Aguardando Meta' || s==='Pendente PO' || s==='Solicitação') return 'aguardando';
   return 'aberto';
 }
 function statusLabel(s) {
@@ -3139,7 +3141,7 @@ function gestorBalde(status) {
   // todo KPI/backlog/filtro -- so o ROTULO exibido diferencia solucao
   // definitiva de paliativa (ver statusLabel).
   if (status === 'Resolvido' || status === 'Resolvido Paliativo') return 'resolvido';
-  if (status === 'Aguardando Meta' || status === 'Em Andamento' || status === 'Pendente PO') return 'pendenteMeta';
+  if (status === 'Aguardando Meta' || status === 'Em Andamento' || status === 'Pendente PO' || status === 'Solicitação') return 'pendenteMeta';
   if (status === 'Pendente SRG') return 'pendente';
   return 'pendenteMeta'; // fallback -- na pratica nao deveria ocorrer, os status conhecidos ja cobrem tudo
 }
@@ -3187,9 +3189,10 @@ async function getChamados({ forcar=false } = {}) {
       descricaoCompleta: row.descricao_completa || '',
       ticketMeta: row.ticket_so || '',
       // "Melhoria" = pedido de desenvolvimento pro sistema (categoria
-      // "Solicitação" na planilha, ou status "Pendente PO" -- fila do
+      // status "Solicitação" (coluna Status da planilha, desde 05/10/2026 --
+      // antes vinha da Categoria), ou status "Pendente PO" -- fila do
       // Product Owner da Meta). Usado na secao "Melhorias pendentes".
-      melhoria: row.categoria === 'Solicitação' || status === 'Pendente PO',
+      melhoria: status === 'Solicitação' || status === 'Pendente PO',
       dataAbertura,
       dataConclusao,
       lastEdited: row.updated_at,
@@ -4835,7 +4838,7 @@ function gestorCorStatusReal(status) {
   if (status === 'Resolvido') return '#3fa08c';
   if (status === 'Resolvido Paliativo') return '#5abfa0';
   if (status === 'Pendente SRG') return '#c15c5c';
-  if (status === 'Pendente PO') return '#a992e0';
+  if (status === 'Pendente PO' || status === 'Solicitação') return '#a992e0';
   return '#e0a888'; // Aguardando Meta / Em Andamento
 }
 function gestorRenderAtencao(resultado) {
