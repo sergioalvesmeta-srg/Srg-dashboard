@@ -314,6 +314,11 @@ footer.foot{border-top:1px solid rgba(255,255,255,.07);background:rgba(10,16,36,
            pode passar batido. Preenchido por dashRenderAlertaRetorno(). -->
       <div id="dash-alerta-retorno" style="display:none;margin-top:22px"></div>
 
+      <!-- Alerta "Cliente diz que NÃO resolveu" -- resposta da janela
+           "Já está resolvido?" do SRG Dispatch (ponte de chamados, 05/10/2026).
+           Preenchido por dashRenderAlertaClienteNao(). -->
+      <div id="dash-alerta-cliente-nao" style="display:none;margin-top:22px"></div>
+
       <!-- Lista -->
       <div id="lista-wrap" style="display:none">
         <div style="display:flex;align-items:center;justify-content:space-between;margin:34px 0 16px">
@@ -1903,6 +1908,13 @@ async function carregarMeusChamados() {
       ? results.filter(row => (row.status === 'Resolvido' || row.status === 'Resolvido Paliativo') && !row.retorno_confirmado)
       : [];
     dashRenderAlertaRetorno(semRetorno);
+    // Ponte de chamados: o cliente respondeu "Não" na janela do Dispatch e o
+    // chamado continua resolvido -- a SRG precisa voltar a falar com ele.
+    // Sai do alerta sozinho quando a Meta reabre (status muda).
+    const clienteNao = ehEquipeSRG
+      ? results.filter(row => row.cliente_resposta === 'nao' && (row.status === 'Resolvido' || row.status === 'Resolvido Paliativo'))
+      : [];
+    dashRenderAlertaClienteNao(clienteNao);
 
     if (dashFiltroSemRetorno) {
       // Modo "so os pendentes de retorno": ignora periodo/status/limite de
@@ -2019,6 +2031,54 @@ function dashRenderAlertaRetorno(semRetorno) {
         </div>
       </div>
       <button class="btn-primary" style="height:38px;padding:0 18px;font-size:13px;background:linear-gradient(135deg,#c15c5c,#e0955f);flex-shrink:0" onclick="dashAtivarFiltroSemRetorno()">Ver agora</button>
+    </div>`;
+}
+// ---- Alerta "Cliente diz que NÃO resolveu" (ponte com o SRG Dispatch) ----
+let dashClienteNaoLista = [];
+function escTxt(s) {
+  return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+function dashRenderAlertaClienteNao(lista) {
+  const el = document.getElementById('dash-alerta-cliente-nao');
+  if (!el) return;
+  dashClienteNaoLista = lista;
+  if (!lista.length) { el.style.display = 'none'; el.innerHTML = ''; return; }
+  el.style.display = 'block';
+  const n = lista.length;
+  const itens = lista.slice(0, 6).map((row, i) => `
+    <div onclick="mostrarDetalhe(dashClienteNaoLista[${i}])" style="cursor:pointer;display:flex;align-items:center;justify-content:space-between;gap:10px;padding:9px 12px;border-radius:10px;background:rgba(255,255,255,.05);margin-top:6px">
+      <span style="font:600 13px Manrope;color:#fbdada">${escTxt(row.cliente)}</span>
+      <span style="font:500 11.5px Manrope;color:#e0b6b6;white-space:nowrap">${escTxt(row.cliente_resposta_por || 'cliente')} · ${fmtDateTime(row.cliente_resposta_em)}</span>
+    </div>`).join('');
+  el.innerHTML = `
+    <div style="padding:18px 24px;border-radius:18px;background:linear-gradient(135deg,rgba(193,92,92,.24),rgba(193,92,92,.12));border:1.5px solid rgba(226,154,154,.55);box-shadow:0 0 0 4px rgba(193,92,92,.08)">
+      <div style="display:flex;align-items:center;gap:14px">
+        <span style="font-size:26px;line-height:1">🙋</span>
+        <div>
+          <div style="font:700 15.5px Outfit,sans-serif;color:#fbdada">${n} cliente${n===1?'':'s'} diz${n===1?'':'em'} que o chamado NÃO foi resolvido</div>
+          <div style="font:500 12.5px Manrope;color:#e0b6b6;margin-top:3px">A Meta marcou como resolvido, mas o cliente respondeu "Não, ainda com problema" no aviso do Dispatch. Clique pra abrir.</div>
+        </div>
+      </div>
+      ${itens}${n > 6 ? `<div style="font:500 12px Manrope;color:#e0b6b6;margin-top:8px">… e mais ${n-6}</div>` : ''}
+    </div>`;
+}
+// Bloco no detalhe do chamado: o que o cliente respondeu no aviso do Dispatch.
+function buildRespostaCliente(chamado) {
+  const r = chamado && chamado.cliente_resposta;
+  if (!r) return '';
+  const quem = escTxt(chamado.cliente_resposta_por || 'cliente');
+  const onde = chamado.cliente_resposta_maquina ? ' (' + escTxt(chamado.cliente_resposta_maquina) + ')' : '';
+  const quando = fmtDateTime(chamado.cliente_resposta_em);
+  const estilo = {
+    sim:    ['rgba(63,160,140,.14)', 'rgba(90,190,160,.3)', '#7fe0c0', '👍 Cliente confirmou: resolvido'],
+    nao:    ['rgba(193,92,92,.18)', 'rgba(226,154,154,.5)', '#f0b8b8', '⚠️ Cliente diz que NÃO resolveu'],
+    fechou: ['rgba(255,255,255,.05)', 'rgba(255,255,255,.14)', '#b3c4e0', '🔕 Cliente fechou o aviso sem responder'],
+  }[r];
+  if (!estilo) return '';
+  return `
+    <div style="margin-top:10px;display:flex;align-items:center;gap:10px;padding:10px 14px;border-radius:12px;background:${estilo[0]};border:1px solid ${estilo[1]};flex-wrap:wrap">
+      <span style="font:600 13px Manrope;color:${estilo[2]}">${estilo[3]}</span>
+      <span style="font:500 12px Manrope;color:#9fb3cf">${quem}${onde} em ${quando}, pelo aviso do Dispatch</span>
     </div>`;
 }
 function dashAtivarFiltroSemRetorno() {
@@ -2517,6 +2577,10 @@ async function retornoSRGExcluir(idInterno, chaveData, prefixo) {
 // "Resolvidos sem retorno confirmado" no Painel do Gestor.
 function buildRetornoConfirmacao(chamado, idInterno, prefixo) {
   if (!idInterno) return '';
+  // Resposta do cliente no aviso do Dispatch (ponte de chamados) vem logo acima.
+  return buildRespostaCliente(chamado) + buildRetornoConfirmacaoFlag(chamado, idInterno, prefixo);
+}
+function buildRetornoConfirmacaoFlag(chamado, idInterno, prefixo) {
   const p = prefixo || 'cli';
   const confirmado = !!(chamado && chamado.retorno_confirmado);
   if (confirmado) {
