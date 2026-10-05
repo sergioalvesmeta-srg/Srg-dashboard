@@ -481,9 +481,8 @@ footer.foot{border-top:1px solid rgba(255,255,255,.07);background:rgba(10,16,36,
         <textarea rows="5" id="nt-desc" placeholder="Descreva com detalhes o que está acontecendo, quando começou e o que já foi tentado..." style="width:100%;padding:14px 16px;border-radius:13px;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.22);color:#eaf1ff;font:500 14.5px Manrope;line-height:1.55;margin-bottom:22px"></textarea>
 
         <label style="display:block;font:600 12.5px Manrope;color:#bcccea;margin-bottom:8px">Evidência (opcional)</label>
-        <div class="field" style="height:52px;margin-bottom:8px">
-          <input type="text" id="nt-evidencia" placeholder="Cole aqui o link de um print/foto (Drive, etc.)">
-        </div>
+        <div id="nt-evid-lista"></div>
+        <button type="button" id="nt-evid-add" onclick="ntEvidAdicionar()" style="background:transparent;border:1px dashed rgba(255,255,255,.28);color:#9fb6e8;font:600 12.5px Manrope;padding:8px 14px;border-radius:11px;cursor:pointer;margin:0 0 10px">+ Adicionar outra evidência</button>
         <p style="font:400 12px Manrope;color:#7186ab;margin:0 0 26px">Prefere enviar a foto direto? Pode abrir o chamado e mandar a imagem em seguida, na própria conversa do WhatsApp.</p>
 
         <p id="nt-protocolo-nota" style="font:400 12px Manrope;color:#7186ab;margin:0">O protocolo é gerado automaticamente pela Meta depois que o chamado é aberto — por isso não aparece aqui.</p>
@@ -1302,6 +1301,7 @@ function atualizarNavAtiva(view) {
 }
 function goNew() {
   ntPreviewEditado = false;
+  ntEvidReset();
   buildNewTicketChips();
   showView('newticket');
   window.scrollTo(0,0);
@@ -3097,7 +3097,7 @@ function ntMontarMensagem() {
   const assunto = document.getElementById('nt-assunto').value.trim();
   const dataProblema = document.getElementById('nt-data').value;
   const desc = document.getElementById('nt-desc').value.trim();
-  const evidencia = document.getElementById('nt-evidencia').value.trim();
+  const evidencias = ntEvidValores();
   const solicitante = (document.getElementById('nt-solicitante')?.value || '').trim();
   const protocolo = (document.getElementById('nt-protocolo')?.value || '').trim();
 
@@ -3117,7 +3117,8 @@ function ntMontarMensagem() {
     `• *Protocolo:* ${protocolo}`,
     `• *Descrição do problema:* ${desc || '—'}`,
   ];
-  if (evidencia) linhas.push(`• *Evidência:* ${evidencia}`);
+  if (evidencias.length === 1) linhas.push(`• *Evidência:* ${evidencias[0]}`);
+  else evidencias.forEach((ev, i) => linhas.push(`• *Evidência ${i + 1}:* ${ev}`));
 
   return { texto: linhas.join('\n'), assunto, posto, pessoa, protocolo };
 }
@@ -5748,6 +5749,49 @@ async function ntVozAoParar() {
 (function ntVozRestaurarPref() {
   try { const v = localStorage.getItem('srg_nt_voz_auto'); const c = document.getElementById('nt-voz-auto'); if (c && v === '0') c.checked = false; } catch (e) {}
 })();
+
+// ---- Evidências (várias) no Novo chamado ----
+function ntEvidAdicionar(valor, focar) {
+  const lista = document.getElementById('nt-evid-lista');
+  if (!lista) return;
+  const n = lista.children.length + 1;
+  const row = document.createElement('div');
+  row.className = 'field nt-evid-row';
+  row.style.cssText = 'height:52px;margin-bottom:8px';
+  row.innerHTML = '<span class="nt-evid-n" style="font:700 12px Manrope;color:#7186ab;min-width:18px"></span>' +
+    '<input type="text" class="nt-evid" placeholder="Cole aqui o link de um print/foto (Drive, etc.)">' +
+    '<button type="button" class="nt-evid-del" title="Remover" style="background:transparent;border:none;color:#7186ab;font-size:20px;line-height:1;cursor:pointer;padding:0 4px">&times;</button>';
+  const inp = row.querySelector('input');
+  if (valor) inp.value = valor;
+  row.querySelector('.nt-evid-del').onclick = () => {
+    row.remove();
+    if (!lista.children.length) ntEvidAdicionar();
+    ntEvidRenumerar();
+    inp.dispatchEvent(new Event('input', { bubbles: true }));
+  };
+  // Enter no campo abre a próxima linha (se esta tiver algo).
+  inp.addEventListener('keydown', e => {
+    if (e.key === 'Enter') { e.preventDefault(); if (inp.value.trim()) ntEvidAdicionar('', true); }
+  });
+  lista.appendChild(row);
+  ntEvidRenumerar();
+  if (focar) inp.focus();
+}
+function ntEvidRenumerar() {
+  const rows = [...document.querySelectorAll('#nt-evid-lista .nt-evid-row')];
+  rows.forEach((r, i) => {
+    r.querySelector('.nt-evid-n').textContent = rows.length > 1 ? (i + 1) + '.' : '';
+    r.querySelector('.nt-evid-del').style.visibility = rows.length > 1 ? 'visible' : 'hidden';
+  });
+}
+function ntEvidValores() {
+  return [...document.querySelectorAll('#nt-evid-lista .nt-evid')].map(i => i.value.trim()).filter(Boolean);
+}
+function ntEvidReset() {
+  const lista = document.getElementById('nt-evid-lista');
+  if (lista) { lista.innerHTML = ''; ntEvidAdicionar(); }
+}
+ntEvidReset();
 </script>
 </body>
 </html>
