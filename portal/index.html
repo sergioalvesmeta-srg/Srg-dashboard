@@ -642,6 +642,14 @@ footer.foot{border-top:1px solid rgba(255,255,255,.07);background:rgba(10,16,36,
             <span id="gestor-ticket-count" style="font:600 12.5px Manrope;color:#93a6c4"></span>
           </div>
         </div>
+        <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-top:18px">
+          <div class="field" style="flex:1;min-width:260px;max-width:620px">
+            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#8399be" stroke-width="1.8" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
+            <input type="text" id="gestor-busca" autocomplete="off" placeholder="Buscar por ticket, protocolo ou palavra-chave…" oninput="gestorBuscaDigitou(this.value)" onkeydown="if(event.key==='Escape')gestorBuscaLimpar()">
+          </div>
+          <button class="btn-ghost" id="gestor-busca-limpar" style="display:none;height:40px" onclick="gestorBuscaLimpar()">Limpar busca</button>
+          <span id="gestor-busca-nota" style="font:500 12px Manrope;color:#93a6c4"></span>
+        </div>
         <div id="gestor-tickets-header" style="display:flex;align-items:center;gap:16px;padding:0 16px;margin-top:20px;font:700 10.5px Manrope;letter-spacing:.06em;text-transform:uppercase;color:#7186ab">
           <span style="width:10px;flex-shrink:0"></span>
           <span style="flex:1;min-width:0;cursor:pointer;display:flex;align-items:center;gap:5px" onclick="gestorOrdenarLista('titulo')" data-gordcampo="titulo">Título<span class="gestor-ord-seta"></span></span>
@@ -1649,6 +1657,32 @@ function botaoCopiar(valor) {
   return `<button onclick="copiarValor('${safe}', this)" title="Copiar" style="flex-shrink:0;width:30px;height:30px;border-radius:8px;border:1px solid rgba(255,255,255,.15);background:rgba(255,255,255,.06);cursor:pointer;display:flex;align-items:center;justify-content:center;color:#cfe0f5">
     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
   </button>`;
+}
+// ---- Busca na lista do gestor ----
+// Todas as palavras digitadas precisam aparecer (E), sem acento/caixa, em:
+// protocolo, ticket, titulo, descricao (Situacao), atendente Meta/SRG, setor,
+// id interno e status.
+function gestorBuscarChamados(lista, termo) {
+  const tokens = nomeComparavel(termo).split(/\s+/).filter(Boolean);
+  if (!tokens.length) return lista;
+  return lista.filter(c => {
+    const palheiro = nomeComparavel([
+      c.protocolo, c.ticketMeta, c.cliente, c.descricaoCompleta, c.atendente,
+      c.atendenteSRG, c.setor, c.idInterno, c.status, statusLabel(c.status), c.entregaPrevista,
+    ].filter(Boolean).join(' '));
+    return tokens.every(t => palheiro.includes(t));
+  });
+}
+let gestorBuscaTimer = null;
+function gestorBuscaDigitou(v) {
+  gestorState.busca = v || '';
+  clearTimeout(gestorBuscaTimer);
+  gestorBuscaTimer = setTimeout(() => { if (gestorChamadosCache) gestorRenderTudo(); }, 180);
+}
+function gestorBuscaLimpar() {
+  gestorState.busca = '';
+  const i = document.getElementById('gestor-busca'); if (i) { i.value = ''; i.focus(); }
+  if (gestorChamadosCache) gestorRenderTudo();
 }
 // Entrega prevista (coluna S da planilha). Devolve {l1, l2, cor, data}:
 // l1 = data dd/mm/aaaa (ou o texto cru), l2 = "em 5 dias"/"hoje"/"atrasada 2 dias".
@@ -3161,6 +3195,7 @@ const gestorState = {
   periodo: 30,          // 30 | 60 | 90 | 999
   statusFiltro: ['todos'], // array -- 'todos' e exclusivo, os demais combinam entre si (multi-select)
   listaStatusFiltro: 'todos', // filtro extra so da lista "Todos os chamados", pelo status exato (Em Andamento/Aguardando Meta/Pendente SRG/Pendente PO/Resolvido) -- pedido do Sergio em 24/09/2026, separado do filtro de status geral (baldes) la de cima
+  busca: '', // 05/10/2026: busca por ticket/protocolo/palavra-chave na lista (ignora periodo/status)
   mostrarSemTicket: true, // 02/10/2026: MARCADO por padrao (pedido do Sergio) -- mostra tudo, inclusive sem Ticket Meta. Historico: em 25/09 o padrao era desmarcado; texto antigo: por padrao, esconde chamados sem Ticket Meta (coluna O vazia na planilha) -- e o mesmo filtro que a Meta usa nas reunioes dela. Desmarcado = so os que tem ticket (bate com o numero da Meta); marcado = geral, com tudo. Pedido do Sergio em 25/09/2026.
   setor: 'todos',
   atendente: 'todos',
@@ -4145,6 +4180,7 @@ function gestorLimparFiltro(campo) {
   gestorRenderTudo();
 }
 function gestorLimparTudo() {
+  gestorState.busca = ''; { const i = document.getElementById('gestor-busca'); if (i) i.value = ''; }
   gestorState.setor = 'todos'; gestorState.atendente = 'todos'; gestorState.statusFiltro = ['todos'];
   gestorState.dataDe = null; gestorState.dataAte = null;
   document.getElementById('gestor-data-de').value = '';
@@ -5069,8 +5105,19 @@ function gestorRenderTickets(filtrados) {
   // pedido do Sergio -- a lista sempre mostra todos os setores agora,
   // igual os KPIs e o resto do painel (sem essa dimensao a mais pra
   // explicar diferencas de contagem entre widgets).
-  const base = (gestorState.listaStatusFiltro && gestorState.listaStatusFiltro !== 'todos')
-    ? filtrados.filter(c => c.status === gestorState.listaStatusFiltro) : filtrados;
+  // Busca: quando tem texto, procura em TODOS os chamados (ignora periodo, status,
+  // setor e solicitante) -- igual a busca "Consultar chamado" do inicio: quem busca
+  // um protocolo/ticket nao quer que o filtro de "Hoje" esconda o resultado.
+  const termoBusca = (gestorState.busca || '').trim();
+  const buscando = !!termoBusca;
+  const base = buscando
+    ? gestorBuscarChamados(gestorChamadosCache || [], termoBusca)
+    : ((gestorState.listaStatusFiltro && gestorState.listaStatusFiltro !== 'todos')
+        ? filtrados.filter(c => c.status === gestorState.listaStatusFiltro) : filtrados);
+  const limpaBtn = document.getElementById('gestor-busca-limpar');
+  if (limpaBtn) limpaBtn.style.display = buscando ? 'inline-flex' : 'none';
+  const notaBusca = document.getElementById('gestor-busca-nota');
+  if (notaBusca) notaBusca.textContent = buscando ? `${base.length} encontrado${base.length === 1 ? '' : 's'} em todos os chamados (ignora período e status)` : '';
   const selStatusEl = document.getElementById('gestor-lista-status-select');
   if (selStatusEl && selStatusEl.value !== gestorState.listaStatusFiltro) selStatusEl.value = gestorState.listaStatusFiltro;
   const tituloEl = document.getElementById('gestor-lista-titulo');
@@ -5098,7 +5145,7 @@ function gestorRenderTickets(filtrados) {
     if (campoOrd === 'status') return dirOrd * (a.status||'').localeCompare(b.status||'', 'pt-BR');
     if (campoOrd === 'atendente') return dirOrd * (a.atendenteSRG||'').localeCompare(b.atendenteSRG||'', 'pt-BR');
     return 0;
-  }).slice(0,40);
+  }).slice(0, buscando ? 100 : 40);
   // Seta indicando a coluna/direcao ativa no cabecalho.
   document.querySelectorAll('#gestor-tickets-header [data-gordcampo]').forEach(el => {
     const seta = el.querySelector('.gestor-ord-seta');
@@ -5115,7 +5162,7 @@ function gestorRenderTickets(filtrados) {
   el.style.display = gestorState.listaAberta ? 'flex' : 'none';
   document.getElementById('gestor-toggle-lista-seta').style.transform = gestorState.listaAberta ? 'rotate(0deg)' : 'rotate(-90deg)';
   if (!ordenados.length) {
-    el.innerHTML = '<div style="font:500 13px Manrope;color:#7186ab;padding:1rem 0">Nenhum chamado no filtro atual.</div>';
+    el.innerHTML = `<div style="font:500 13px Manrope;color:#7186ab;padding:1rem 0">${buscando ? 'Nenhum chamado encontrado para essa busca.' : 'Nenhum chamado no filtro atual.'}</div>`;
     return;
   }
   el.innerHTML = ordenados.map(c => {
