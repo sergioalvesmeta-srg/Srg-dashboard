@@ -1837,7 +1837,12 @@ function buildTimeline(chamado, idInterno, prefixo) {
   // Retorno SRG que nao muda o status). Linhas antigas que ainda nao
   // passaram por um sync depois dessa mudanca nao tem esse campo
   // preenchido -- cai no updated_at de sempre nesse caso (fallback).
-  const editado  = chamado.status_atualizado_em || chamado.updated_at || chamado.created_at || abertura;
+  // 06/10/2026: a data exibida e a "Ultima Interacao" da PLANILHA (data/hora
+  // exatas do ultimo movimento no ticket). status_atualizado_em/updated_at
+  // sao so fallback: eles refletem quando o NOSSO sync gravou a linha (um
+  // reenvio em massa, ex. apos mudar o formato do titulo, jogava tudo pra
+  // "hoje" mesmo sem ninguem ter mexido no chamado).
+  const editado  = chamado.ultima_interacao_data || chamado.status_atualizado_em || chamado.updated_at || chamado.created_at || abertura;
   const label    = statusLabel(status);
   const etapas = [];
   if (abertura) etapas.push({ordData: new Date(abertura+'T00:00:00'), done:true, titulo:'Chamado aberto', data:fmtDate(abertura), desc:'Chamado registrado no portal do cliente.'});
@@ -2504,7 +2509,7 @@ async function detalheRenderizar(found) {
   const nomeContato = found.contato_digisac_nome;
   const descCompleta= found.descricao_completa;
   const solucaoTxt  = found.solucao;
-  const editado  = found.updated_at;
+  const editado  = found.ultima_interacao_data || found.updated_at;
   const idInternoAtual = found.id_interno;
   currentProto = proto || '';
 
