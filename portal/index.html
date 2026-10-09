@@ -954,16 +954,6 @@ footer.foot{border-top:1px solid rgba(255,255,255,.07);background:rgba(10,16,36,
 
       <!-- ABA CONFIGURACOES -->
       <div id="ac-aba-config" style="display:none">
-        <div id="ac-import-card" class="glass" style="display:none;padding:18px 24px;margin-bottom:14px">
-          <div style="display:flex;align-items:center;gap:14px;flex-wrap:wrap">
-            <div style="flex:1;min-width:240px">
-              <div style="font:700 14px Outfit,sans-serif;color:#f4f8ff">Importar do Supabase (uma vez)</div>
-              <div style="font:400 12.5px Manrope;color:#7186ab;margin-top:3px">Copia clientes, máquinas e histórico do banco antigo para o novo (D1). Só admin. Pode repetir sem duplicar.</div>
-            </div>
-            <button class="btn-primary" onclick="acImportarDoSupabase()" style="height:38px;padding:0 16px;font-size:13px">Importar agora</button>
-          </div>
-          <div id="ac-import-status" style="font:500 12.5px Manrope;margin-top:10px"></div>
-        </div>
         <div class="glass" style="padding:26px 28px">
           <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;flex-wrap:wrap;gap:10px">
             <div style="display:flex;align-items:center;gap:10px">
@@ -3693,8 +3683,6 @@ function kpisRenderizar(data) {
 }
 
 /* ===================== ACESSO CLIENTES ===================== */
-const AC_SUPABASE_URL = 'https://btnpiiddrbvifdrcvttt.supabase.co';
-const AC_SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJ0bnBpaWRkcmJ2aWZkcmN2dHR0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODA0ODk1MjQsImV4cCI6MjA5NjA2NTUyNH0.b1tv0JfdCFeeDG2A-NEjTlgS_3yixTy4dfs_9aFDnjo';
 
 function acEsc(s) {
   return String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -3748,29 +3736,6 @@ async function acDelete(table, query) {
   return null;
 }
 
-// ---- Importacao UNICA do Supabase antigo (so admin) ----
-// Le do Supabase (chave anon antiga, so usada aqui) e envia pro Worker, que
-// grava no D1 (idempotente: pode repetir sem duplicar). Depois de conferir os
-// dados, esta funcao e as 2 constantes AC_SUPABASE_* podem ser apagadas.
-async function acImportarDoSupabase() {
-  const el = document.getElementById('ac-import-status');
-  const dizer = (t, cor) => { if (el) { el.textContent = t; el.style.color = cor || '#9fb6e8'; } };
-  if (!confirm('Copiar clientes e histórico do Supabase para o novo banco? (pode repetir sem duplicar)')) return;
-  try {
-    dizer('Lendo o Supabase...');
-    const hdr = { apikey: AC_SUPABASE_KEY, Authorization: `Bearer ${AC_SUPABASE_KEY}` };
-    const ler = async (t) => {
-      const r = await fetch(`${AC_SUPABASE_URL}/rest/v1/${t}?select=*&limit=10000`, { headers: hdr });
-      if (!r.ok) throw new Error(`Supabase ${t}: ${r.status}`);
-      return r.json();
-    };
-    const [clientes, historico] = [await ler('clientes'), await ler('historico')];
-    dizer(`Enviando ${clientes.length} cliente(s) e ${historico.length} registro(s) de histórico...`);
-    const d = await acWorker('POST', '/ac/importar', { clientes, historico });
-    dizer(`✓ Importado: ${d.clientes} cliente(s), ${d.historico} registro(s) de histórico.`, '#7fd6a8');
-    acCarregarClientes();
-  } catch (e) { dizer('Erro: ' + e.message, '#e29a9a'); }
-}
 
 let acClientes = [];
 let acHistorico = [];
@@ -4084,7 +4049,6 @@ async function acLimparHistorico() {
 
 /* ---- Configuracoes (CRUD clientes/maquinas) ---- */
 function acRenderConfig() {
-  const _ic = document.getElementById('ac-import-card'); if (_ic) _ic.style.display = (currentUser && currentUser.role === 'admin') ? 'block' : 'none';
   document.getElementById('ac-cfg-cnt').textContent = `${acClientes.length} cliente(s)`;
   document.getElementById('ac-cfg-lista').innerHTML = acClientes.map((c, ci) => `
     <div class="glass" style="padding:16px 18px;margin-bottom:12px">
