@@ -954,6 +954,16 @@ footer.foot{border-top:1px solid rgba(255,255,255,.07);background:rgba(10,16,36,
 
       <!-- ABA CONFIGURACOES -->
       <div id="ac-aba-config" style="display:none">
+        <div id="ac-import-card" class="glass" style="display:none;padding:18px 24px;margin-bottom:14px">
+          <div style="display:flex;align-items:center;gap:14px;flex-wrap:wrap">
+            <div style="flex:1;min-width:240px">
+              <div style="font:700 14px Outfit,sans-serif;color:#f4f8ff">Importar do Supabase (uma vez)</div>
+              <div style="font:400 12.5px Manrope;color:#7186ab;margin-top:3px">Copia clientes, máquinas e histórico do banco antigo para o novo (D1). Só admin. Pode repetir sem duplicar.</div>
+            </div>
+            <button class="btn-primary" onclick="acImportarDoSupabase()" style="height:38px;padding:0 16px;font-size:13px">Importar agora</button>
+          </div>
+          <div id="ac-import-status" style="font:500 12.5px Manrope;margin-top:10px"></div>
+        </div>
         <div class="glass" style="padding:26px 28px">
           <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;flex-wrap:wrap;gap:10px">
             <div style="display:flex;align-items:center;gap:10px">
@@ -3690,25 +3700,77 @@ function acEsc(s) {
   return String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 }
 
-async function acFetch(path, options={}) {
-  const res = await fetch(`${AC_SUPABASE_URL}/rest/v1/${path}`, {
-    ...options,
-    headers: {
-      'apikey': AC_SUPABASE_KEY,
-      'Authorization': `Bearer ${AC_SUPABASE_KEY}`,
-      'Content-Type': 'application/json',
-      'Prefer': options.prefer || 'return=representation',
-      ...(options.headers||{})
-    }
+// 09/10/2026: Acesso Clientes saiu do Supabase e passou pro D1 via Worker
+// (rotas /ac/*, permissao checada no servidor -- antes a chave do Supabase
+// ficava no HTML publico). As funcoes abaixo mantem a mesma assinatura de
+// antes (acGet/acPost/acPatch/acDelete com "?id=eq.X") pra nao mexer nos
+// ~15 pontos de uso; so traduzem pra rota do Worker e devolvem arrays no
+// formato antigo (vazio = nao achou).
+async function acWorker(metodo, caminho, corpo) {
+  const res = await fetch(`${PROXY}${caminho}`, {
+    method: metodo,
+    headers: authD1(corpo !== undefined ? { 'Content-Type': 'application/json' } : {}),
+    body: corpo !== undefined ? JSON.stringify(corpo) : undefined,
   });
-  if (!res.ok) { const t = await res.text().catch(()=> ''); throw new Error(`Supabase ${res.status}: ${t}`); }
-  const txt = await res.text();
-  return txt ? JSON.parse(txt) : null;
+  let d = null;
+  try { d = await res.json(); } catch (e) {}
+  if (res.status === 404 && metodo === 'PATCH') return null;
+  if (!res.ok || (d && d.ok === false)) throw new Error((d && d.error) || `Erro ${res.status}`);
+  return d;
 }
-const acGet = (table, query='') => acFetch(`${table}${query}`);
-const acPost = (table, body) => acFetch(table, { method:'POST', body: JSON.stringify(body) });
-const acPatch = (table, query, body) => acFetch(`${table}${query}`, { method:'PATCH', body: JSON.stringify(body) });
-const acDelete = (table, query) => acFetch(`${table}${query}`, { method:'DELETE', prefer:'return=minimal' });
+function acIdDaQuery(query) {
+  const m = String(query || '').match(/[?&]id=eq\.([^&]+)/);
+  return m ? decodeURIComponent(m[1]) : null;
+}
+async function acGet(table, query='') {
+  if (table === 'clientes') return (await acWorker('GET', '/ac/clientes')).clientes || [];
+  if (table === 'historico') {
+    const lim = (String(query).match(/limit=(\d+)/) || [])[1] || '300';
+    return (await acWorker('GET', `/ac/historico?limit=${lim}`)).historico || [];
+  }
+  throw new Error('Tabela desconhecida: ' + table);
+}
+async function acPost(table, body) {
+  const d = await acWorker('POST', `/ac/${table}`, body);
+  return [table === 'clientes' ? d.cliente : d.registro];
+}
+async function acPatch(table, query, body) {
+  const id = acIdDaQuery(query);
+  if (table !== 'clientes' || !id) throw new Error('PATCH nao suportado: ' + table + query);
+  const d = await acWorker('PATCH', `/ac/clientes/${encodeURIComponent(id)}`, body);
+  return d ? [d.cliente] : [];
+}
+async function acDelete(table, query) {
+  if (table === 'historico') { await acWorker('DELETE', '/ac/historico'); return null; }
+  const id = acIdDaQuery(query);
+  if (table !== 'clientes' || !id) throw new Error('DELETE nao suportado: ' + table + query);
+  await acWorker('DELETE', `/ac/clientes/${encodeURIComponent(id)}`);
+  return null;
+}
+
+// ---- Importacao UNICA do Supabase antigo (so admin) ----
+// Le do Supabase (chave anon antiga, so usada aqui) e envia pro Worker, que
+// grava no D1 (idempotente: pode repetir sem duplicar). Depois de conferir os
+// dados, esta funcao e as 2 constantes AC_SUPABASE_* podem ser apagadas.
+async function acImportarDoSupabase() {
+  const el = document.getElementById('ac-import-status');
+  const dizer = (t, cor) => { if (el) { el.textContent = t; el.style.color = cor || '#9fb6e8'; } };
+  if (!confirm('Copiar clientes e histórico do Supabase para o novo banco? (pode repetir sem duplicar)')) return;
+  try {
+    dizer('Lendo o Supabase...');
+    const hdr = { apikey: AC_SUPABASE_KEY, Authorization: `Bearer ${AC_SUPABASE_KEY}` };
+    const ler = async (t) => {
+      const r = await fetch(`${AC_SUPABASE_URL}/rest/v1/${t}?select=*&limit=10000`, { headers: hdr });
+      if (!r.ok) throw new Error(`Supabase ${t}: ${r.status}`);
+      return r.json();
+    };
+    const [clientes, historico] = [await ler('clientes'), await ler('historico')];
+    dizer(`Enviando ${clientes.length} cliente(s) e ${historico.length} registro(s) de histórico...`);
+    const d = await acWorker('POST', '/ac/importar', { clientes, historico });
+    dizer(`✓ Importado: ${d.clientes} cliente(s), ${d.historico} registro(s) de histórico.`, '#7fd6a8');
+    acCarregarClientes();
+  } catch (e) { dizer('Erro: ' + e.message, '#e29a9a'); }
+}
 
 let acClientes = [];
 let acHistorico = [];
@@ -4022,6 +4084,7 @@ async function acLimparHistorico() {
 
 /* ---- Configuracoes (CRUD clientes/maquinas) ---- */
 function acRenderConfig() {
+  const _ic = document.getElementById('ac-import-card'); if (_ic) _ic.style.display = (currentUser && currentUser.role === 'admin') ? 'block' : 'none';
   document.getElementById('ac-cfg-cnt').textContent = `${acClientes.length} cliente(s)`;
   document.getElementById('ac-cfg-lista').innerHTML = acClientes.map((c, ci) => `
     <div class="glass" style="padding:16px 18px;margin-bottom:12px">
