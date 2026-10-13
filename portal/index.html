@@ -5237,7 +5237,9 @@ function gestorRenderTickets(filtrados) {
   }
   const campoOrd = gestorState.listaOrdenarPor;
   const dirOrd = gestorState.listaOrdenarDir === 'asc' ? 1 : -1;
-  const RANK_URGENCIA = { 'Urgente': 3, 'Alta': 2, 'Normal': 1, 'Baixa': 0 };
+  // Critério vem da planilha (coluna D) em texto livre: compara sem acento/caixa.
+  const RANK_URGENCIA = { 'gravissimo': 4, 'urgente': 3, 'alta': 2, 'media': 1.5, 'normal': 1, 'baixa': 0 };
+  const critKey = v => String(v || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim();
   const ordenados = [...base].sort((a,b) => {
     if (!campoOrd) return new Date(b.lastEdited) - new Date(a.lastEdited); // padrao: atualizado mais recente primeiro
     if (campoOrd === 'titulo') return dirOrd * (a.cliente||'').localeCompare(b.cliente||'', 'pt-BR');
@@ -5251,7 +5253,7 @@ function gestorRenderTickets(filtrados) {
       if (!ea && !eb) return 0; if (!ea) return 1; if (!eb) return -1;
       return dirOrd * (ea - eb);
     }
-    if (campoOrd === 'prioridade') return dirOrd * ((RANK_URGENCIA[a.urgencia]??1) - (RANK_URGENCIA[b.urgencia]??1));
+    if (campoOrd === 'prioridade') return dirOrd * ((RANK_URGENCIA[critKey(a.urgencia)]??1) - (RANK_URGENCIA[critKey(b.urgencia)]??1));
     if (campoOrd === 'status') return dirOrd * (a.status||'').localeCompare(b.status||'', 'pt-BR');
     if (campoOrd === 'atendente') return dirOrd * (a.atendenteSRG||'').localeCompare(b.atendenteSRG||'', 'pt-BR');
     return 0;
@@ -5301,9 +5303,17 @@ function gestorRenderTickets(filtrados) {
     // "Resolvido") -- antes as 3 cores eram tons parecidos de azul/rosa e
     // nao davam nenhuma pista visual de qual e mais urgente.
     const ent = entregaInfo(c.entregaPrevista, c.balde === 'resolvido');
-    const corUrgencia = { 'Urgente':'#e0685f', 'Alta':'#e0955f', 'Normal':'#93a6c4', 'Baixa':'#5abfa0' }[c.urgencia] || '#93a6c4';
+    // 13/10/2026 (pedido do cliente): Gravíssimo vermelho, Urgente amarelo,
+    // Normal verde, Baixa sem destaque (neutro). Valores fora dessa lista
+    // (ex.: Alta/Média, se ainda existirem na planilha) ficam neutros.
+    const CRIT_COR = { 'gravissimo':'#e0504a', 'urgente':'#f2b84b', 'normal':'#4fbf8f' };
+    const CRIT_TINT = { 'gravissimo':'2a', 'urgente':'1c', 'normal':'0f' };
+    const ck = critKey(c.urgencia);
+    const critDestaque = !!CRIT_COR[ck];
+    const corUrgencia = CRIT_COR[ck] || '#93a6c4';
+    const critTint = CRIT_TINT[ck] || '00';
     return `
-    <div onclick="gestorAbrirTicket('${c.id}')" style="display:flex;align-items:center;gap:16px;padding:14px 16px;border-radius:14px;cursor:pointer;background:linear-gradient(90deg,${corUrgencia}${({'Urgente':'24','Alta':'16','Baixa':'10'})[c.urgencia]||'0d'},rgba(255,255,255,.035) 55%);border:1px solid ${corUrgencia}${c.urgencia==='Urgente'?'40':'26'};border-left:4px solid ${corUrgencia}">
+    <div onclick="gestorAbrirTicket('${c.id}')" style="display:flex;align-items:center;gap:16px;padding:14px 16px;border-radius:14px;cursor:pointer;${critDestaque ? `background:linear-gradient(90deg,${corUrgencia}${critTint},rgba(255,255,255,.035) 55%);border:1px solid ${corUrgencia}${ck==='gravissimo'?'45':'30'};border-left:4px solid ${corUrgencia}` : 'background:rgba(255,255,255,.035);border:1px solid rgba(255,255,255,.08);border-left:4px solid transparent'}">
       <span title="Critério: ${c.urgencia}" style="width:10px;height:10px;border-radius:50%;flex-shrink:0;background:${corUrgencia}"></span>
       <div style="flex:1;min-width:0">
         <div style="font:700 14px Manrope;color:#eaf1ff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="${escTxt(c.cliente)}">${escTxt(c.cliente)}</div>
