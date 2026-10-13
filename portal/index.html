@@ -5303,8 +5303,8 @@ function gestorRenderTickets(filtrados) {
     const ent = entregaInfo(c.entregaPrevista, c.balde === 'resolvido');
     const corUrgencia = { 'Urgente':'#e0685f', 'Alta':'#e0955f', 'Normal':'#93a6c4', 'Baixa':'#5abfa0' }[c.urgencia] || '#93a6c4';
     return `
-    <div onclick="gestorAbrirTicket('${c.id}')" style="display:flex;align-items:center;gap:16px;padding:14px 16px;border-radius:14px;cursor:pointer;background:rgba(255,255,255,.035);border:1px solid rgba(255,255,255,.08)">
-      <span style="width:10px;height:10px;border-radius:50%;flex-shrink:0;background:${KIND_COLOR[statusKind(c.status)]}"></span>
+    <div onclick="gestorAbrirTicket('${c.id}')" style="display:flex;align-items:center;gap:16px;padding:14px 16px;border-radius:14px;cursor:pointer;background:linear-gradient(90deg,${corUrgencia}${({'Urgente':'24','Alta':'16','Baixa':'10'})[c.urgencia]||'0d'},rgba(255,255,255,.035) 55%);border:1px solid ${corUrgencia}${c.urgencia==='Urgente'?'40':'26'};border-left:4px solid ${corUrgencia}">
+      <span title="Critério: ${c.urgencia}" style="width:10px;height:10px;border-radius:50%;flex-shrink:0;background:${corUrgencia}"></span>
       <div style="flex:1;min-width:0">
         <div style="font:700 14px Manrope;color:#eaf1ff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="${escTxt(c.cliente)}">${escTxt(c.cliente)}</div>
         <div style="font:500 12px Manrope;color:#93a6c4;margin-top:3px">Protocolo ${c.protocolo||'—'}${miniCopiar(c.protocolo)} · Ticket ${c.ticketMeta||'—'}${miniCopiar(c.ticketMeta)} · ${c.setor} · ${c.atendente}${atualizadoHa?` · <span style="color:${corAtualizado};font-weight:${atualizadoDestaque?'700':'500'}">atualizado ${atualizadoHa}</span>`:''}</div>
