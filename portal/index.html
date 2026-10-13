@@ -5571,6 +5571,7 @@ function dgRenderizar(d) {
     const midia = msg.tipo && msg.tipo !== 'chat'
       ? `<div style="font:600 11.5px Manrope;color:#9fd0f0;margin-bottom:${msg.texto?'4px':'0'}">${({image:'🖼 Imagem',audio:'🎧 Áudio',ptt:'🎤 Áudio',video:'🎬 Vídeo',document:'📎 Documento',sticker:'Figurinha',vcard:'Contato',location:'📍 Localização'})[msg.tipo] || ('[' + dgEsc(msg.tipo) + ']')}${msg.arquivo?' · '+dgEsc(msg.arquivo):''}</div>` : '';
     const texto = msg.apagada ? '<i style="color:#7186ab">mensagem apagada</i>' : dgEsc(msg.texto).replace(/\n/g, '<br>');
+    const player = (!msg.apagada && msg.midia) ? dgMidiaHtml(msg) : '';
     const quem = msg.comentario ? 'Nota interna' : (msg.bot ? 'Bot' : (msg.deMim ? (msg.autor || 'Atendente') : (d.contato.nome || 'Cliente')));
     let estilo, lado;
     if (msg.comentario) { lado = 'flex-end'; estilo = 'background:rgba(240,180,60,.10);border:1px dashed rgba(240,180,60,.45);color:#f3e2b8'; }
@@ -5579,7 +5580,7 @@ function dgRenderizar(d) {
     else { lado = 'flex-start'; estilo = 'background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.12);color:#eaf1ff'; }
     return bloco + `<div style="display:flex;justify-content:${lado};margin:5px 0"><div style="max-width:78%;padding:9px 13px;border-radius:14px;${estilo}">
       <div style="font:700 11px Manrope;opacity:.75;margin-bottom:3px">${dgEsc(quem)} <span style="font-weight:500;margin-left:6px">${dgHora(msg.quando)}</span></div>
-      ${midia}<div style="font:400 13.5px/1.45 Manrope;word-break:break-word">${texto}</div></div></div>`;
+      ${midia}${player}<div style="font:400 13.5px/1.45 Manrope;word-break:break-word">${texto}</div></div></div>`;
   }).join('');
 
   const metaBox = d.chamadoMeta
@@ -6029,6 +6030,30 @@ function atendRender() {
       <div style="width:190px;flex-shrink:0;display:flex;justify-content:flex-end">${chamado}</div>
     </div>`;
   }).join('');
+}
+
+// Anexos da conversa do Digisac (13/10/2026): o Worker traz o link assinado
+// e temporario do arquivo (msg.midia = {url, mime, nome}). Imagem vira
+// miniatura (clique abre grande), audio/video viram player, resto = link.
+// Audio do WhatsApp e OGG/Opus: Chrome/Edge/Firefox tocam; se o navegador
+// nao tocar, fica o link "baixar".
+function dgMidiaHtml(msg) {
+  const m = msg.midia || {};
+  const url = String(m.url || '');
+  if (!/^https:\/\//.test(url)) return '';
+  const u = dgEsc(url), nome = dgEsc(m.nome || 'arquivo');
+  const mime = String(m.mime || '');
+  const baixar = `<a href="${u}" target="_blank" rel="noopener" style="font:600 11.5px Manrope;color:#8fd0f5">baixar ${nome}</a>`;
+  if (msg.tipo === 'image' || msg.tipo === 'sticker' || mime.startsWith('image/')) {
+    return `<a href="${u}" target="_blank" rel="noopener" title="Abrir em tamanho real"><img src="${u}" alt="${nome}" loading="lazy" style="display:block;max-width:280px;max-height:260px;border-radius:10px;margin:4px 0 6px;border:1px solid rgba(255,255,255,.12)" onerror="this.outerHTML='<span style=&quot;font:500 11.5px Manrope;color:#e0a888&quot;>Imagem expirou ou não carregou — reabra a conversa</span>'"></a>`;
+  }
+  if (msg.tipo === 'ptt' || msg.tipo === 'audio' || mime.startsWith('audio/')) {
+    return `<audio controls preload="none" src="${u}" style="display:block;width:260px;max-width:100%;margin:4px 0 4px"></audio><div style="margin-bottom:4px">${baixar}</div>`;
+  }
+  if (msg.tipo === 'video' || mime.startsWith('video/')) {
+    return `<video controls preload="metadata" src="${u}" style="display:block;max-width:300px;max-height:260px;border-radius:10px;margin:4px 0 6px"></video>`;
+  }
+  return `<div style="margin:4px 0 6px">📎 ${baixar}</div>`;
 }
 </script>
 </body>
