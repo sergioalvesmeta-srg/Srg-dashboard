@@ -237,6 +237,7 @@ footer.foot{border-top:1px solid rgba(255,255,255,.07);background:rgba(10,16,36,
         <a href="#" onclick="goHome();return false" id="nav-chamados" style="font:600 13.5px Manrope;color:#bcccea;padding:8px 14px;border-radius:10px;cursor:pointer">Chamados</a>
         <a href="#" onclick="goGestor();return false" id="nav-gestor" style="display:none;font:600 13.5px Manrope;color:#bcccea;padding:8px 14px;border-radius:10px;cursor:pointer">Painel do Gestor</a>
         <a href="#" onclick="goKPIs();return false" id="nav-kpis" style="display:none;font:600 13.5px Manrope;color:#bcccea;padding:8px 14px;border-radius:10px;cursor:pointer">KPIs de Atendimento</a>
+        <a href="#" onclick="goAtendimentos();return false" id="nav-atendimentos" style="display:none;font:600 13.5px Manrope;color:#bcccea;padding:8px 14px;border-radius:10px;cursor:pointer">Atendimentos <span id="nav-atend-badge" style="display:none;margin-left:4px;font:700 10.5px Manrope;padding:1px 7px;border-radius:999px;background:#e0504a;color:#fff"></span></a>
         <a href="#" onclick="goAcessoClientes();return false" id="nav-acesso-clientes" style="display:none;font:600 13.5px Manrope;color:#bcccea;padding:8px 14px;border-radius:10px;cursor:pointer">Acesso Clientes</a>
       </nav>
     </div>
@@ -914,6 +915,26 @@ footer.foot{border-top:1px solid rgba(255,255,255,.07);background:rgba(10,16,36,
     </div>
 
     <!-- ---- ACESSO CLIENTES ---- -->
+    <div id="view-atendimentos" style="display:none;animation:riseIn .45s ease both">
+      <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:16px;flex-wrap:wrap;margin-bottom:18px">
+        <div>
+          <span style="font:600 12px Manrope;letter-spacing:.14em;text-transform:uppercase;color:#7fd4c0">Digisac · ao vivo</span>
+          <h1 style="font:700 32px Outfit,sans-serif;color:#f4f8ff;margin:6px 0 6px">Atendimentos</h1>
+          <p id="atend-sub" style="font:400 14.5px Manrope;color:#bcccea;margin:0">Carregando...</p>
+        </div>
+        <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+          <div class="field" style="height:42px;width:300px;max-width:100%">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#7186ab" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
+            <input type="text" id="atend-busca" placeholder="Buscar contato, posto, protocolo..." oninput="atendState.busca=this.value;atendRender()">
+          </div>
+          <button class="chip" id="atend-sync-btn" onclick="atendSincronizar(false)" title="Puxa do Digisac os atendimentos abertos (use se algo parecer faltando)" style="height:42px;padding:0 14px">Sincronizar</button>
+        </div>
+      </div>
+      <div id="atend-stats" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:12px;margin-bottom:16px"></div>
+      <div style="display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap" id="atend-abas"></div>
+      <div id="atend-lista" style="display:flex;flex-direction:column;gap:10px"></div>
+    </div>
+
     <div id="view-acesso-clientes" style="display:none;animation:riseIn .45s ease both">
       <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:16px;flex-wrap:wrap;margin-bottom:18px">
         <div>
@@ -1298,6 +1319,8 @@ function atualizarNavAtiva(view) {
   gestor.style.cssText += view==='gestor' ? ativo : inativo;
   kpis.style.cssText += view==='kpis' ? ativo : inativo;
   acesso.style.cssText += view==='acesso-clientes' ? ativo : inativo;
+  const atend = document.getElementById('nav-atendimentos');
+  if (atend) atend.style.cssText += view==='atendimentos' ? ativo : inativo;
 }
 function goNew() {
   ntPreviewEditado = false;
@@ -1321,6 +1344,7 @@ function showView(name) {
   document.getElementById('view-gestor').style.display = name==='gestor' ? 'block' : 'none';
   document.getElementById('view-kpis').style.display = name==='kpis' ? 'block' : 'none';
   document.getElementById('view-acesso-clientes').style.display = name==='acesso-clientes' ? 'block' : 'none';
+  document.getElementById('view-atendimentos').style.display = name==='atendimentos' ? 'block' : 'none';
   if (name !== 'kpis') kpisPararAutoRefresh();
 }
 
@@ -1383,6 +1407,7 @@ function enterApp() {
   document.getElementById('nav-gestor').style.display = (currentUser.gestor || currentUser.role === 'admin') ? 'inline-block' : 'none';
   document.getElementById('nav-kpis').style.display = (currentUser.verKPIs || currentUser.role === 'admin') ? 'inline-block' : 'none';
   document.getElementById('nav-acesso-clientes').style.display = (currentUser.verAcessoClientes || currentUser.role === 'admin') ? 'inline-block' : 'none';
+  document.getElementById('nav-atendimentos').style.display = dgEhEquipe() ? 'inline-block' : 'none';
   limpar();
   carregarGertecCards();
 }
@@ -1402,6 +1427,7 @@ function restaurarTelaDoEndereco(tela) {
     gestor:            [ehGestor, goGestor],
     kpis:              [!!u.verKPIs || u.role === 'admin', goKPIs],
     'acesso-clientes': [!!u.verAcessoClientes || u.role === 'admin', goAcessoClientes],
+    atendimentos:      [!!u.atendenteSRG || ehGestor, goAtendimentos],
     newticket:         [true, goNew],
     profile:           [true, goProfile],
   };
@@ -1436,6 +1462,7 @@ async function revalidarSessao() {
     document.getElementById('nav-gestor').style.display = (currentUser.gestor || currentUser.role === 'admin') ? 'inline-block' : 'none';
     document.getElementById('nav-kpis').style.display = (currentUser.verKPIs || currentUser.role === 'admin') ? 'inline-block' : 'none';
     document.getElementById('nav-acesso-clientes').style.display = (currentUser.verAcessoClientes || currentUser.role === 'admin') ? 'inline-block' : 'none';
+    document.getElementById('nav-atendimentos').style.display = dgEhEquipe() ? 'inline-block' : 'none';
     document.getElementById('admin-btn').style.display = currentUser.role === 'admin' ? 'inline-flex' : 'none';
   } catch(e) { /* falha de rede na revalidacao -- mantem sessao local, tenta de novo no proximo load */ }
 }
@@ -5837,6 +5864,163 @@ function ntEvidReset() {
   if (lista) { lista.innerHTML = ''; ntEvidAdicionar(); }
 }
 ntEvidReset();
+
+// ============================================================
+// ATENDIMENTOS AO VIVO (Digisac) -- Fase 1, 13/10/2026
+// Le /atend/lista no Worker (alimentado pelo webhook do Digisac) a cada 8s
+// enquanto a tela esta aberta. Abas: Meus (atendente logado, casado pelo
+// nome em "Atendente SRG"), Fila (sem atendente) e Todos. So equipe SRG.
+// Ainda NAO responde pelo portal (fase 3) -- clicar abre o historico.
+// ============================================================
+var atendState = { aba: null, busca: '', dados: [], offset: 0, timer: null, carregando: false, sincronizou: false, temAliases: false, erro: '' };
+
+function goAtendimentos() {
+  if (!dgEhEquipe()) { goHome(); return; }
+  showView('atendimentos');
+  atualizarNavAtiva('atendimentos');
+  window.scrollTo(0, 0);
+  atendCarregar(true);
+  atendIniciarLive();
+}
+function atendVisivel() {
+  const v = document.getElementById('view-atendimentos');
+  return !!(currentUser && v && v.style.display === 'block');
+}
+function atendIniciarLive() {
+  if (atendState.timer) clearInterval(atendState.timer);
+  atendState.timer = setInterval(() => {
+    if (!atendVisivel()) { clearInterval(atendState.timer); atendState.timer = null; return; }
+    if (!document.hidden) atendCarregar(false);
+  }, 8000);
+}
+async function atendCarregar(primeira) {
+  if (atendState.carregando) return;
+  atendState.carregando = true;
+  try {
+    const r = await fetch(`${PROXY}/atend/lista`, { headers: authD1() });
+    const d = await r.json().catch(() => ({}));
+    if (!r.ok || !d.ok) throw new Error(d.error || `Erro ${r.status}`);
+    atendState.dados = d.atendimentos || [];
+    atendState.temAliases = !!d.temAliases;
+    atendState.offset = d.agora ? (Date.parse(d.agora) - Date.now()) : 0;
+    atendState.erro = '';
+    if (!atendState.aba) {
+      let salva = null; try { salva = localStorage.getItem('srg_atend_aba'); } catch (e) {}
+      atendState.aba = salva || (atendState.temAliases ? 'meus' : 'todos');
+    }
+    if (primeira && !atendState.dados.length && !atendState.sincronizou) {
+      atendState.carregando = false;
+      await atendSincronizar(true);
+      return;
+    }
+  } catch (e) {
+    atendState.erro = e.message;
+  } finally {
+    atendState.carregando = false;
+  }
+  atendRender();
+}
+async function atendSincronizar(silencioso) {
+  const btn = document.getElementById('atend-sync-btn');
+  atendState.sincronizou = true;
+  if (btn) { btn.disabled = true; btn.textContent = 'Sincronizando...'; }
+  try {
+    const r = await fetch(`${PROXY}/atend/sincronizar`, { method: 'POST', headers: authD1() });
+    const d = await r.json().catch(() => ({}));
+    if (!r.ok || !d.ok) throw new Error(d.error || `Erro ${r.status}`);
+  } catch (e) {
+    if (!silencioso) alert('Erro ao sincronizar com o Digisac: ' + e.message);
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = 'Sincronizar'; }
+  }
+  await atendCarregar(false);
+}
+function atendSetAba(aba) {
+  atendState.aba = aba;
+  try { localStorage.setItem('srg_atend_aba', aba); } catch (e) {}
+  atendRender();
+}
+function atendAgora() { return Date.now() + (atendState.offset || 0); }
+function atendDurCurta(ms) {
+  if (ms == null || isNaN(ms)) return '—';
+  const m = Math.max(0, Math.floor(ms / 60000));
+  if (m < 1) return 'agora';
+  if (m < 60) return `${m} min`;
+  const h = Math.floor(m / 60);
+  if (h < 24) return `${h}h ${String(m % 60).padStart(2, '0')}min`;
+  return `${Math.floor(h / 24)}d ${h % 24}h`;
+}
+function atendRender() {
+  if (!atendVisivel()) return;
+  const todos = atendState.dados || [];
+  const agora = atendAgora();
+  const esperaMs = a => a.aguardandoDesde ? (agora - Date.parse(a.aguardandoDesde)) : null;
+  const aguardando = todos.filter(a => a.aguardandoDesde);
+  const maiorEspera = aguardando.reduce((mx, a) => Math.max(mx, esperaMs(a) || 0), 0);
+  const nMeus = todos.filter(a => a.meu).length, nFila = todos.filter(a => a.naFila).length;
+
+  // Badge no menu: quantos estao esperando resposta ha 5+ min.
+  const badge = document.getElementById('nav-atend-badge');
+  const atrasados = aguardando.filter(a => esperaMs(a) >= 300000).length;
+  if (badge) { badge.style.display = atrasados ? 'inline-block' : 'none'; badge.textContent = atrasados; }
+
+  document.getElementById('atend-sub').innerHTML = atendState.erro
+    ? `<span style="color:#e29a9a">Erro: ${acEsc(atendState.erro)}</span>`
+    : `${todos.length} atendimento(s) aberto(s) · atualiza sozinho a cada 8s`;
+  const card = (rot, val, cor) => `<div class="glass" style="padding:14px 16px"><div style="font:600 10.5px Manrope;letter-spacing:.08em;text-transform:uppercase;color:#7186ab;margin-bottom:5px">${rot}</div><div style="font:700 24px Outfit,sans-serif;color:${cor}">${val}</div></div>`;
+  document.getElementById('atend-stats').innerHTML =
+    card('Aguardando resposta', aguardando.length, aguardando.length ? '#f2b84b' : '#4fbf8f') +
+    card('Maior espera', aguardando.length ? atendDurCurta(maiorEspera) : '—', maiorEspera >= 300000 ? '#e0504a' : '#eaf1ff') +
+    card('Na fila (sem atendente)', nFila, nFila ? '#f2b84b' : '#eaf1ff') +
+    card('Em atendimento', todos.length - nFila, '#5aa0e6');
+
+  const aba = atendState.aba || 'todos';
+  const abaBtn = (id, rot, n) => `<button class="chip ${aba === id ? 'active' : ''}" onclick="atendSetAba('${id}')">${rot} <span style="opacity:.75">(${n})</span></button>`;
+  document.getElementById('atend-abas').innerHTML = abaBtn('meus', 'Meus atendimentos', nMeus) + abaBtn('fila', 'Fila', nFila) + abaBtn('todos', 'Todos', todos.length)
+    + (!atendState.temAliases && aba === 'meus' ? `<span style="font:500 12px Manrope;color:#e0a888;align-self:center">Seu usuário não tem "Atendente SRG" preenchido — peça ao admin pra cadastrar o seu nome igual ao do Digisac.</span>` : '');
+
+  const termo = (atendState.busca || '').toLowerCase().trim();
+  let lista = todos.filter(a => aba === 'meus' ? a.meu : (aba === 'fila' ? a.naFila : true));
+  if (termo) lista = lista.filter(a => [a.contato, a.numero, a.protocolo, a.atendente, a.departamento, a.ultimaMsg, a.chamado && a.chamado.titulo].join(' ').toLowerCase().includes(termo));
+  // Esperando resposta primeiro (mais antigo no topo); depois mais recentes.
+  lista.sort((x, y) => {
+    if (!!x.aguardandoDesde !== !!y.aguardandoDesde) return x.aguardandoDesde ? -1 : 1;
+    if (x.aguardandoDesde) return Date.parse(x.aguardandoDesde) - Date.parse(y.aguardandoDesde);
+    return (Date.parse(y.ultimaMsgEm || y.atualizadoEm || 0) || 0) - (Date.parse(x.ultimaMsgEm || x.atualizadoEm || 0) || 0);
+  });
+  const cont = document.getElementById('atend-lista');
+  if (!lista.length) {
+    cont.innerHTML = `<div class="glass" style="padding:22px;font:500 13.5px Manrope;color:#7186ab">${aba === 'meus' ? 'Nenhum atendimento aberto com você.' : (aba === 'fila' ? 'Fila vazia.' : 'Nenhum atendimento aberto.')}</div>`;
+    return;
+  }
+  cont.innerHTML = lista.map(a => {
+    const esp = esperaMs(a);
+    const cor = a.aguardandoDesde ? (esp >= 300000 ? '#e0504a' : '#f2b84b') : '#4fbf8f';
+    const quem = { cliente: 'Cliente', atendente: 'Atendente', bot: 'Bot' }[a.ultimaMsgOrigem] || '';
+    const quando = a.ultimaMsgEm ? atendDurCurta(agora - Date.parse(a.ultimaMsgEm)) : '';
+    const status = a.aguardandoDesde
+      ? `<span style="font:700 11px Manrope;color:${cor}">Aguardando há ${atendDurCurta(esp)}</span>`
+      : (a.ultimaMsgEm ? `<span style="font:600 11px Manrope;color:#4fbf8f">Respondido</span>` : '');
+    const proto = String(a.protocolo || '').replace(/\D/g, '');
+    const chamado = a.chamado
+      ? `<button class="chip" onclick="event.stopPropagation();buscarPorProtocolo('${proto}')" title="${acEsc(a.chamado.titulo || '')}" style="height:30px;padding:0 10px;font-size:11.5px;max-width:190px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${acEsc(a.chamado.id)} · ${acEsc(statusLabel(a.chamado.status))}</button>`
+      : `<span style="font:500 11px Manrope;color:#5c7095">sem chamado vinculado</span>`;
+    return `<div class="glass" ${proto ? `onclick="dgAbrirProtocolo('${proto}')"` : ''} title="${proto ? 'Clique pra ver a conversa' : ''}" style="display:flex;align-items:center;gap:16px;padding:14px 18px;cursor:${proto ? 'pointer' : 'default'};border-left:4px solid ${cor}">
+      <span style="width:10px;height:10px;border-radius:50%;flex-shrink:0;background:${cor}"></span>
+      <div style="flex:1;min-width:0">
+        <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+          <span style="font:700 14.5px Manrope;color:#eaf1ff">${acEsc(a.contato || a.numero || 'Contato')}</span>
+          ${a.naoLidas ? `<span title="Mensagens do cliente desde a última resposta" style="font:700 10.5px Manrope;padding:1px 8px;border-radius:999px;background:#e0504a;color:#fff">${a.naoLidas}</span>` : ''}
+          ${status}
+        </div>
+        <div style="font:500 12px Manrope;color:#93a6c4;margin-top:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${quem ? `<b style="color:#bcccea">${quem}:</b> ` : ''}${acEsc(a.ultimaMsg || '—')}${quando ? ` · <span style="color:#7186ab">${quando}</span>` : ''}</div>
+        <div style="font:500 11.5px Manrope;color:#7186ab;margin-top:3px">Protocolo ${proto || '—'}${proto ? miniCopiar(proto) : ''} · ${acEsc(a.departamento || '—')}</div>
+      </div>
+      <div style="width:150px;flex-shrink:0;font:600 12.5px Manrope;color:${a.naFila ? '#f2b84b' : '#dbe6fb'};white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${a.naFila ? 'Na fila' : acEsc(a.atendente || '—')}</div>
+      <div style="width:190px;flex-shrink:0;display:flex;justify-content:flex-end">${chamado}</div>
+    </div>`;
+  }).join('');
+}
 </script>
 </body>
 </html>
