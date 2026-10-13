@@ -3251,7 +3251,7 @@ const gestorState = {
   dataAte: null,
   coorteDias: null, // 7 | 15 | 30 | null -- quando preenchido, o grafico de evolucao muda pra visao de coorte (ver gestorRenderEvolucaoCoorte)
   listaAberta: true, // "Todos os chamados" pode ficar muito longa (100+) -- da pra recolher
-  listaOrdenarPor: null, // null = padrao (ultima atualizacao); 'titulo'|'descricao'|'prioridade'|'status' quando o gestor clica num cabecalho da tabela
+  listaOrdenarPor: 'prioridade', // padrao desde 13/10/2026: criticidade (Gravissimo > Urgente > Alta > Media > Normal > Baixa), empate por atualizacao mais recente; null = so ultima atualizacao; 'titulo'|'descricao'|'prioridade'|'status' quando o gestor clica num cabecalho da tabela
   listaOrdenarDir: 'desc', // 'asc'|'desc' -- alterna ao clicar de novo no mesmo cabecalho
   atencaoExpandido: false, // "Chamados que exigem atenção" mostra so os 15 primeiros por padrao -- da pra expandir e ver todos
 };
@@ -5253,7 +5253,10 @@ function gestorRenderTickets(filtrados) {
       if (!ea && !eb) return 0; if (!ea) return 1; if (!eb) return -1;
       return dirOrd * (ea - eb);
     }
-    if (campoOrd === 'prioridade') return dirOrd * ((RANK_URGENCIA[critKey(a.urgencia)]??1) - (RANK_URGENCIA[critKey(b.urgencia)]??1));
+    if (campoOrd === 'prioridade') {
+      const d = dirOrd * ((RANK_URGENCIA[critKey(a.urgencia)]??1) - (RANK_URGENCIA[critKey(b.urgencia)]??1));
+      return d || (new Date(b.lastEdited) - new Date(a.lastEdited)); // empate: atualizado mais recente primeiro
+    }
     if (campoOrd === 'status') return dirOrd * (a.status||'').localeCompare(b.status||'', 'pt-BR');
     if (campoOrd === 'atendente') return dirOrd * (a.atendenteSRG||'').localeCompare(b.atendenteSRG||'', 'pt-BR');
     return 0;
