@@ -5983,6 +5983,7 @@ async function atendCarregar(primeira) {
     const d = await r.json().catch(() => ({}));
     if (!r.ok || !d.ok) throw new Error(d.error || `Erro ${r.status}`);
     atendState.dados = d.atendimentos || [];
+    atendMetaNormalizar(atendState.dados);
     atendState.presenca = d.presenca || [];
     atendState.temAliases = !!d.temAliases;
     try { atendNotifProcessar(atendState.dados); } catch (e) { console.warn('[notif]', e); }
@@ -6046,6 +6047,7 @@ function atendDurCurta(ms) {
   return `${Math.floor(h / 24)}d ${h % 24}h`;
 }
 function atendCor(a, agora) {
+  if (a.meta) return ATEND_META_COR;
   if (!a.aguardandoDesde) return '#4fbf8f';
   return (agora - Date.parse(a.aguardandoDesde)) >= 300000 ? '#e0504a' : '#f2b84b';
 }
@@ -6089,7 +6091,9 @@ function atendRender() {
 
   const aba = atendState.aba || 'todos';
   const abaBtn = (id, rot, n) => `<button class="chip ${aba === id ? 'active' : ''}" onclick="atendSetAba('${id}')">${rot} <span style="opacity:.75">(${n})</span></button>`;
+  const nMeta = todos.filter(a => a.meta).length;
   document.getElementById('atend-abas').innerHTML = abaBtn('meus', 'Meus atendimentos', nMeus) + abaBtn('fila', 'Fila', nFila) + abaBtn('todos', 'Todos', todos.length)
+    + abaBtn('meta', '🟣 Aguardando Meta', nMeta)
     + abaBtn('finalizados', 'Finalizados', (atendState.finalizados || []).length)
     + ((currentUser && currentUser.role === 'admin') ? `<button class="chip ${aba === 'historico' ? 'active' : ''}" onclick="atendSetAba('historico')" style="margin-left:6px">📊 Histórico por assunto</button>` : '')
     + atendAbasAtendentes(todos, aba, agora) + atendEquipeHtml()
@@ -6109,7 +6113,7 @@ function atendRender() {
   const termo = (atendState.busca || '').toLowerCase().trim();
   const uAba = String(aba).startsWith('u:') ? aba.slice(2) : null;
   let lista = aba === 'finalizados' ? (atendState.finalizados || []).slice()
-    : todos.filter(a => uAba ? a.atendente === uAba : (aba === 'meus' ? a.meu : (aba === 'fila' ? a.naFila : true)));
+    : todos.filter(a => uAba ? a.atendente === uAba : (aba === 'meus' ? a.meu : (aba === 'fila' ? a.naFila : (aba === 'meta' ? !!a.meta : true))));
   if (termo) lista = lista.filter(a => [a.contato, a.numero, a.protocolo, a.atendente, a.departamento, a.ultimaMsg, a.chamado && a.chamado.titulo].join(' ').toLowerCase().includes(termo));
   // Esperando resposta primeiro (mais antigo no topo); depois mais recentes.
   if (aba !== 'finalizados') lista.sort((x, y) => {
@@ -6121,7 +6125,7 @@ function atendRender() {
   const cont = document.getElementById('atend-lista');
   const topo = cont.scrollTop;
   if (!lista.length) {
-    cont.innerHTML = `<div class="glass" style="padding:22px;font:500 13.5px Manrope;color:#7186ab">${aba === 'finalizados' ? (atendState.finCarregando ? 'Carregando...' : 'Nenhum atendimento finalizado nos últimos 7 dias.') : aba === 'meus' ? 'Nenhum atendimento aberto com você.' : (aba === 'fila' ? 'Fila vazia.' : 'Nenhum atendimento aberto.')}</div>`;
+    cont.innerHTML = `<div class="glass" style="padding:22px;font:500 13.5px Manrope;color:#7186ab">${aba === 'finalizados' ? (atendState.finCarregando ? 'Carregando...' : 'Nenhum atendimento finalizado nos últimos 7 dias.') : aba === 'meus' ? 'Nenhum atendimento aberto com você.' : (aba === 'fila' ? 'Fila vazia.' : (aba === 'meta' ? 'Nenhum atendimento aguardando a Meta.' : 'Nenhum atendimento aberto.'))}</div>`;
   } else {
     cont.innerHTML = lista.map(a => {
       const esp = esperaMs(a);
@@ -6131,6 +6135,7 @@ function atendRender() {
       const quando = a.ultimaMsgEm ? atendDurCurta(agora - Date.parse(a.ultimaMsgEm)) : '';
       const status = a.finalizado
         ? `<span style="font:600 11px Manrope;color:#93a6c4;white-space:nowrap">✓ ${a.encerradoEm ? fmtDateTime(a.encerradoEm) : 'encerrado'}</span>`
+        : a.meta ? atendMetaTag(a, agora)
         : a.aguardandoDesde
         ? `<span style="font:700 11px Manrope;color:${cor};white-space:nowrap;display:inline-flex;align-items:center;gap:3px">${atendIcoRelogio(cor, 12)}${atendDurCurta(esp)}</span>`
         : (a.ultimaMsgEm ? `<span style="font:600 11px Manrope;color:#4fbf8f;white-space:nowrap">Respondido</span>` : '');
@@ -6148,12 +6153,14 @@ function atendRender() {
           ${a.chamado ? `· <span style="color:#8fd0f5" title="${acEsc(a.chamado.titulo || '')}">${acEsc(a.chamado.id)}</span>` : ''}
           ${proto ? `· <span>${proto}</span>` : ''}
           ${a.naFila ? `<button class="btn-primary" onclick="event.stopPropagation();atendPuxar('${acEsc(a.ticketId)}')" style="margin-left:auto;height:24px;padding:0 10px;font-size:11px;flex-shrink:0">Puxar</button>` : ''}
+          ${!a.finalizado && !a.meta && a.perguntarMeta && a.meu ? `<span title="Está há 30+ min sem resposta: abra pra dizer se está aguardando a Meta" style="margin-left:auto;font:700 10.5px Manrope;color:#f6d68f;flex-shrink:0">Meta?</span>` : ''}
         </div>
       </div>`;
     }).join('');
     cont.scrollTop = topo;
   }
   if (!atendState.sel && !atendTelaEstreita()) atendRenderPainelVazio();
+  atendMetaPainelAtualizar();
 }
 function atendRenderPainelVazio(msg) {
   const p = document.getElementById('atend-painel');
@@ -6205,6 +6212,8 @@ function atendRenderPainel(d, a, rolarFim) {
   const cor = atendCor(a, agora);
   const status = a.finalizado
     ? `<span style="padding:3px 10px;border-radius:99px;font:700 11.5px Manrope;color:#93a6c4;background:rgba(147,166,196,.12);border:1px solid rgba(147,166,196,.35)">Encerrado</span>`
+    : a.meta
+    ? `<span style="padding:3px 10px;border-radius:99px;font:700 11.5px Manrope;color:${ATEND_META_COR};background:${ATEND_META_COR}1e;border:1px solid ${ATEND_META_COR}55">Aguardando Meta</span>`
     : a.aguardandoDesde
     ? `<span style="padding:3px 10px;border-radius:99px;font:700 11.5px Manrope;color:${cor};background:${cor}1e;border:1px solid ${cor}55">Aguardando há ${atendDurCurta(agora - Date.parse(a.aguardandoDesde))}</span>`
     : `<span style="padding:3px 10px;border-radius:99px;font:700 11.5px Manrope;color:#4fbf8f;background:#4fbf8f1e;border:1px solid #4fbf8f55">Respondido</span>`;
@@ -6230,6 +6239,7 @@ function atendRenderPainel(d, a, rolarFim) {
     </div>
     <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-top:10px;padding:8px 12px;border-radius:10px;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08)">${chamado}</div>
     <div id="atend-transf"></div>
+    <div id="atend-meta" data-html="${acEsc(atendMetaPainelHtml(a))}">${atendMetaPainelHtml(a)}</div>
     <div id="atend-resumo">${atendResumoHtml(atendState.conversas[a.ticketId] && atendState.conversas[a.ticketId].resumo)}</div>
     <div id="atend-chat" style="flex:1;min-height:0;overflow-y:auto;margin-top:12px;padding:6px 10px 10px;border-radius:12px;background:rgba(0,0,0,.18);border:1px solid rgba(255,255,255,.08)">${dgLinhasHtml(d) || '<div style="padding:24px;text-align:center;color:#7186ab;font:500 13px Manrope">Sem mensagens.</div>'}</div>
     <div id="atend-acao" style="margin-top:10px">${atendAcaoHtml(a)}</div>`;
@@ -6278,7 +6288,8 @@ function atendBotoesTopo(a) {
       <button class="btn-primary" id="atend-puxar-btn" onclick="atendPuxar('${acEsc(a.ticketId)}')" style="height:30px;padding:0 14px;font-size:12px">Puxar</button>`;
   }
   if (a.meu || atendState.admin || (currentUser && currentUser.gestor)) {
-    return `<button class="chip" onclick="atendTransfAbrir('${acEsc(a.ticketId)}')" style="height:30px;padding:0 10px;font-size:12px">⇄ Transferir</button>
+    return (a.meta ? '' : `<button class="chip" onclick="atendMetaAcao('${acEsc(a.ticketId)}','ativar')" title="O caso foi pra Meta (N3): para de contar como pendência da SRG" style="height:30px;padding:0 10px;font-size:12px;border-color:rgba(169,139,240,.5);color:#d6c8fb">🟣 Aguardando Meta</button>`)
+      + `<button class="chip" onclick="atendTransfAbrir('${acEsc(a.ticketId)}')" style="height:30px;padding:0 10px;font-size:12px">⇄ Transferir</button>
       <button class="chip" onclick="atendEncerrarAbrir('${acEsc(a.ticketId)}')" style="height:30px;padding:0 10px;font-size:12px;border-color:rgba(79,191,143,.5);color:#8fe3c0">✓ Encerrar</button>`;
   }
   return '';
@@ -6701,8 +6712,18 @@ function atendNotifProcessar(lista) {
   //    cliente continuar sem resposta;
   //  - fila / outros atendentes: avisa 1 vez aos 15 min.
   const ESPERA_MS = 15 * 60000;
+  atendNotif.metaPerg = atendNotif.metaPerg || {};
+  for (const a of lista) {
+    if (!(a.perguntarMeta && a.meu && prefs.espera)) continue;
+    const chave = a.ticketId + '|' + a.aguardandoDesde;
+    if (atendNotif.metaPerg[chave]) continue;
+    atendNotif.metaPerg[chave] = 1;
+    if (!atendNotif.base) continue;
+    avisos.push({ id: a.ticketId, titulo: `${a.contato || 'Cliente'} está há ${atendDurCurta(agora - Date.parse(a.aguardandoDesde))} sem resposta`, corpo: 'Está aguardando a Meta? Abra o atendimento pra marcar.' });
+  }
   for (const a of lista) {
     if (!a.aguardandoDesde) continue;
+    if (a.perguntarMeta && a.meu) continue; // a pergunta da Meta ja avisa
     const ms = agora - Date.parse(a.aguardandoDesde);
     const nivel = Math.floor(ms / ESPERA_MS);
     if (nivel < 1) continue;
@@ -6862,7 +6883,7 @@ function atendHistRender() {
       <select onchange="atendState.histPosto=this.value;atendHistRender()" style="${campo}"><option value="">Todos os postos</option>${postos.map(p => `<option ${p === filtroPosto ? 'selected' : ''}>${acEsc(p)}</option>`).join('')}</select>
       <select onchange="atendState.histCat=this.value;atendHistRender()" style="${campo}"><option value="">Todos os assuntos</option>${cats.map(c => `<option ${c === filtroCat ? 'selected' : ''}>${acEsc(c)}</option>`).join('')}</select>
       ${(filtroPosto || filtroCat) ? `<button class="chip" onclick="atendState.histPosto='';atendState.histCat='';atendHistRender()" style="height:30px;padding:0 10px;font-size:11.5px">limpar filtros</button>` : ''}
-      <span style="margin-left:auto;font:600 12.5px Manrope;color:#93a6c4">${rows.length} atendimento(s)</span>
+      <span style="margin-left:auto;font:600 12.5px Manrope;color:#93a6c4">${rows.length} atendimento(s)${(() => { const comMeta = rows.filter(x => x.meta_seg); if (!comMeta.length) return ''; const tot = comMeta.reduce((t, x) => t + x.meta_seg, 0); return ` · <span style="color:${ATEND_META_COR}" title="Somando os atendimentos que passaram pela Meta">${comMeta.length} passaram pela Meta · ${atendDurCurta(tot * 1000)} no total · média ${atendDurCurta(tot / comMeta.length * 1000)}</span>`; })()}</span>
     </div>
     <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:14px;margin-bottom:14px">
       ${ranking(filtroPosto ? 'Postos' : 'Postos com mais atendimentos', contar(rows, 'posto'), 'posto')}
@@ -6870,8 +6891,8 @@ function atendHistRender() {
     </div>
     <div class="glass" style="padding:14px 16px;overflow-x:auto">
       <div style="font:500 11.5px Manrope;color:#7186ab;margin-bottom:6px">Clique numa linha pra abrir o histórico completo do atendimento (conversa).</div>
-      <table class="gestor-table" style="width:100%"><thead><tr><th>Encerrado</th><th>Posto</th><th>Assunto</th><th>Contato</th><th>Atendente</th><th>Protocolo</th></tr></thead><tbody>
-      ${rows.slice(0, 400).map(x => `<tr style="cursor:pointer" onclick="dgAbrirProtocolo('${acEsc(x.protocolo || '')}')"><td>${acEsc(fmtDateTime(x.encerrado_em))}</td><td>${acEsc(x.posto || '—')}</td><td>${acEsc(x.categoria || x.assunto || '—')}</td><td>${acEsc(x.contato || '')}</td><td>${acEsc(x.atendente || x.encerrado_por || '')}</td><td>${acEsc(x.protocolo || '')}</td></tr>`).join('') || '<tr><td colspan="6" style="color:#7186ab">Nenhum encerramento com assunto no período.</td></tr>'}
+      <table class="gestor-table" style="width:100%"><thead><tr><th>Encerrado</th><th>Posto</th><th>Assunto</th><th>Contato</th><th>Atendente</th><th title="Tempo que o atendimento ficou aguardando a Meta">Na Meta</th><th>Protocolo</th></tr></thead><tbody>
+      ${rows.slice(0, 400).map(x => `<tr style="cursor:pointer" onclick="dgAbrirProtocolo('${acEsc(x.protocolo || '')}')"><td>${acEsc(fmtDateTime(x.encerrado_em))}</td><td>${acEsc(x.posto || '—')}</td><td>${acEsc(x.categoria || x.assunto || '—')}</td><td>${acEsc(x.contato || '')}</td><td>${acEsc(x.atendente || x.encerrado_por || '')}</td><td style="color:${x.meta_seg ? ATEND_META_COR : '#5d6b85'}">${x.meta_seg ? atendDurCurta(x.meta_seg * 1000) : '—'}</td><td>${acEsc(x.protocolo || '')}</td></tr>`).join('') || '<tr><td colspan="7" style="color:#7186ab">Nenhum encerramento com assunto no período.</td></tr>'}
       </tbody></table>
     </div>`;
 }
@@ -7006,6 +7027,69 @@ function atendAjustarAltura() {
   split.style.height = h + 'px';
 }
 window.addEventListener('resize', () => { try { atendAjustarAltura(); } catch (e) {} });
+
+// ---- Aguardando Meta (15/10/2026) ----
+// Caso escalado pra Meta (N3): sai das pendencias da SRG (espera, badge, alertas
+// de 15 min). Marca por botao, por frase do atendente/nota interna ("encaminhei
+// pra Meta", "aguardando retorno da Meta", "N3") ou pela pergunta dos 30 min.
+const ATEND_META_COR = '#a98bf0';
+function atendMetaNormalizar(lista) {
+  (lista || []).forEach(a => { if (a.meta) { a.aguardandoReal = a.aguardandoDesde; a.aguardandoDesde = null; } });
+}
+function atendMetaPodeMexer(a) {
+  return !a.finalizado && (a.meu || a.naFila || atendState.admin || (currentUser && (currentUser.gestor || currentUser.role === 'admin')));
+}
+function atendMetaTag(a, agora) {
+  if (!a.meta) return '';
+  const cobrou = a.meta.cobrouEm ? ` <span title="O cliente mandou mensagem enquanto estava com a Meta" style="color:#f2a65a">· cobrou</span>` : '';
+  return `<span style="font:700 11px Manrope;color:${ATEND_META_COR};white-space:nowrap">Meta · ${atendDurCurta(agora - Date.parse(a.meta.desde))}${cobrou}</span>`;
+}
+function atendMetaPainelHtml(a) {
+  if (!a || a.finalizado) return '';
+  const agora = atendAgora();
+  const hora = iso => { try { return new Date(iso).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }); } catch (e) { return ''; } };
+  const btn = (rot, acao, prim) => `<button class="${prim ? 'btn-primary' : 'chip'}" onclick="atendMetaAcao('${acEsc(a.ticketId)}','${acao}')" style="height:28px;padding:0 11px;font-size:11.5px">${rot}</button>`;
+  const pode = atendMetaPodeMexer(a);
+  if (a.meta) {
+    const origem = a.meta.origem === 'auto' ? `marcado automaticamente pela frase “${acEsc(a.meta.obs)}”` : (a.meta.origem === 'pergunta' ? 'confirmado na pergunta dos 30 min' : acEsc(a.meta.obs || 'marcado manualmente'));
+    return `<div style="margin-top:10px;padding:9px 12px;border-radius:12px;background:rgba(169,139,240,.10);border:1px solid rgba(169,139,240,.4);display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+      <span style="font:700 12.5px Manrope;color:#d6c8fb">🟣 Aguardando a Meta desde ${hora(a.meta.desde)} (${(d => d === 'agora' ? 'agora mesmo' : 'há ' + d)(atendDurCurta(agora - Date.parse(a.meta.desde)))})</span>
+      <span style="font:500 11.5px Manrope;color:#a99cc9;flex:1;min-width:180px">${origem}</span>
+      ${pode ? btn('Meta respondeu', 'desativar', true) + (a.meta.origem === 'auto' ? btn('Desfazer (não era Meta)', 'desfazer') : '') : ''}
+      ${a.meta.cobrouEm ? `<div style="flex-basis:100%;font:600 12px Manrope;color:#f2a65a">⚠ O cliente cobrou há ${atendDurCurta(agora - Date.parse(a.meta.cobrouEm))}. Vale dar um retorno pra ele enquanto a Meta não responde.</div>` : ''}
+    </div>`;
+  }
+  if (a.perguntarMeta && a.meu) {
+    return `<div style="margin-top:10px;padding:9px 12px;border-radius:12px;background:rgba(242,184,75,.10);border:1px solid rgba(242,184,75,.4);display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+      <span style="font:700 12.5px Manrope;color:#f6d68f;flex:1;min-width:220px">Este atendimento está há ${atendDurCurta(agora - Date.parse(a.aguardandoDesde))} sem resposta. Está aguardando a Meta?</span>
+      ${btn('Sim, aguardando Meta', 'ativar-pergunta', true)}${btn('Não', 'nao')}
+    </div>`;
+  }
+  return '';
+}
+function atendMetaPainelAtualizar() {
+  const el = document.getElementById('atend-meta');
+  if (!el || !atendState.sel) return;
+  const a = atendAchar(atendState.sel);
+  const html = atendMetaPainelHtml(a);
+  if (el.dataset.html !== html) { el.innerHTML = html; el.dataset.html = html; }
+}
+async function atendMetaAcao(ticketId, acao) {
+  const corpo = acao === 'ativar-pergunta' ? { ticketId, acao: 'ativar', origem: 'pergunta' } : { ticketId, acao };
+  try {
+    const r = await fetch(`${PROXY}/atend/meta`, { method: 'POST', headers: authD1({ 'Content-Type': 'application/json' }), body: JSON.stringify(corpo) });
+    const d = await r.json().catch(() => ({}));
+    if (!r.ok || !d.ok) throw new Error(d.error || `Erro ${r.status}`);
+    const x = (atendState.dados || []).find(y => y.ticketId === ticketId);
+    if (x) {
+      x.meta = d.meta; x.aguardandoDesde = d.aguardandoDesde; x.perguntarMeta = d.perguntarMeta; x.metaTotalSeg = d.metaTotalSeg;
+      atendMetaNormalizar([x]);
+    }
+    if (atendState.conversas[ticketId]) atendState.conversas[ticketId].marca = '';
+    atendRender();
+    if (atendState.sel === ticketId) atendSelecionar(ticketId, true);
+  } catch (e) { alert('Não deu: ' + e.message); }
+}
 
 // ---- Presenca dos atendentes no portal (14/10/2026) ----
 // Batimento vai junto com o /atend/lista (ja roda a cada 8s/15s). "Atividade"
