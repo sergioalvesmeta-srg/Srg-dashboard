@@ -103,8 +103,34 @@ footer.foot{border-top:1px solid rgba(255,255,255,.07);background:rgba(10,16,36,
   .chamado-detalhe-grid{grid-template-columns:1fr!important}
   .kpis-cards-grid{grid-template-columns:1fr 1fr!important}
 }
+/* Menu (14/10/2026): itens nunca quebram linha; se nao couber, rola de lado */
+header.navbar>div:first-child{min-width:0;flex:1 1 auto}
+header.navbar nav{min-width:0;overflow-x:auto;scrollbar-width:none;-webkit-overflow-scrolling:touch}
+header.navbar nav::-webkit-scrollbar{display:none}
+header.navbar nav a{white-space:nowrap;flex:none}
+.atend-grupo{display:contents}
 @media(max-width:680px){
-  header.navbar{padding:12px 16px;flex-wrap:wrap}
+  header.navbar{padding:10px 12px;flex-wrap:wrap;gap:8px}
+  header.navbar>div:first-child{width:100%;gap:10px!important}
+  header.navbar>div:first-child>img{height:28px!important}
+  header.navbar nav a{padding:7px 10px!important;font-size:13px!important}
+  header.navbar>div:last-child{width:100%;justify-content:flex-end;gap:8px!important}
+  header.navbar>div:last-child>button{height:36px!important}
+  header.navbar .icon-btn{width:36px;height:36px}
+  /* Atendimentos no celular */
+  #view-atendimentos h1{font-size:20px!important}
+  #atend-sub{display:none}
+  #view-atendimentos .field{width:auto!important;flex:1 1 100%}
+  #atend-stats{grid-template-columns:1fr 1fr!important;gap:8px!important}
+  #atend-stats>div{padding:7px 10px!important}
+  #atend-stats>div>div:first-child{font-size:9.5px!important;letter-spacing:.03em!important}
+  #atend-stats>div>div:last-child{font-size:17px!important}
+  #atend-abas{gap:6px!important}
+  #atend-abas .chip{padding:6px 11px!important;font-size:12px!important;height:auto!important}
+  #atend-abas .atend-sep{display:none!important}
+  #atend-abas .atend-grupo{display:flex;flex-wrap:nowrap;gap:6px;align-items:center;width:100%;overflow-x:auto;scrollbar-width:none;-webkit-overflow-scrolling:touch;padding:2px 0 4px}
+  #atend-abas .atend-grupo::-webkit-scrollbar{display:none}
+  #atend-abas .atend-grupo>*{flex:none}
   main.shell{padding:24px 16px 40px}
   .search-row{flex-direction:column}
   .search-row .btn-primary,.search-row .btn-ghost{width:100%}
@@ -1335,6 +1361,12 @@ function atualizarNavAtiva(view) {
   acesso.style.cssText += view==='acesso-clientes' ? ativo : inativo;
   const atend = document.getElementById('nav-atendimentos');
   if (atend) atend.style.cssText += view==='atendimentos' ? ativo : inativo;
+  // Celular: o menu rola de lado -- traz o item ativo pra vista (14/10/2026)
+  try {
+    const nav = chamados.parentElement;
+    const alvo = { dashboard: chamados, gestor, kpis, 'acesso-clientes': acesso, atendimentos: atend }[view];
+    if (nav && alvo && nav.scrollWidth > nav.clientWidth) nav.scrollLeft = Math.max(0, alvo.offsetLeft - nav.offsetLeft - 12);
+  } catch (e) {}
 }
 function goNew() {
   ntPreviewEditado = false;
@@ -6100,7 +6132,7 @@ function atendRender() {
       const status = a.finalizado
         ? `<span style="font:600 11px Manrope;color:#93a6c4;white-space:nowrap">✓ ${a.encerradoEm ? fmtDateTime(a.encerradoEm) : 'encerrado'}</span>`
         : a.aguardandoDesde
-        ? `<span style="font:700 11px Manrope;color:${cor};white-space:nowrap">⏱ ${atendDurCurta(esp)}</span>`
+        ? `<span style="font:700 11px Manrope;color:${cor};white-space:nowrap;display:inline-flex;align-items:center;gap:3px">${atendIcoRelogio(cor, 12)}${atendDurCurta(esp)}</span>`
         : (a.ultimaMsgEm ? `<span style="font:600 11px Manrope;color:#4fbf8f;white-space:nowrap">Respondido</span>` : '');
       const proto = String(a.protocolo || '').replace(/\D/g, '');
       return `<div class="glass" data-ticket="${acEsc(a.ticketId)}" onclick="atendAbrir('${acEsc(a.ticketId)}')" style="padding:11px 14px;cursor:pointer;border-left:4px solid ${cor};${sel ? 'background:rgba(90,160,230,.16);border-color:rgba(120,180,240,.55);border-left-color:' + cor + ';box-shadow:0 0 0 1px rgba(120,180,240,.35)' : ''}">
@@ -6990,6 +7022,9 @@ var atendPres = { ultima: Date.now(), t: 0 };
     try { if (currentUser && currentUser.token && atendNotifPode()) fetch(`${PROXY}/atend/presenca/sair`, { method: 'POST', headers: authD1(), keepalive: true }); } catch (e) {}
   });
 })();
+function atendIcoRelogio(cor, tam) {
+  return `<svg width="${tam || 12}" height="${tam || 12}" viewBox="0 0 24 24" fill="none" stroke="${cor}" stroke-width="2.4" stroke-linecap="round" style="vertical-align:-2px;flex:none"><circle cx="12" cy="13" r="8"/><path d="M12 9v4l2.5 2M10 2h4"/></svg>`;
+}
 const ATEND_PRES_COR = { online: '#4fbf8f', ausente: '#f2b84b', offline: '#5d6b85' };
 function atendNormNome(x) { return String(x || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim().toLowerCase(); }
 function atendPresDe(nomeDigisac) {
@@ -7000,10 +7035,11 @@ function atendPresDe(nomeDigisac) {
     || lista.find(p => !p.digisacNome && atendNormNome(p.nome).split(' ')[0] === n.split(' ')[0]) || null;
 }
 function atendPresTexto(p) {
-  if (!p) return 'nunca entrou no portal (ou sem "Atendente SRG" no cadastro)';
+  if (!p) return 'Sem sinal ainda: aparece assim que ele abrir o portal (se continuar, confira se o "Atendente SRG" do cadastro está igual ao nome no Digisac)';
   const agora = atendAgora();
   const hora = iso => { try { return new Date(iso).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }); } catch (e) { return ''; } };
   if (p.status === 'online' && p.peloDigisac) return `Online · respondendo pelo Digisac (última resposta há ${atendDurCurta(agora - Date.parse(p.digisacEm))})`;
+  if (p.status === 'online' && p.versaoAntiga) return 'Portal aberto (versão antiga em cache: peça Ctrl+Shift+R pra mostrar se está ativo ou parado)';
   if (p.status === 'online') return 'Online no portal' + (p.segundoPlano ? ' (aba em segundo plano)' : '');
   if (p.status === 'ausente') return `Ausente: portal aberto, sem mexer há ${atendDurCurta(agora - Date.parse(p.ativoEm))}` + (p.segundoPlano ? ' (aba em segundo plano)' : '');
   return `Offline · visto por último ${hora(p.vistoEm)}`;
@@ -7021,9 +7057,9 @@ function atendEquipeHtml() {
   if (!lista.length) return '';
   const ord = { online: 0, ausente: 1, offline: 2 };
   lista.sort((a, b) => (ord[a.status] - ord[b.status]) || a.nome.localeCompare(b.nome, 'pt-BR'));
-  return `<span style="width:1px;height:26px;background:rgba(255,255,255,.14);margin:0 6px;align-self:center"></span>
+  return `<span class="atend-sep" style="width:1px;height:26px;background:rgba(255,255,255,.14);margin:0 6px;align-self:center"></span><div class="atend-grupo">
     <span style="font:600 11px Manrope;color:#7186ab;align-self:center;text-transform:uppercase;letter-spacing:.06em">Equipe</span>` +
-    lista.map(p => `<span title="${acEsc(atendPresTexto(p))}" style="display:inline-flex;align-items:center;font:600 12px Manrope;color:${p.status === 'offline' ? '#7186ab' : '#cfe0f5'};align-self:center;margin-right:4px">${atendPresPonto(p, 8)}${acEsc(p.digisacNome.split(' ')[0])}</span>`).join('');
+    lista.map(p => `<span title="${acEsc(atendPresTexto(p))}" style="display:inline-flex;align-items:center;font:600 12px Manrope;color:${p.status === 'offline' ? '#7186ab' : '#cfe0f5'};align-self:center;margin-right:4px">${atendPresPonto(p, 8)}${acEsc(p.digisacNome.split(' ')[0])}</span>`).join('') + '</div>';
 }
 
 // Monitoramento por atendente (14/10/2026, so admin): um botao por atendente
@@ -7035,7 +7071,7 @@ function atendAbasAtendentes(todos, aba, agora) {
   todos.forEach(a => { if (a.atendente) nomes.add(a.atendente); });
   if (!nomes.size) return '';
   const lista = [...nomes].sort((a, b) => a.localeCompare(b, 'pt-BR'));
-  return `<span style="width:1px;height:26px;background:rgba(255,255,255,.14);margin:0 6px;align-self:center"></span>
+  return `<span class="atend-sep" style="width:1px;height:26px;background:rgba(255,255,255,.14);margin:0 6px;align-self:center"></span><div class="atend-grupo">
     <span style="font:600 11px Manrope;color:#7186ab;align-self:center;text-transform:uppercase;letter-spacing:.06em">Por atendente</span>` +
     lista.map(nome => {
       const deles = todos.filter(a => a.atendente === nome);
@@ -7045,8 +7081,8 @@ function atendAbasAtendentes(todos, aba, agora) {
       const corEspera = atrasado ? '#e0504a' : (esperando ? '#f2b84b' : '');
       const pres = atendPresDe(nome);
       // Bolinha = presenca no portal (verde/amarelo/cinza). Relogio = cliente esperando (vermelho 5+ min).
-      return `<button class="chip ${aba === id ? 'active' : ''}" onclick="atendSetAba('${acEsc(id).replace(/'/g, "\\'")}')" title="${acEsc(atendPresTexto(pres))} · ${deles.length} aberto(s)${esperando ? ' · tem cliente esperando' : ''}">${atendPresPonto(pres, 9)}${acEsc(nome.split(' ')[0])} <span style="opacity:.75">(${deles.length})</span>${corEspera ? ` <span style="color:${corEspera};font-size:11px">⏱</span>` : ''}</button>`;
-    }).join('');
+      return `<button class="chip ${aba === id ? 'active' : ''}" onclick="atendSetAba('${acEsc(id).replace(/'/g, "\\'")}')" title="${acEsc(atendPresTexto(pres))} · ${deles.length} aberto(s)${esperando ? ' · tem cliente esperando' : ''}">${atendPresPonto(pres, 9)}${acEsc(nome.split(' ')[0])} <span style="opacity:.75">(${deles.length})</span>${corEspera ? ` <span style="margin-left:4px">${atendIcoRelogio(corEspera, 12)}</span>` : ''}</button>`;
+    }).join('') + '</div>';
 }
 async function atendCarregarOpcoesAdmin() {
   if (!(currentUser && currentUser.role === 'admin') || atendState.opcoes) return;
