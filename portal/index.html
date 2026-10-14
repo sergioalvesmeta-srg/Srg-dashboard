@@ -6557,7 +6557,8 @@ async function atendPuxar(ticketId) {
   }
 }
 async function atendEnviar(ticketId) {
-  if (atendState.enviando) return;
+  // Enter de novo enquanto a anterior ainda vai: manda essa logo depois (15/10/2026)
+  if (atendState.enviando) { atendState.enviarDepois = ticketId; return; }
   const ta = document.getElementById('atend-resposta');
   const texto = (ta ? ta.value : '').trim();
   const a0 = (atendState.dados || []).find(y => y.ticketId === ticketId) || {};
@@ -6570,15 +6571,18 @@ async function atendEnviar(ticketId) {
   const msg = document.getElementById('atend-acao-msg');
   atendState.enviando = true;
   if (btn) { btn.disabled = true; btn.textContent = nota ? 'Salvando...' : 'Enviando...'; }
+  // Limpa o campo NA HORA (15/10/2026): antes so limpava quando o Digisac
+  // confirmava (~1-2s); quem continuava digitando ficava com a msg antiga +
+  // a nova no campo (bug relatado pelo Felipe). Se der erro, o texto volta.
+  if (ta) { ta.value = ''; atendState.rascunhos[ticketId] = ''; ta.focus(); }
   try {
     const corpo = { ticketId, texto, assumir: !nota && !!a0.naFila, nota };
     if (anexo) corpo.arquivo = { base64: anexo.base64, mimetype: anexo.mimetype, nome: anexo.nome };
     const r = await fetch(`${PROXY}/atend/responder`, { method: 'POST', headers: authD1({ 'Content-Type': 'application/json' }), body: JSON.stringify(corpo) });
     const d = await r.json().catch(() => ({}));
     if (!r.ok || !d.ok) throw new Error(d.error || `Erro ${r.status}`);
-    // So limpa se a pessoa nao comecou a digitar a proxima enquanto enviava.
     const taAgora = document.getElementById('atend-resposta');
-    if (!taAgora || taAgora.value.trim() === texto) { atendState.rascunhos[ticketId] = ''; if (taAgora) taAgora.value = ''; }
+    if (taAgora) atendState.rascunhos[ticketId] = taAgora.value; // o que ja digitou da proxima fica
     // Cursor volta (e fica) no campo pra mandar a proxima mensagem (14/10/2026).
     atendState.focarApos = { id: ticketId, ate: Date.now() + 8000 };
     if (taAgora) taAgora.focus();
@@ -6594,11 +6598,24 @@ async function atendEnviar(ticketId) {
     atendRender();
     atendSelecionar(ticketId, true);
   } catch (e) {
-    if (msg) { msg.style.color = '#e29a9a'; msg.textContent = (nota ? 'Nota não salva: ' : 'Não enviou: ') + e.message; }
+    // devolve o texto que nao foi (na frente do que a pessoa ja tiver digitado depois)
+    atendState.enviarDepois = null;
+    const taErr = document.getElementById('atend-resposta');
+    const resto = taErr ? taErr.value : (atendState.rascunhos[ticketId] || '');
+    const volta = texto + (resto.trim() ? '\n' + resto : '');
+    atendState.rascunhos[ticketId] = volta;
+    if (taErr) { taErr.value = volta; taErr.focus(); }
+    const msgErr = document.getElementById('atend-acao-msg') || msg;
+    if (msgErr) { msgErr.style.color = '#e29a9a'; msgErr.textContent = (nota ? 'Nota não salva: ' : 'Não enviou: ') + e.message + ' (o texto voltou pro campo)'; }
     else alert('Não enviou: ' + e.message);
   } finally {
     atendState.enviando = false;
-    if (btn) { btn.disabled = false; btn.textContent = nota ? 'Salvar nota' : 'Enviar'; }
+    const btnF = document.getElementById('atend-enviar-btn') || btn;
+    if (btnF) { btnF.disabled = false; btnF.textContent = nota ? 'Salvar nota' : 'Enviar'; }
+    if (atendState.enviarDepois) {
+      const prox = atendState.enviarDepois; atendState.enviarDepois = null;
+      setTimeout(() => atendEnviar(prox), 0);
+    }
   }
 }
 // Setas ↑/↓ trocam de conversa (fora de campos de texto e sem modal aberto).
