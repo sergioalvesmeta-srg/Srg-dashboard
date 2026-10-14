@@ -2293,7 +2293,7 @@ async function carregarGertecCards() {
   const body = document.getElementById('gertec-body');
   body.innerHTML = '<div style="text-align:center;padding:2rem"><div class="spinner"></div></div>';
   try {
-    const r = await fetch(`${PROXY}/digisac/gertec-cards`);
+    const r = await fetch(`${PROXY}/digisac/gertec-cards`, { headers: authD1() });
     const d = await r.json();
     if (!r.ok || !d.ok) throw new Error(d.error || 'Erro ao consultar Digisac');
 
