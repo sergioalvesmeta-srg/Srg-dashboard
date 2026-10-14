@@ -932,7 +932,11 @@ footer.foot{border-top:1px solid rgba(255,255,255,.07);background:rgba(10,16,36,
       </div>
       <div id="atend-stats" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:12px;margin-bottom:16px"></div>
       <div style="display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap" id="atend-abas"></div>
-      <div id="atend-lista" style="display:flex;flex-direction:column;gap:10px"></div>
+      <div id="atend-split" style="display:grid;grid-template-columns:minmax(320px,410px) minmax(0,1fr);gap:16px;align-items:start">
+        <div id="atend-lista" style="display:flex;flex-direction:column;gap:8px;max-height:calc(100vh - 140px);overflow-y:auto;padding:2px 6px 2px 2px"></div>
+        <div id="atend-painel" class="glass" style="position:sticky;top:84px;height:calc(100vh - 140px);min-height:420px;display:flex;flex-direction:column;padding:16px 18px;min-width:0"></div>
+      </div>
+      <style>@media (max-width:1000px){#atend-split{grid-template-columns:1fr !important}#atend-painel{display:none !important}#atend-lista{max-height:none !important}}</style>
     </div>
 
     <div id="view-acesso-clientes" style="display:none;animation:riseIn .45s ease both">
@@ -5548,17 +5552,10 @@ async function dgAbrirProtocolo(proto) {
     ov.innerHTML = `<div class="glass" style="max-width:560px;margin:0 auto;padding:32px;text-align:center;color:#fc8181;font:600 14px Manrope">Erro ao consultar o Digisac: ${dgEsc(e.message)}<div style="margin-top:16px"><button class="btn-ghost" onclick="dgFechar()">Fechar</button></div></div>`;
   }
 }
-function dgRenderizar(d) {
-  const ov = dgGarantirOverlay();
-  const status = d.aberto
-    ? '<span style="padding:4px 12px;border-radius:99px;font:700 12px Manrope;background:rgba(240,180,60,.16);border:1px solid rgba(240,180,60,.4);color:#f5cf7a">Em andamento</span>'
-    : '<span style="padding:4px 12px;border-radius:99px;font:700 12px Manrope;background:rgba(80,200,150,.14);border:1px solid rgba(80,200,150,.38);color:#8fe3c0">Encerrado</span>';
-  const caixa = (rot, val, cor) => `<div style="padding:10px 14px;border-radius:12px;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.1);min-width:120px"><div style="font:600 10.5px Manrope;letter-spacing:.1em;text-transform:uppercase;color:${cor||'#8fb0e0'}">${rot}</div><div style="font:600 14px Manrope;color:#eaf3ff;margin-top:3px">${val}</div></div>`;
-  const m = d.metricas || {};
-
-  // Linhas do chat, com separador por dia
+function dgLinhasHtml(d) {
+  // Linhas do chat, com separador por dia (usado pelo modal e pelo painel de Atendimentos)
   let ultimoDia = '';
-  const linhas = (d.mensagens || []).map(msg => {
+  return (d.mensagens || []).map(msg => {
     let bloco = '';
     const dia = dgDia(msg.quando);
     if (dia && dia !== ultimoDia) {
@@ -5582,6 +5579,16 @@ function dgRenderizar(d) {
       <div style="font:700 11px Manrope;opacity:.75;margin-bottom:3px">${dgEsc(quem)} <span style="font-weight:500;margin-left:6px">${dgHora(msg.quando)}</span></div>
       ${midia}${player}<div style="font:400 13.5px/1.45 Manrope;word-break:break-word">${texto}</div></div></div>`;
   }).join('');
+}
+function dgRenderizar(d) {
+  const ov = dgGarantirOverlay();
+  const status = d.aberto
+    ? '<span style="padding:4px 12px;border-radius:99px;font:700 12px Manrope;background:rgba(240,180,60,.16);border:1px solid rgba(240,180,60,.4);color:#f5cf7a">Em andamento</span>'
+    : '<span style="padding:4px 12px;border-radius:99px;font:700 12px Manrope;background:rgba(80,200,150,.14);border:1px solid rgba(80,200,150,.38);color:#8fe3c0">Encerrado</span>';
+  const caixa = (rot, val, cor) => `<div style="padding:10px 14px;border-radius:12px;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.1);min-width:120px"><div style="font:600 10.5px Manrope;letter-spacing:.1em;text-transform:uppercase;color:${cor||'#8fb0e0'}">${rot}</div><div style="font:600 14px Manrope;color:#eaf3ff;margin-top:3px">${val}</div></div>`;
+  const m = d.metricas || {};
+
+  const linhas = dgLinhasHtml(d);
 
   const metaBox = d.chamadoMeta
     ? `<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:10px 14px;border-radius:12px;background:rgba(47,95,176,.16);border:1px solid rgba(90,150,220,.3);font:600 13px Manrope;color:#cfe0f5">
@@ -5638,7 +5645,10 @@ function dgCopiarConversa() {
 function dgNovoChamado() {
   const d = dgDadosAtual; if (!d) return;
   const falas = (d.mensagens || []).filter(m => m.tipo === 'chat' && !m.deMim && !m.bot && m.texto).slice(0, 6).map(m => m.texto.trim());
-  const rascunho = (d.resumoAtendente ? d.resumoAtendente + '\n\n' : '') + (falas.length ? 'Relato do cliente:\n' + falas.join('\n') : '');
+  const ia = d.resumoIA;
+  const rascunho = ia
+    ? [ia.posto ? 'Posto: ' + ia.posto : '', ia.problema || '', ia.resumo || '', ia.proximoPasso ? 'Próximo passo: ' + ia.proximoPasso : ''].filter(Boolean).join('\n')
+    : (d.resumoAtendente ? d.resumoAtendente + '\n\n' : '') + (falas.length ? 'Relato do cliente:\n' + falas.join('\n') : '');
   dgFechar();
   goNew();
   setTimeout(() => {
@@ -5878,10 +5888,15 @@ ntEvidReset();
 // ATENDIMENTOS AO VIVO (Digisac) -- Fase 1, 13/10/2026
 // Le /atend/lista no Worker (alimentado pelo webhook do Digisac) a cada 8s
 // enquanto a tela esta aberta. Abas: Meus (atendente logado, casado pelo
-// nome em "Atendente SRG"), Fila (sem atendente) e Todos. So equipe SRG.
-// Ainda NAO responde pelo portal (fase 3) -- clicar abre o historico.
+// nome em "Atendente SRG"), Fila (sem atendente) e Todos.
+// Permissao: flag verAtendimentos (ou admin).
+// Tela dividida (13/10/2026): lista compacta a esquerda + conversa a direita;
+// clicar troca a conversa sem abrir/fechar janela (setas ↑/↓ tambem trocam).
+// Conversas ja abertas ficam em cache e atualizam sozinhas quando chega
+// mensagem nova. Tela estreita (< 1000px): volta pro modal.
+// Ainda NAO responde pelo portal (fase 3).
 // ============================================================
-var atendState = { aba: null, busca: '', dados: [], offset: 0, timer: null, carregando: false, sincronizou: false, temAliases: false, erro: '' };
+var atendState = { aba: null, busca: '', dados: [], offset: 0, timer: null, carregando: false, sincronizou: false, temAliases: false, erro: '', sel: null, conversas: {}, carregandoConversa: null, visiveis: [], admin: false, rascunhos: {}, enviando: false };
 
 function goAtendimentos() {
   // Permissao: flag "Atendimentos" no cadastro do usuario (ou admin) -- 13/10/2026.
@@ -5896,6 +5911,7 @@ function atendVisivel() {
   const v = document.getElementById('view-atendimentos');
   return !!(currentUser && v && v.style.display === 'block');
 }
+function atendTelaEstreita() { return window.matchMedia('(max-width: 1000px)').matches; }
 function atendIniciarLive() {
   if (atendState.timer) clearInterval(atendState.timer);
   atendState.timer = setInterval(() => {
@@ -5912,6 +5928,7 @@ async function atendCarregar(primeira) {
     if (!r.ok || !d.ok) throw new Error(d.error || `Erro ${r.status}`);
     atendState.dados = d.atendimentos || [];
     atendState.temAliases = !!d.temAliases;
+    atendState.admin = !!d.admin;
     atendState.offset = d.agora ? (Date.parse(d.agora) - Date.now()) : 0;
     atendState.erro = '';
     if (!atendState.aba) {
@@ -5929,6 +5946,10 @@ async function atendCarregar(primeira) {
     atendState.carregando = false;
   }
   atendRender();
+  // Conversa aberta: se chegou mensagem nova (ou mudou o ticket), atualiza sozinha.
+  const sel = atendState.sel && atendState.dados.find(a => a.ticketId === atendState.sel);
+  const cache = sel && atendState.conversas[sel.ticketId];
+  if (sel && cache && cache.marca !== atendMarca(sel)) atendSelecionar(sel.ticketId, true);
 }
 async function atendSincronizar(silencioso) {
   const btn = document.getElementById('atend-sync-btn');
@@ -5951,6 +5972,7 @@ function atendSetAba(aba) {
   atendRender();
 }
 function atendAgora() { return Date.now() + (atendState.offset || 0); }
+function atendMarca(a) { return [a.ultimaMsgEm || '', a.atualizadoEm || '', a.atendente || ''].join('|'); }
 function atendDurCurta(ms) {
   if (ms == null || isNaN(ms)) return '—';
   const m = Math.max(0, Math.floor(ms / 60000));
@@ -5959,6 +5981,10 @@ function atendDurCurta(ms) {
   const h = Math.floor(m / 60);
   if (h < 24) return `${h}h ${String(m % 60).padStart(2, '0')}min`;
   return `${Math.floor(h / 24)}d ${h % 24}h`;
+}
+function atendCor(a, agora) {
+  if (!a.aguardandoDesde) return '#4fbf8f';
+  return (agora - Date.parse(a.aguardandoDesde)) >= 300000 ? '#e0504a' : '#f2b84b';
 }
 function atendRender() {
   if (!atendVisivel()) return;
@@ -5976,8 +6002,8 @@ function atendRender() {
 
   document.getElementById('atend-sub').innerHTML = atendState.erro
     ? `<span style="color:#e29a9a">Erro: ${acEsc(atendState.erro)}</span>`
-    : `${todos.length} atendimento(s) aberto(s) · atualiza sozinho a cada 8s`;
-  const card = (rot, val, cor) => `<div class="glass" style="padding:14px 16px"><div style="font:600 10.5px Manrope;letter-spacing:.08em;text-transform:uppercase;color:#7186ab;margin-bottom:5px">${rot}</div><div style="font:700 24px Outfit,sans-serif;color:${cor}">${val}</div></div>`;
+    : `${todos.length} atendimento(s) aberto(s) · atualiza sozinho a cada 8s · setas ↑/↓ trocam de conversa`;
+  const card = (rot, val, cor) => `<div class="glass" style="padding:12px 16px"><div style="font:600 10.5px Manrope;letter-spacing:.08em;text-transform:uppercase;color:#7186ab;margin-bottom:4px">${rot}</div><div style="font:700 22px Outfit,sans-serif;color:${cor}">${val}</div></div>`;
   document.getElementById('atend-stats').innerHTML =
     card('Aguardando resposta', aguardando.length, aguardando.length ? '#f2b84b' : '#4fbf8f') +
     card('Maior espera', aguardando.length ? atendDurCurta(maiorEspera) : '—', maiorEspera >= 300000 ? '#e0504a' : '#eaf1ff') +
@@ -5998,39 +6024,241 @@ function atendRender() {
     if (x.aguardandoDesde) return Date.parse(x.aguardandoDesde) - Date.parse(y.aguardandoDesde);
     return (Date.parse(y.ultimaMsgEm || y.atualizadoEm || 0) || 0) - (Date.parse(x.ultimaMsgEm || x.atualizadoEm || 0) || 0);
   });
+  atendState.visiveis = lista.map(a => a.ticketId);
   const cont = document.getElementById('atend-lista');
+  const topo = cont.scrollTop;
   if (!lista.length) {
     cont.innerHTML = `<div class="glass" style="padding:22px;font:500 13.5px Manrope;color:#7186ab">${aba === 'meus' ? 'Nenhum atendimento aberto com você.' : (aba === 'fila' ? 'Fila vazia.' : 'Nenhum atendimento aberto.')}</div>`;
-    return;
-  }
-  cont.innerHTML = lista.map(a => {
-    const esp = esperaMs(a);
-    const cor = a.aguardandoDesde ? (esp >= 300000 ? '#e0504a' : '#f2b84b') : '#4fbf8f';
-    const quem = { cliente: 'Cliente', atendente: 'Atendente', bot: 'Bot' }[a.ultimaMsgOrigem] || '';
-    const quando = a.ultimaMsgEm ? atendDurCurta(agora - Date.parse(a.ultimaMsgEm)) : '';
-    const status = a.aguardandoDesde
-      ? `<span style="font:700 11px Manrope;color:${cor}">Aguardando há ${atendDurCurta(esp)}</span>`
-      : (a.ultimaMsgEm ? `<span style="font:600 11px Manrope;color:#4fbf8f">Respondido</span>` : '');
-    const proto = String(a.protocolo || '').replace(/\D/g, '');
-    const chamado = a.chamado
-      ? `<button class="chip" onclick="event.stopPropagation();buscarPorProtocolo('${proto}')" title="${acEsc(a.chamado.titulo || '')}" style="height:30px;padding:0 10px;font-size:11.5px;max-width:190px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${acEsc(a.chamado.id)} · ${acEsc(statusLabel(a.chamado.status))}</button>`
-      : `<span style="font:500 11px Manrope;color:#5c7095">sem chamado vinculado</span>`;
-    return `<div class="glass" ${proto ? `onclick="dgAbrirProtocolo('${proto}')"` : ''} title="${proto ? 'Clique pra ver a conversa' : ''}" style="display:flex;align-items:center;gap:16px;padding:14px 18px;cursor:${proto ? 'pointer' : 'default'};border-left:4px solid ${cor}">
-      <span style="width:10px;height:10px;border-radius:50%;flex-shrink:0;background:${cor}"></span>
-      <div style="flex:1;min-width:0">
-        <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
-          <span style="font:700 14.5px Manrope;color:#eaf1ff">${acEsc(a.contato || a.numero || 'Contato')}</span>
-          ${a.naoLidas ? `<span title="Mensagens do cliente desde a última resposta" style="font:700 10.5px Manrope;padding:1px 8px;border-radius:999px;background:#e0504a;color:#fff">${a.naoLidas}</span>` : ''}
+  } else {
+    cont.innerHTML = lista.map(a => {
+      const esp = esperaMs(a);
+      const cor = atendCor(a, agora);
+      const sel = a.ticketId === atendState.sel;
+      const quem = { cliente: 'Cliente', atendente: 'Atendente', bot: 'Bot' }[a.ultimaMsgOrigem] || '';
+      const quando = a.ultimaMsgEm ? atendDurCurta(agora - Date.parse(a.ultimaMsgEm)) : '';
+      const status = a.aguardandoDesde
+        ? `<span style="font:700 11px Manrope;color:${cor};white-space:nowrap">⏱ ${atendDurCurta(esp)}</span>`
+        : (a.ultimaMsgEm ? `<span style="font:600 11px Manrope;color:#4fbf8f;white-space:nowrap">Respondido</span>` : '');
+      const proto = String(a.protocolo || '').replace(/\D/g, '');
+      return `<div class="glass" data-ticket="${acEsc(a.ticketId)}" onclick="atendAbrir('${acEsc(a.ticketId)}')" style="padding:11px 14px;cursor:pointer;border-left:4px solid ${cor};${sel ? 'background:rgba(90,160,230,.16);border-color:rgba(120,180,240,.55);border-left-color:' + cor + ';box-shadow:0 0 0 1px rgba(120,180,240,.35)' : ''}">
+        <div style="display:flex;align-items:center;gap:8px">
+          <span style="flex:1;min-width:0;font:700 13.5px Manrope;color:#eaf1ff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${acEsc(a.contato || a.numero || 'Contato')}</span>
+          ${a.naoLidas ? `<span title="Mensagens do cliente desde a última resposta" style="font:700 10.5px Manrope;padding:1px 7px;border-radius:999px;background:#e0504a;color:#fff">${a.naoLidas}</span>` : ''}
           ${status}
         </div>
         <div style="font:500 12px Manrope;color:#93a6c4;margin-top:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${quem ? `<b style="color:#bcccea">${quem}:</b> ` : ''}${acEsc(a.ultimaMsg || '—')}${quando ? ` · <span style="color:#7186ab">${quando}</span>` : ''}</div>
-        <div style="font:500 11.5px Manrope;color:#7186ab;margin-top:3px">Protocolo ${proto || '—'}${proto ? miniCopiar(proto) : ''} · ${acEsc(a.departamento || '—')}</div>
-      </div>
-      <div style="width:150px;flex-shrink:0;font:600 12.5px Manrope;color:${a.naFila ? '#f2b84b' : '#dbe6fb'};white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${a.naFila ? 'Na fila' : acEsc(a.atendente || '—')}</div>
-      <div style="width:190px;flex-shrink:0;display:flex;justify-content:flex-end">${chamado}</div>
-    </div>`;
-  }).join('');
+        <div style="display:flex;gap:6px;align-items:center;font:500 11px Manrope;color:#7186ab;margin-top:4px;white-space:nowrap;overflow:hidden">
+          <span style="color:${a.naFila ? '#f2b84b' : '#bcccea'};font-weight:600">${a.naFila ? 'Na fila' : acEsc(a.atendente || '—')}</span>
+          · <span style="overflow:hidden;text-overflow:ellipsis">${acEsc(a.departamento || '—')}</span>
+          ${a.chamado ? `· <span style="color:#8fd0f5" title="${acEsc(a.chamado.titulo || '')}">${acEsc(a.chamado.id)}</span>` : ''}
+          ${proto ? `· <span>${proto}</span>` : ''}
+          ${a.naFila ? `<button class="btn-primary" onclick="event.stopPropagation();atendPuxar('${acEsc(a.ticketId)}')" style="margin-left:auto;height:24px;padding:0 10px;font-size:11px;flex-shrink:0">Puxar</button>` : ''}
+        </div>
+      </div>`;
+    }).join('');
+    cont.scrollTop = topo;
+  }
+  if (!atendState.sel && !atendTelaEstreita()) atendRenderPainelVazio();
 }
+function atendRenderPainelVazio(msg) {
+  const p = document.getElementById('atend-painel');
+  if (!p) return;
+  p.innerHTML = `<div style="margin:auto;text-align:center;color:#7186ab;font:500 13.5px Manrope;max-width:320px">${msg || 'Selecione um atendimento na lista pra ver a conversa aqui.<br><span style="font-size:12px">Dica: use as setas ↑ / ↓ pra trocar.</span>'}</div>`;
+}
+function atendAbrir(ticketId) {
+  const a = (atendState.dados || []).find(x => x.ticketId === ticketId);
+  if (!a) return;
+  const proto = String(a.protocolo || '').replace(/\D/g, '');
+  if (atendTelaEstreita()) { if (proto) dgAbrirProtocolo(proto); return; }
+  const split = document.getElementById('atend-split');
+  if (split && split.getBoundingClientRect().top > 120) window.scrollTo({ top: window.scrollY + split.getBoundingClientRect().top - 84, behavior: 'smooth' });
+  atendSelecionar(ticketId, false);
+}
+async function atendSelecionar(ticketId, silencioso) {
+  const a = (atendState.dados || []).find(x => x.ticketId === ticketId);
+  if (!a) return;
+  const mudou = atendState.sel !== ticketId;
+  atendState.sel = ticketId;
+  if (mudou) atendRender();
+  const proto = String(a.protocolo || '').replace(/\D/g, '');
+  const p = document.getElementById('atend-painel');
+  if (!proto) { atendRenderPainelVazio('Esse atendimento ainda não tem protocolo no Digisac.'); return; }
+  const cache = atendState.conversas[ticketId];
+  if (cache && mudou) atendRenderPainel(cache.d, a, true); // mostra na hora o que ja tinha
+  else if (!cache && p) p.innerHTML = `<div style="margin:auto;text-align:center"><div class="spinner" style="margin:0 auto 12px"></div><div style="font:600 13px Manrope;color:#bcccea">Carregando conversa...</div></div>`;
+  // Atualiza do Digisac (sempre na troca; no silencioso so quando a marca mudou).
+  if (cache && !mudou && silencioso && cache.marca === atendMarca(a)) return;
+  const pedido = Symbol();
+  atendState.carregandoConversa = pedido;
+  try {
+    const r = await fetch(`${PROXY}/digisac/protocolo/${encodeURIComponent(proto)}`, { headers: authD1() });
+    const d = await r.json().catch(() => ({}));
+    if (atendState.carregandoConversa !== pedido || atendState.sel !== ticketId) return; // trocou no meio
+    if (!r.ok || !d.ok) throw new Error(r.status === 404 ? 'Protocolo não encontrado no Digisac.' : (d.error || `Erro ${r.status}`));
+    atendState.conversas[ticketId] = { d, marca: atendMarca(a) };
+    atendRenderPainel(d, a, !silencioso || !cache);
+  } catch (e) {
+    if (atendState.sel !== ticketId) return;
+    if (!cache) atendRenderPainelVazio(`<span style="color:#e29a9a">Erro ao carregar: ${acEsc(e.message)}</span>`);
+  }
+}
+function atendRenderPainel(d, a, rolarFim) {
+  const p = document.getElementById('atend-painel');
+  if (!p) return;
+  dgDadosAtual = d; // "Copiar conversa" e "Abrir chamado" usam isso
+  const chatAntes = document.getElementById('atend-chat');
+  const estavaNoFim = !chatAntes || (chatAntes.scrollHeight - chatAntes.scrollTop - chatAntes.clientHeight < 60);
+  const agora = atendAgora();
+  const cor = atendCor(a, agora);
+  const status = a.aguardandoDesde
+    ? `<span style="padding:3px 10px;border-radius:99px;font:700 11.5px Manrope;color:${cor};background:${cor}1e;border:1px solid ${cor}55">Aguardando há ${atendDurCurta(agora - Date.parse(a.aguardandoDesde))}</span>`
+    : `<span style="padding:3px 10px;border-radius:99px;font:700 11.5px Manrope;color:#4fbf8f;background:#4fbf8f1e;border:1px solid #4fbf8f55">Respondido</span>`;
+  const chamado = d.chamadoMeta
+    ? `<span style="font:600 12px Manrope;color:#cfe0f5">Chamado: <b style="color:#fff">${dgEsc(d.chamadoMeta.id_interno || '')}</b> · ${dgEsc(statusLabel(d.chamadoMeta.status) || '—')}</span>
+       <button class="chip" style="height:30px;padding:0 10px;font-size:12px" onclick="buscarPorProtocolo('${dgEsc(d.protocolo)}')">Abrir no portal</button>`
+    : `<span style="font:600 12px Manrope;color:#f3e2b8">Sem chamado Meta</span>
+       <button class="btn-primary" style="height:30px;padding:0 12px;font-size:12px" onclick="dgNovoChamado()">Abrir chamado</button>`;
+  p.innerHTML = `
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap">
+      <div style="min-width:0">
+        <div style="font:700 18px Outfit,sans-serif;color:#f4f8ff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${dgEsc(d.contato.nome || a.contato || 'Contato')}</div>
+        <div style="font:500 12px Manrope;color:#93a6c4;margin-top:3px">${d.contato.numero ? dgEsc(d.contato.numero) + ' · ' : ''}Protocolo <span style="font-family:'IBM Plex Mono',monospace;color:#cfe0f5">${dgEsc(d.protocolo)}</span>${miniCopiar(d.protocolo)} · ${dgEsc(d.atendente || 'Na fila')} · ${dgEsc(d.departamento || '—')}</div>
+      </div>
+      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+        ${status}
+        <button class="chip" id="atend-resumo-btn" style="height:30px;padding:0 10px;font-size:12px" onclick="atendResumir('${acEsc(a.ticketId)}')" title="Resumo da conversa por IA">✨ Resumo IA</button>
+        <button class="chip" id="dg-copiar-btn" style="height:30px;padding:0 10px;font-size:12px" onclick="dgCopiarConversa()">Copiar conversa</button>
+        <button class="chip" style="height:30px;padding:0 10px;font-size:12px" title="Abrir em janela com todos os detalhes (tempos, transferências)" onclick="dgAbrirProtocolo('${dgEsc(d.protocolo)}')">Detalhes</button>
+      </div>
+    </div>
+    <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-top:10px;padding:8px 12px;border-radius:10px;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08)">${chamado}</div>
+    <div id="atend-resumo">${atendResumoHtml(atendState.conversas[a.ticketId] && atendState.conversas[a.ticketId].resumo)}</div>
+    <div id="atend-chat" style="flex:1;min-height:0;overflow-y:auto;margin-top:12px;padding:6px 10px 10px;border-radius:12px;background:rgba(0,0,0,.18);border:1px solid rgba(255,255,255,.08)">${dgLinhasHtml(d) || '<div style="padding:24px;text-align:center;color:#7186ab;font:500 13px Manrope">Sem mensagens.</div>'}</div>
+    <div id="atend-acao" style="margin-top:10px">${atendAcaoHtml(a)}</div>`;
+  const chat = document.getElementById('atend-chat');
+  if (chat && (rolarFim || estavaNoFim)) chat.scrollTop = chat.scrollHeight;
+  const ta = document.getElementById('atend-resposta');
+  if (ta) {
+    ta.value = atendState.rascunhos[a.ticketId] || '';
+    if (atendState.focoResposta === a.ticketId) { ta.focus(); ta.setSelectionRange(ta.value.length, ta.value.length); }
+  }
+}
+// Resumo por IA (fica guardado junto da conversa em cache; "Abrir chamado"
+// usa o resumo como rascunho do relato).
+function atendResumoHtml(r) {
+  if (!r) return '';
+  if (r.carregando) return `<div style="margin-top:10px;padding:10px 12px;border-radius:10px;background:rgba(150,120,220,.10);border:1px solid rgba(170,140,230,.3);font:500 12.5px Manrope;color:#d9cff5"><span class="spinner" style="display:inline-block;width:12px;height:12px;vertical-align:-2px;margin-right:6px"></span>Resumindo a conversa...</div>`;
+  if (r.erro) return `<div style="margin-top:10px;font:500 12px Manrope;color:#e29a9a">${acEsc(r.erro)}</div>`;
+  const linha = (rot, v) => v ? `<div style="margin-top:4px"><b style="color:#c8b8f2">${rot}:</b> ${acEsc(v)}</div>` : '';
+  return `<div style="margin-top:10px;padding:10px 12px;border-radius:10px;background:rgba(150,120,220,.10);border:1px solid rgba(170,140,230,.3);font:500 12.5px/1.45 Manrope;color:#e4dcf8;max-height:150px;overflow-y:auto">
+    <div>${acEsc(r.resumo)}</div>${linha('Problema', r.problema)}${linha('Posto', r.posto)}${linha('Situação', r.situacao)}${linha('Próximo passo', r.proximoPasso)}
+  </div>`;
+}
+async function atendResumir(ticketId) {
+  const a = (atendState.dados || []).find(x => x.ticketId === ticketId);
+  const c = atendState.conversas[ticketId];
+  if (!a || !c) return;
+  c.resumo = { carregando: true };
+  const box = document.getElementById('atend-resumo'); if (box) box.innerHTML = atendResumoHtml(c.resumo);
+  try {
+    const r = await fetch(`${PROXY}/atend/resumo`, { method: 'POST', headers: authD1({ 'Content-Type': 'application/json' }), body: JSON.stringify({ protocolo: a.protocolo }) });
+    const d = await r.json().catch(() => ({}));
+    if (!r.ok || !d.ok) throw new Error(d.error || `Erro ${r.status}`);
+    c.resumo = d;
+    if (c.d) c.d.resumoIA = d;
+  } catch (e) {
+    c.resumo = { erro: 'Resumo IA falhou: ' + e.message };
+  }
+  if (atendState.sel === ticketId) { const b2 = document.getElementById('atend-resumo'); if (b2) b2.innerHTML = atendResumoHtml(c.resumo); }
+}
+// Rodape do painel: Puxar (fila) | Responder (meu ou admin) | aviso.
+function atendAcaoHtml(a) {
+  if (a.naFila) {
+    let sd = '1'; try { sd = localStorage.getItem('srg_atend_saudacao') ?? '1'; } catch (e) {}
+    return `<div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding:10px 12px;border-radius:12px;background:rgba(242,184,75,.08);border:1px solid rgba(242,184,75,.3)">
+      <span style="font:600 12.5px Manrope;color:#f3e2b8">Atendimento na fila, sem atendente.</span>
+      <label style="display:flex;align-items:center;gap:6px;font:500 12px Manrope;color:#bcccea;cursor:pointer"><input type="checkbox" id="atend-saudacao" ${sd === '1' ? 'checked' : ''} onchange="try{localStorage.setItem('srg_atend_saudacao',this.checked?'1':'0')}catch(e){}" style="accent-color:#3fa08c"> enviar saudação automática</label>
+      <button class="btn-primary" id="atend-puxar-btn" onclick="atendPuxar('${acEsc(a.ticketId)}')" style="margin-left:auto;height:34px;padding:0 16px;font-size:13px">Puxar atendimento</button>
+    </div>`;
+  }
+  if (a.meu || atendState.admin) {
+    return `<div style="display:flex;gap:8px;align-items:flex-end">
+      <textarea id="atend-resposta" rows="2" placeholder="Escreva a resposta... (Enter envia, Shift+Enter quebra linha)"
+        oninput="atendState.rascunhos['${acEsc(a.ticketId)}']=this.value" onfocus="atendState.focoResposta='${acEsc(a.ticketId)}'" onblur="atendState.focoResposta=null"
+        onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();atendEnviar('${acEsc(a.ticketId)}')}"
+        style="flex:1;resize:vertical;min-height:44px;max-height:160px;padding:10px 12px;border-radius:12px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.18);color:#eaf1ff;font:500 13.5px/1.4 Manrope"></textarea>
+      <button class="btn-primary" id="atend-enviar-btn" onclick="atendEnviar('${acEsc(a.ticketId)}')" style="height:44px;padding:0 18px;font-size:13px">Enviar</button>
+    </div>
+    <div id="atend-acao-msg" style="font:500 11.5px Manrope;color:#5c7095;margin-top:5px">Vai pelo WhatsApp da SRG (via Digisac), em seu nome.</div>`;
+  }
+  return `<div style="font:500 12px Manrope;color:#7186ab">Atendimento com ${acEsc(a.atendente || 'outro atendente')} — só quem está atendendo pode responder por aqui.</div>`;
+}
+async function atendPuxar(ticketId) {
+  const btn = document.getElementById('atend-puxar-btn');
+  const cb = document.getElementById('atend-saudacao');
+  let saudacao = true; try { saudacao = cb ? cb.checked : (localStorage.getItem('srg_atend_saudacao') ?? '1') === '1'; } catch (e) {}
+  if (btn) { btn.disabled = true; btn.textContent = 'Puxando...'; }
+  try {
+    const r = await fetch(`${PROXY}/atend/puxar`, { method: 'POST', headers: authD1({ 'Content-Type': 'application/json' }), body: JSON.stringify({ ticketId, saudacao }) });
+    const d = await r.json().catch(() => ({}));
+    if (!r.ok || !d.ok) throw new Error(d.error || `Erro ${r.status}`);
+    if (saudacao && !d.saudacaoEnviada) alert('Atendimento assumido, mas a saudação não foi enviada: ' + (d.erroSaudacao || 'erro desconhecido'));
+    const x = (atendState.dados || []).find(y => y.ticketId === ticketId);
+    if (x) { x.naFila = false; x.meu = true; x.atendente = d.atendente || x.atendente; }
+    if (atendState.conversas[ticketId]) atendState.conversas[ticketId].marca = '';
+    atendState.sel = ticketId;
+    atendRender();
+    atendSelecionar(ticketId, true);
+    setTimeout(() => atendCarregar(false), 1500);
+  } catch (e) {
+    alert('Não deu pra puxar: ' + e.message);
+    atendCarregar(false);
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = 'Puxar atendimento'; }
+  }
+}
+async function atendEnviar(ticketId) {
+  if (atendState.enviando) return;
+  const ta = document.getElementById('atend-resposta');
+  const texto = (ta ? ta.value : '').trim();
+  if (!texto) return;
+  const btn = document.getElementById('atend-enviar-btn');
+  const msg = document.getElementById('atend-acao-msg');
+  atendState.enviando = true;
+  if (btn) { btn.disabled = true; btn.textContent = 'Enviando...'; }
+  try {
+    const r = await fetch(`${PROXY}/atend/responder`, { method: 'POST', headers: authD1({ 'Content-Type': 'application/json' }), body: JSON.stringify({ ticketId, texto }) });
+    const d = await r.json().catch(() => ({}));
+    if (!r.ok || !d.ok) throw new Error(d.error || `Erro ${r.status}`);
+    atendState.rascunhos[ticketId] = '';
+    if (ta) ta.value = '';
+    const x = (atendState.dados || []).find(y => y.ticketId === ticketId);
+    if (x) { x.aguardandoDesde = null; x.naoLidas = 0; x.ultimaMsg = texto; x.ultimaMsgOrigem = 'atendente'; x.ultimaMsgEm = new Date(atendAgora()).toISOString(); }
+    if (atendState.conversas[ticketId]) atendState.conversas[ticketId].marca = '';
+    atendState.focoResposta = ticketId;
+    atendRender();
+    atendSelecionar(ticketId, true);
+  } catch (e) {
+    if (msg) { msg.style.color = '#e29a9a'; msg.textContent = 'Não enviou: ' + e.message; }
+    else alert('Não enviou: ' + e.message);
+  } finally {
+    atendState.enviando = false;
+    if (btn) { btn.disabled = false; btn.textContent = 'Enviar'; }
+  }
+}
+// Setas ↑/↓ trocam de conversa (fora de campos de texto e sem modal aberto).
+document.addEventListener('keydown', e => {
+  if (!atendVisivel() || atendTelaEstreita() || document.getElementById('dg-overlay')) return;
+  if (e.key !== 'ArrowDown' && e.key !== 'ArrowUp') return;
+  const t = e.target; if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable)) return;
+  const ids = atendState.visiveis || []; if (!ids.length) return;
+  e.preventDefault();
+  let i = ids.indexOf(atendState.sel);
+  i = e.key === 'ArrowDown' ? Math.min(ids.length - 1, i + 1) : Math.max(0, i < 0 ? 0 : i - 1);
+  atendSelecionar(ids[i], false);
+  const el = document.querySelector(`#atend-lista [data-ticket="${CSS.escape(ids[i])}"]`);
+  if (el) el.scrollIntoView({ block: 'nearest' });
+});
 
 // Anexos da conversa do Digisac (13/10/2026): o Worker traz o link assinado
 // e temporario do arquivo (msg.midia = {url, mime, nome}). Imagem vira
