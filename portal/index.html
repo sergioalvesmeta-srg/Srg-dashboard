@@ -928,8 +928,13 @@ footer.foot{border-top:1px solid rgba(255,255,255,.07);background:rgba(10,16,36,
             <input type="text" id="atend-busca" placeholder="Buscar contato, posto, protocolo..." oninput="atendState.busca=this.value;atendRender()">
           </div>
           <button class="chip" id="atend-sync-btn" onclick="atendSincronizar(false)" title="Puxa do Digisac os atendimentos abertos (use se algo parecer faltando)" style="height:42px;padding:0 14px">Sincronizar</button>
+          <div style="position:relative">
+            <button class="chip" onclick="atendNotifAlternarConfig()" title="Notificações" style="height:42px;padding:0 14px">🔔</button>
+            <div id="atend-notif-config" class="glass" style="display:none;position:absolute;right:0;top:48px;z-index:50;width:360px;padding:14px 16px;background:rgba(14,22,44,.97)"></div>
+          </div>
         </div>
       </div>
+      <div id="atend-notif-aviso"></div>
       <div id="atend-stats" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:12px;margin-bottom:16px"></div>
       <div style="display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap" id="atend-abas"></div>
       <div id="atend-split" style="display:grid;grid-template-columns:minmax(320px,410px) minmax(0,1fr);gap:16px;align-items:start">
@@ -1392,6 +1397,7 @@ async function doLogin() {
   }
 }
 async function doLogout() {
+  try { atendNotifParar(); } catch (e) {}
   if (currentUser && currentUser.token) await apiLogout(currentUser.token);
   currentUser = null;
   sessionStorage.removeItem('srg_user');
@@ -1415,7 +1421,7 @@ function enterApp() {
   document.getElementById('nav-gestor').style.display = (currentUser.gestor || currentUser.role === 'admin') ? 'inline-block' : 'none';
   document.getElementById('nav-kpis').style.display = (currentUser.verKPIs || currentUser.role === 'admin') ? 'inline-block' : 'none';
   document.getElementById('nav-acesso-clientes').style.display = (currentUser.verAcessoClientes || currentUser.role === 'admin') ? 'inline-block' : 'none';
-  document.getElementById('nav-atendimentos').style.display = (currentUser.verAtendimentos || currentUser.role === 'admin') ? 'inline-block' : 'none';
+  document.getElementById('nav-atendimentos').style.display = (currentUser.verAtendimentos || currentUser.role === 'admin') ? 'inline-block' : 'none'; setTimeout(atendNotifIniciar, 0);
   limpar();
   carregarGertecCards();
 }
@@ -1470,7 +1476,7 @@ async function revalidarSessao() {
     document.getElementById('nav-gestor').style.display = (currentUser.gestor || currentUser.role === 'admin') ? 'inline-block' : 'none';
     document.getElementById('nav-kpis').style.display = (currentUser.verKPIs || currentUser.role === 'admin') ? 'inline-block' : 'none';
     document.getElementById('nav-acesso-clientes').style.display = (currentUser.verAcessoClientes || currentUser.role === 'admin') ? 'inline-block' : 'none';
-    document.getElementById('nav-atendimentos').style.display = (currentUser.verAtendimentos || currentUser.role === 'admin') ? 'inline-block' : 'none';
+    document.getElementById('nav-atendimentos').style.display = (currentUser.verAtendimentos || currentUser.role === 'admin') ? 'inline-block' : 'none'; setTimeout(atendNotifIniciar, 0);
     document.getElementById('admin-btn').style.display = currentUser.role === 'admin' ? 'inline-flex' : 'none';
   } catch(e) { /* falha de rede na revalidacao -- mantem sessao local, tenta de novo no proximo load */ }
 }
@@ -5896,7 +5902,7 @@ ntEvidReset();
 // mensagem nova. Tela estreita (< 1000px): volta pro modal.
 // Ainda NAO responde pelo portal (fase 3).
 // ============================================================
-var atendState = { aba: null, busca: '', dados: [], offset: 0, timer: null, carregando: false, sincronizou: false, temAliases: false, erro: '', sel: null, conversas: {}, carregandoConversa: null, visiveis: [], admin: false, rascunhos: {}, enviando: false };
+var atendState = { aba: null, busca: '', dados: [], offset: 0, timer: null, carregando: false, sincronizou: false, temAliases: false, erro: '', sel: null, conversas: {}, carregandoConversa: null, visiveis: [], admin: false, rascunhos: {}, enviando: false, notaModo: {}, anexos: {}, gravacao: null };
 
 function goAtendimentos() {
   // Permissao: flag "Atendimentos" no cadastro do usuario (ou admin) -- 13/10/2026.
@@ -5906,6 +5912,7 @@ function goAtendimentos() {
   window.scrollTo(0, 0);
   atendCarregar(true);
   atendIniciarLive();
+  atendNotifRenderConfig();
 }
 function atendVisivel() {
   const v = document.getElementById('view-atendimentos');
@@ -5928,6 +5935,7 @@ async function atendCarregar(primeira) {
     if (!r.ok || !d.ok) throw new Error(d.error || `Erro ${r.status}`);
     atendState.dados = d.atendimentos || [];
     atendState.temAliases = !!d.temAliases;
+    try { atendNotifProcessar(atendState.dados); } catch (e) { console.warn('[notif]', e); }
     atendState.admin = !!d.admin;
     atendState.offset = d.agora ? (Date.parse(d.agora) - Date.now()) : 0;
     atendState.erro = '';
@@ -5949,7 +5957,7 @@ async function atendCarregar(primeira) {
   // Conversa aberta: se chegou mensagem nova (ou mudou o ticket), atualiza sozinha.
   const sel = atendState.sel && atendState.dados.find(a => a.ticketId === atendState.sel);
   const cache = sel && atendState.conversas[sel.ticketId];
-  if (sel && cache && cache.marca !== atendMarca(sel)) atendSelecionar(sel.ticketId, true);
+  if (sel && cache && cache.marca !== atendMarca(sel) && atendVisivel()) atendSelecionar(sel.ticketId, true);
 }
 async function atendSincronizar(silencioso) {
   const btn = document.getElementById('atend-sync-btn');
@@ -5987,11 +5995,16 @@ function atendCor(a, agora) {
   return (agora - Date.parse(a.aguardandoDesde)) >= 300000 ? '#e0504a' : '#f2b84b';
 }
 function atendRender() {
-  if (!atendVisivel()) return;
   const todos = atendState.dados || [];
   const agora = atendAgora();
   const esperaMs = a => a.aguardandoDesde ? (agora - Date.parse(a.aguardandoDesde)) : null;
   const aguardando = todos.filter(a => a.aguardandoDesde);
+  {
+    const badge0 = document.getElementById('nav-atend-badge');
+    const atr0 = aguardando.filter(a => esperaMs(a) >= 300000).length;
+    if (badge0) { badge0.style.display = atr0 ? 'inline-block' : 'none'; badge0.textContent = atr0; }
+  }
+  if (!atendVisivel()) return;
   const maiorEspera = aguardando.reduce((mx, a) => Math.max(mx, esperaMs(a) || 0), 0);
   const nMeus = todos.filter(a => a.meu).length, nFila = todos.filter(a => a.naFila).length;
 
@@ -6126,12 +6139,14 @@ function atendRenderPainel(d, a, rolarFim) {
       </div>
       <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
         ${status}
+        ${atendBotoesTopo(a)}
         <button class="chip" id="atend-resumo-btn" style="height:30px;padding:0 10px;font-size:12px" onclick="atendResumir('${acEsc(a.ticketId)}')" title="Resumo da conversa por IA">✨ Resumo IA</button>
         <button class="chip" id="dg-copiar-btn" style="height:30px;padding:0 10px;font-size:12px" onclick="dgCopiarConversa()">Copiar conversa</button>
         <button class="chip" style="height:30px;padding:0 10px;font-size:12px" title="Abrir em janela com todos os detalhes (tempos, transferências)" onclick="dgAbrirProtocolo('${dgEsc(d.protocolo)}')">Detalhes</button>
       </div>
     </div>
     <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-top:10px;padding:8px 12px;border-radius:10px;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08)">${chamado}</div>
+    <div id="atend-transf"></div>
     <div id="atend-resumo">${atendResumoHtml(atendState.conversas[a.ticketId] && atendState.conversas[a.ticketId].resumo)}</div>
     <div id="atend-chat" style="flex:1;min-height:0;overflow-y:auto;margin-top:12px;padding:6px 10px 10px;border-radius:12px;background:rgba(0,0,0,.18);border:1px solid rgba(255,255,255,.08)">${dgLinhasHtml(d) || '<div style="padding:24px;text-align:center;color:#7186ab;font:500 13px Manrope">Sem mensagens.</div>'}</div>
     <div id="atend-acao" style="margin-top:10px">${atendAcaoHtml(a)}</div>`;
@@ -6171,27 +6186,176 @@ async function atendResumir(ticketId) {
   }
   if (atendState.sel === ticketId) { const b2 = document.getElementById('atend-resumo'); if (b2) b2.innerHTML = atendResumoHtml(c.resumo); }
 }
-// Rodape do painel: Puxar (fila) | Responder (meu ou admin) | aviso.
-function atendAcaoHtml(a) {
+function atendBotoesTopo(a) {
   if (a.naFila) {
     let sd = '1'; try { sd = localStorage.getItem('srg_atend_saudacao') ?? '1'; } catch (e) {}
-    return `<div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding:10px 12px;border-radius:12px;background:rgba(242,184,75,.08);border:1px solid rgba(242,184,75,.3)">
-      <span style="font:600 12.5px Manrope;color:#f3e2b8">Atendimento na fila, sem atendente.</span>
-      <label style="display:flex;align-items:center;gap:6px;font:500 12px Manrope;color:#bcccea;cursor:pointer"><input type="checkbox" id="atend-saudacao" ${sd === '1' ? 'checked' : ''} onchange="try{localStorage.setItem('srg_atend_saudacao',this.checked?'1':'0')}catch(e){}" style="accent-color:#3fa08c"> enviar saudação automática</label>
-      <button class="btn-primary" id="atend-puxar-btn" onclick="atendPuxar('${acEsc(a.ticketId)}')" style="margin-left:auto;height:34px;padding:0 16px;font-size:13px">Puxar atendimento</button>
-    </div>`;
+    return `<label title="Mandar a saudação automática ao puxar" style="display:flex;align-items:center;gap:4px;font:500 11.5px Manrope;color:#bcccea;cursor:pointer"><input type="checkbox" id="atend-saudacao" ${sd === '1' ? 'checked' : ''} onchange="try{localStorage.setItem('srg_atend_saudacao',this.checked?'1':'0')}catch(e){}" style="accent-color:#3fa08c">saudação</label>
+      <button class="btn-primary" id="atend-puxar-btn" onclick="atendPuxar('${acEsc(a.ticketId)}')" style="height:30px;padding:0 14px;font-size:12px">Puxar</button>`;
   }
-  if (a.meu || atendState.admin) {
-    return `<div style="display:flex;gap:8px;align-items:flex-end">
-      <textarea id="atend-resposta" rows="2" placeholder="Escreva a resposta... (Enter envia, Shift+Enter quebra linha)"
-        oninput="atendState.rascunhos['${acEsc(a.ticketId)}']=this.value" onfocus="atendState.focoResposta='${acEsc(a.ticketId)}'" onblur="atendState.focoResposta=null"
-        onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();atendEnviar('${acEsc(a.ticketId)}')}"
-        style="flex:1;resize:vertical;min-height:44px;max-height:160px;padding:10px 12px;border-radius:12px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.18);color:#eaf1ff;font:500 13.5px/1.4 Manrope"></textarea>
-      <button class="btn-primary" id="atend-enviar-btn" onclick="atendEnviar('${acEsc(a.ticketId)}')" style="height:44px;padding:0 18px;font-size:13px">Enviar</button>
+  if (a.meu || atendState.admin || (currentUser && currentUser.gestor)) {
+    return `<button class="chip" onclick="atendTransfAbrir('${acEsc(a.ticketId)}')" style="height:30px;padding:0 10px;font-size:12px">⇄ Transferir</button>`;
+  }
+  return '';
+}
+// Rodape do painel (14/10/2026): campo de resposta com
+//  - 🔒 Nota interna (isComment no Digisac -- so a equipe ve; qualquer pessoa
+//    com acesso pode deixar em qualquer atendimento, sem assumir);
+//  - 📎 anexo, Ctrl+V de print e 🎤 gravacao de audio (vai como arquivo);
+//  - na fila, a 1a mensagem assume o atendimento.
+function atendAcaoHtml(a) {
+  const id = acEsc(a.ticketId);
+  const podeResponder = a.naFila || a.meu || atendState.admin;
+  const nota = !podeResponder || !!atendState.notaModo[a.ticketId];
+  const anexo = atendState.anexos[a.ticketId];
+  const corBorda = nota ? 'rgba(240,180,60,.55)' : 'rgba(255,255,255,.18)';
+  const fundo = nota ? 'rgba(240,180,60,.08)' : 'rgba(255,255,255,.05)';
+  const dica = nota
+    ? (podeResponder ? '🔒 Nota interna: só a equipe vê no Digisac, NÃO vai pro cliente.' : `🔒 Atendimento com ${acEsc(a.atendente || 'outro atendente')} — aqui você só pode deixar nota interna (o cliente não vê).`)
+    : (a.naFila ? 'Atendimento na fila: ao enviar, ele passa a ser seu (sem saudação automática — a sua mensagem é a saudação).' : 'Vai pelo WhatsApp da SRG (via Digisac). Cole um print com Ctrl+V, anexe 📎 ou grave 🎤.');
+  const btnIco = 'height:44px;width:44px;flex-shrink:0;padding:0;font-size:17px;display:inline-flex;align-items:center;justify-content:center';
+  const gravando = atendState.gravacao && atendState.gravacao.ticketId === a.ticketId;
+  const chipAnexo = anexo ? `<div style="display:flex;align-items:center;gap:10px;margin-bottom:8px;padding:6px 10px;border-radius:10px;background:rgba(90,160,230,.10);border:1px solid rgba(90,160,230,.3)">
+      ${anexo.previa && anexo.mimetype.startsWith('image/') ? `<img src="${anexo.previa}" style="height:46px;max-width:90px;object-fit:cover;border-radius:6px">` : ''}
+      ${anexo.previa && anexo.mimetype.startsWith('audio/') ? `<audio controls src="${anexo.previa}" style="height:34px;max-width:240px"></audio>` : ''}
+      <span style="font:600 12px Manrope;color:#cfe0f5;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">📎 ${acEsc(anexo.nome)} <span style="color:#7186ab;font-weight:500">(${(anexo.tamanho / 1024 / 1024).toFixed(2)} MB)</span></span>
+      <button class="chip" onclick="atendAnexoRemover('${id}')" title="Remover anexo" style="margin-left:auto;height:26px;padding:0 9px;font-size:12px">✕</button>
+    </div>` : '';
+  return `${chipAnexo}<div style="display:flex;gap:8px;align-items:flex-end">
+      ${podeResponder ? `<button class="chip" onclick="atendNotaAlternar('${id}')" title="Alternar nota interna (só a equipe vê)" style="${btnIco};${nota ? 'background:rgba(240,180,60,.25);border-color:rgba(240,180,60,.6)' : ''}">🔒</button>` : ''}
+      ${!nota ? `<label class="chip" title="Anexar arquivo" style="${btnIco};cursor:pointer">📎<input type="file" style="display:none" onchange="atendAnexoArquivo('${id}', this.files[0]); this.value=''"></label>
+      <button class="chip" id="atend-gravar-btn" onclick="atendGravarAlternar('${id}')" title="${gravando ? 'Parar gravação' : 'Gravar áudio'}" style="${btnIco};${gravando ? 'background:rgba(224,80,74,.3);border-color:#e0504a' : ''}">${gravando ? '⏹' : '🎤'}</button>` : ''}
+      <textarea id="atend-resposta" rows="2" placeholder="${nota ? 'Nota interna (só a equipe vê)...' : (anexo ? 'Legenda (opcional)...' : 'Escreva a resposta... (Enter envia, Shift+Enter quebra linha)')}"
+        oninput="atendState.rascunhos['${id}']=this.value" onfocus="atendState.focoResposta='${id}'" onblur="atendState.focoResposta=null"
+        onpaste="atendColar(event,'${id}')"
+        onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();atendEnviar('${id}')}"
+        style="flex:1;resize:vertical;min-height:44px;max-height:160px;padding:10px 12px;border-radius:12px;background:${fundo};border:1px solid ${corBorda};color:#eaf1ff;font:500 13.5px/1.4 Manrope"></textarea>
+      <button class="btn-primary" id="atend-enviar-btn" onclick="atendEnviar('${id}')" style="height:44px;padding:0 18px;font-size:13px;${nota ? 'background:linear-gradient(135deg,#b8862f,#d9a441)' : ''}">${nota ? 'Salvar nota' : 'Enviar'}</button>
     </div>
-    <div id="atend-acao-msg" style="font:500 11.5px Manrope;color:#5c7095;margin-top:5px">Vai pelo WhatsApp da SRG (via Digisac), em seu nome.</div>`;
+    <div id="atend-acao-msg" style="font:500 11.5px Manrope;color:${nota ? '#e0c27a' : (a.naFila ? '#e0c27a' : '#5c7095')};margin-top:5px">${gravando ? '<span style="color:#e0504a;font-weight:700">● Gravando... clique ⏹ pra parar</span>' : dica}</div>`;
+}
+function atendRedesenharAcao(ticketId) {
+  const a = (atendState.dados || []).find(x => x.ticketId === ticketId);
+  const box = document.getElementById('atend-acao');
+  if (!a || !box || atendState.sel !== ticketId) return;
+  box.innerHTML = atendAcaoHtml(a);
+  const ta = document.getElementById('atend-resposta');
+  if (ta) { ta.value = atendState.rascunhos[ticketId] || ''; ta.focus(); }
+}
+function atendNotaAlternar(ticketId) {
+  atendState.notaModo[ticketId] = !atendState.notaModo[ticketId];
+  if (atendState.notaModo[ticketId]) delete atendState.anexos[ticketId];
+  atendRedesenharAcao(ticketId);
+}
+const ATEND_MAX_ANEXO = 16 * 1024 * 1024;
+function atendLerBase64(blob) {
+  return new Promise((ok, erro) => { const fr = new FileReader(); fr.onload = () => ok(String(fr.result)); fr.onerror = () => erro(fr.error); fr.readAsDataURL(blob); });
+}
+async function atendAnexoArquivo(ticketId, arquivo, nomeForcado) {
+  if (!arquivo) return;
+  if (arquivo.size > ATEND_MAX_ANEXO) { alert('Arquivo muito grande (máx. 16 MB).'); return; }
+  const dataUrl = await atendLerBase64(arquivo);
+  const mimetype = arquivo.type || 'application/octet-stream';
+  const nome = nomeForcado || arquivo.name || ('arquivo-' + Date.now());
+  const ant = atendState.anexos[ticketId]; if (ant && ant.previa) try { URL.revokeObjectURL(ant.previa); } catch (e) {}
+  atendState.anexos[ticketId] = { base64: dataUrl.replace(/^data:[^,]*,/, ''), mimetype, nome, tamanho: arquivo.size,
+    previa: (mimetype.startsWith('image/') || mimetype.startsWith('audio/')) ? URL.createObjectURL(arquivo) : '' };
+  atendState.notaModo[ticketId] = false;
+  atendRedesenharAcao(ticketId);
+}
+function atendAnexoRemover(ticketId) {
+  const ant = atendState.anexos[ticketId]; if (ant && ant.previa) try { URL.revokeObjectURL(ant.previa); } catch (e) {}
+  delete atendState.anexos[ticketId];
+  atendRedesenharAcao(ticketId);
+}
+// Ctrl+V de print (imagem na area de transferencia) vira anexo.
+function atendColar(ev, ticketId) {
+  const a = (atendState.dados || []).find(x => x.ticketId === ticketId) || {};
+  if (!(a.naFila || a.meu || atendState.admin)) return; // so nota: sem anexo
+  const itens = (ev.clipboardData && ev.clipboardData.items) || [];
+  for (const it of itens) {
+    if (it.kind === 'file' && it.type.startsWith('image/')) {
+      const f = it.getAsFile(); if (!f) continue;
+      ev.preventDefault();
+      const ext = (it.type.split('/')[1] || 'png').replace('jpeg', 'jpg');
+      atendAnexoArquivo(ticketId, f, `print-${new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-')}.${ext}`);
+      return;
+    }
   }
-  return `<div style="font:500 12px Manrope;color:#7186ab">Atendimento com ${acEsc(a.atendente || 'outro atendente')} — só quem está atendendo pode responder por aqui.</div>`;
+}
+// Gravacao de audio pelo microfone (MediaRecorder). WhatsApp usa OGG/Opus;
+// o Chrome grava WebM/Opus -- vai como arquivo de audio (formato aceito pelo
+// Digisac a confirmar no 1o teste real).
+async function atendGravarAlternar(ticketId) {
+  const g = atendState.gravacao;
+  if (g && g.ticketId === ticketId) { try { g.rec.stop(); } catch (e) {} return; }
+  if (g) { try { g.rec.stop(); } catch (e) {} }
+  if (!navigator.mediaDevices || !window.MediaRecorder) { alert('Este navegador não grava áudio.'); return; }
+  let stream;
+  try { stream = await navigator.mediaDevices.getUserMedia({ audio: true }); }
+  catch (e) { alert('Não consegui acessar o microfone: ' + (e.name === 'NotAllowedError' ? 'permissão negada' : e.message)); return; }
+  const tipos = ['audio/ogg;codecs=opus', 'audio/webm;codecs=opus', 'audio/webm', 'audio/mp4'];
+  const mime = tipos.find(t => MediaRecorder.isTypeSupported && MediaRecorder.isTypeSupported(t)) || '';
+  const rec = new MediaRecorder(stream, mime ? { mimeType: mime } : undefined);
+  const partes = [];
+  rec.ondataavailable = e => { if (e.data && e.data.size) partes.push(e.data); };
+  rec.onstop = async () => {
+    stream.getTracks().forEach(t => t.stop());
+    atendState.gravacao = null;
+    const tipo = (rec.mimeType || mime || 'audio/webm').split(';')[0];
+    const blob = new Blob(partes, { type: tipo });
+    if (blob.size < 1500) { atendRedesenharAcao(ticketId); return; }
+    const ext = tipo.includes('ogg') ? 'ogg' : (tipo.includes('mp4') ? 'm4a' : 'webm');
+    await atendAnexoArquivo(ticketId, blob, `audio-${Date.now()}.${ext}`);
+  };
+  atendState.gravacao = { ticketId, rec };
+  rec.start(500);
+  setTimeout(() => { if (atendState.gravacao && atendState.gravacao.rec === rec) try { rec.stop(); } catch (e) {} }, 5 * 60000); // teto 5 min
+  atendRedesenharAcao(ticketId);
+}
+async function atendTransfAbrir(ticketId) {
+  const box = document.getElementById('atend-transf');
+  if (!box) return;
+  if (box.dataset.aberto === ticketId) { box.innerHTML = ''; box.dataset.aberto = ''; return; }
+  box.dataset.aberto = ticketId;
+  box.innerHTML = `<div style="margin-top:10px;font:500 12px Manrope;color:#93a6c4">Carregando atendentes e departamentos...</div>`;
+  try {
+    if (!atendState.opcoes) {
+      const r = await fetch(`${PROXY}/atend/opcoes`, { headers: authD1() });
+      const d = await r.json().catch(() => ({}));
+      if (!r.ok || !d.ok) throw new Error(d.error || `Erro ${r.status}`);
+      atendState.opcoes = d;
+    }
+  } catch (e) { box.innerHTML = `<div style="margin-top:10px;font:500 12px Manrope;color:#e29a9a">Erro: ${acEsc(e.message)}</div>`; return; }
+  const a = (atendState.dados || []).find(x => x.ticketId === ticketId) || {};
+  const o = atendState.opcoes;
+  const sel = 'height:34px;padding:0 8px;border-radius:9px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.18);color:#eaf1ff;font:500 12.5px Manrope';
+  box.innerHTML = `<div style="margin-top:10px;padding:10px 12px;border-radius:12px;background:rgba(90,160,230,.08);border:1px solid rgba(90,160,230,.3);display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+    <span style="font:700 12px Manrope;color:#cfe0f5">Transferir para</span>
+    <select id="atend-transf-user" style="${sel};min-width:220px"><option value="">Escolha o atendente...</option>${o.usuarios.filter(u => u.nome !== a.atendente).map(u => `<option value="${acEsc(u.id)}">${acEsc(u.nome)}</option>`).join('')}</select>
+    <button class="btn-primary" id="atend-transf-btn" onclick="atendTransferir('${acEsc(ticketId)}')" style="height:34px;padding:0 14px;font-size:12.5px">Transferir</button>
+    <button class="chip" onclick="atendTransfAbrir('${acEsc(ticketId)}')" style="height:34px;padding:0 10px;font-size:12px">Cancelar</button>
+  </div>`;
+}
+async function atendTransferir(ticketId) {
+  const user = document.getElementById('atend-transf-user').value;
+  if (!user) { alert('Escolha o atendente.'); return; }
+  const btn = document.getElementById('atend-transf-btn');
+  if (btn) { btn.disabled = true; btn.textContent = 'Transferindo...'; }
+  try {
+    const r = await fetch(`${PROXY}/atend/transferir`, { method: 'POST', headers: authD1({ 'Content-Type': 'application/json' }), body: JSON.stringify({ ticketId, userId: user }) });
+    const d = await r.json().catch(() => ({}));
+    if (!r.ok || !d.ok) throw new Error(d.error || `Erro ${r.status}`);
+    const x = (atendState.dados || []).find(y => y.ticketId === ticketId);
+    if (x) { x.departamento = d.departamento || x.departamento; x.atendente = d.atendente; x.naFila = !d.atendente; x.meu = false; }
+    if (atendState.conversas[ticketId]) atendState.conversas[ticketId].marca = '';
+    const box = document.getElementById('atend-transf'); if (box) { box.innerHTML = ''; box.dataset.aberto = ''; }
+    atendRender();
+    atendSelecionar(ticketId, true);
+    setTimeout(() => atendCarregar(false), 1500);
+  } catch (e) {
+    alert('Não deu pra transferir: ' + e.message);
+    if (btn) { btn.disabled = false; btn.textContent = 'Transferir'; }
+  }
 }
 async function atendPuxar(ticketId) {
   const btn = document.getElementById('atend-puxar-btn');
@@ -6214,36 +6378,48 @@ async function atendPuxar(ticketId) {
     alert('Não deu pra puxar: ' + e.message);
     atendCarregar(false);
   } finally {
-    if (btn) { btn.disabled = false; btn.textContent = 'Puxar atendimento'; }
+    if (btn) { btn.disabled = false; btn.textContent = 'Puxar'; }
   }
 }
 async function atendEnviar(ticketId) {
   if (atendState.enviando) return;
   const ta = document.getElementById('atend-resposta');
   const texto = (ta ? ta.value : '').trim();
-  if (!texto) return;
+  const a0 = (atendState.dados || []).find(y => y.ticketId === ticketId) || {};
+  const podeResponder = a0.naFila || a0.meu || atendState.admin;
+  const nota = !podeResponder || !!atendState.notaModo[ticketId];
+  const anexo = nota ? null : atendState.anexos[ticketId];
+  if (!texto && !anexo) return;
+  if (atendState.gravacao) { alert('Pare a gravação antes de enviar.'); return; }
   const btn = document.getElementById('atend-enviar-btn');
   const msg = document.getElementById('atend-acao-msg');
   atendState.enviando = true;
-  if (btn) { btn.disabled = true; btn.textContent = 'Enviando...'; }
+  if (btn) { btn.disabled = true; btn.textContent = nota ? 'Salvando...' : 'Enviando...'; }
   try {
-    const r = await fetch(`${PROXY}/atend/responder`, { method: 'POST', headers: authD1({ 'Content-Type': 'application/json' }), body: JSON.stringify({ ticketId, texto }) });
+    const corpo = { ticketId, texto, assumir: !nota && !!a0.naFila, nota };
+    if (anexo) corpo.arquivo = { base64: anexo.base64, mimetype: anexo.mimetype, nome: anexo.nome };
+    const r = await fetch(`${PROXY}/atend/responder`, { method: 'POST', headers: authD1({ 'Content-Type': 'application/json' }), body: JSON.stringify(corpo) });
     const d = await r.json().catch(() => ({}));
     if (!r.ok || !d.ok) throw new Error(d.error || `Erro ${r.status}`);
     atendState.rascunhos[ticketId] = '';
     if (ta) ta.value = '';
+    if (nota) atendState.notaModo[ticketId] = false; // depois da nota volta pro modo resposta
+    if (anexo) { if (anexo.previa) try { URL.revokeObjectURL(anexo.previa); } catch (e) {} delete atendState.anexos[ticketId]; }
     const x = (atendState.dados || []).find(y => y.ticketId === ticketId);
-    if (x) { x.aguardandoDesde = null; x.naoLidas = 0; x.ultimaMsg = texto; x.ultimaMsgOrigem = 'atendente'; x.ultimaMsgEm = new Date(atendAgora()).toISOString(); }
+    if (x && !nota) {
+      x.aguardandoDesde = null; x.naoLidas = 0; x.ultimaMsg = anexo ? `📎 ${anexo.nome}${texto ? ': ' + texto : ''}` : texto; x.ultimaMsgOrigem = 'atendente'; x.ultimaMsgEm = new Date(atendAgora()).toISOString();
+      if (d.assumiu) { x.naFila = false; x.meu = true; x.atendente = currentUser.nome || String(currentUser.atendenteSRG || '').split(',')[0].trim() || x.atendente; }
+    }
     if (atendState.conversas[ticketId]) atendState.conversas[ticketId].marca = '';
     atendState.focoResposta = ticketId;
     atendRender();
     atendSelecionar(ticketId, true);
   } catch (e) {
-    if (msg) { msg.style.color = '#e29a9a'; msg.textContent = 'Não enviou: ' + e.message; }
+    if (msg) { msg.style.color = '#e29a9a'; msg.textContent = (nota ? 'Nota não salva: ' : 'Não enviou: ') + e.message; }
     else alert('Não enviou: ' + e.message);
   } finally {
     atendState.enviando = false;
-    if (btn) { btn.disabled = false; btn.textContent = 'Enviar'; }
+    if (btn) { btn.disabled = false; btn.textContent = nota ? 'Salvar nota' : 'Enviar'; }
   }
 }
 // Setas ↑/↓ trocam de conversa (fora de campos de texto e sem modal aberto).
@@ -6282,6 +6458,181 @@ function dgMidiaHtml(msg) {
     return `<video controls preload="metadata" src="${u}" style="display:block;max-width:300px;max-height:260px;border-radius:10px;margin:4px 0 6px"></video>`;
   }
   return `<div style="margin:4px 0 6px">📎 ${baixar}</div>`;
+}
+
+// ============================================================
+// NOTIFICACOES DE ATENDIMENTO (13/10/2026) -- nivel 1 (navegador aberto)
+// Enquanto o portal estiver aberto (mesmo em outra aba/minimizado), consulta
+// /atend/lista a cada 15s e compara com a leitura anterior:
+//  - mensagem nova de CLIENTE (cada uma; varias juntas viram "N mensagens")
+//    nos atendimentos do escopo escolhido (meus + fila, ou todos);
+//  - atendimento novo caindo na FILA;
+//  - atendimento MEU esperando resposta ha 5+ min (avisa 1 vez).
+// Notificacao do sistema (Notification API) + som + "(N)" no titulo da aba.
+// Preferencias por navegador em localStorage srg_atend_notif. Sem Web Push:
+// com o navegador fechado nao chega (fica pra uma fase 2).
+// ============================================================
+var atendNotif = { timer: null, base: false, prev: {}, esperaAvisada: {}, tituloOrig: document.title, audio: null };
+
+function atendNotifPrefs() {
+  let p = {};
+  try { p = JSON.parse(localStorage.getItem('srg_atend_notif') || '{}') || {}; } catch (e) {}
+  return {
+    msgMeus: p.msgMeus !== false,
+    msgTodos: p.msgTodos === true || (p.msgTodos === undefined && !atendState.temAliases),
+    fila: p.fila !== false,
+    espera: p.espera !== false,
+    esperaGeral: p.esperaGeral !== false,
+    som: p.som !== false,
+  };
+}
+function atendNotifSalvar(chave, valor) {
+  const p = atendNotifPrefs(); p[chave] = valor;
+  try { localStorage.setItem('srg_atend_notif', JSON.stringify(p)); } catch (e) {}
+  atendNotifRenderConfig();
+}
+function atendNotifPode() {
+  return !!(currentUser && (currentUser.verAtendimentos || currentUser.role === 'admin'));
+}
+function atendNotifIniciar() {
+  if (!atendNotifPode()) { atendNotifParar(); return; }
+  if (atendNotif.timer) return;
+  atendNotif.timer = setInterval(() => {
+    if (!atendNotifPode()) { atendNotifParar(); return; }
+    if (atendVisivel() && !document.hidden) return; // a tela ja atualiza a cada 8s
+    atendCarregar(false);
+  }, 15000);
+  setTimeout(() => { if (atendNotifPode() && !atendVisivel()) atendCarregar(false); }, 1500);
+}
+function atendNotifParar() {
+  if (atendNotif.timer) clearInterval(atendNotif.timer);
+  atendNotif.timer = null; atendNotif.base = false; atendNotif.prev = {};
+  document.title = atendNotif.tituloOrig;
+}
+// Chamado pelo atendCarregar a cada leitura nova da lista.
+function atendNotifProcessar(lista) {
+  const prefs = atendNotifPrefs();
+  const agora = atendAgora();
+  const noEscopo = a => prefs.msgTodos || a.meu || a.naFila;
+  const avisos = [];
+  if (atendNotif.base) {
+    for (const a of lista) {
+      const ant = atendNotif.prev[a.ticketId];
+      const olhando = atendVisivel() && !document.hidden && document.hasFocus() && atendState.sel === a.ticketId;
+      // Entrou na fila agora (tem prioridade sobre "mensagem nova")
+      if (prefs.fila && a.naFila && (!ant || !ant.naFila)) {
+        avisos.push({ id: a.ticketId, titulo: `Novo atendimento na fila: ${a.contato || a.numero || 'cliente'}`, corpo: a.ultimaMsg || a.departamento || '' });
+        continue;
+      }
+      // Mensagem nova do cliente
+      if ((prefs.msgMeus || prefs.msgTodos) && noEscopo(a) && a.ultimaMsgOrigem === 'cliente' && a.ultimaMsgEm &&
+          (!ant || (ant.ultimaMsgEm || '') < a.ultimaMsgEm) && !olhando && (prefs.msgTodos || a.meu || a.naFila)) {
+        const n = ant ? Math.max(1, (a.naoLidas || 0) - (ant.naoLidas || 0)) : Math.max(1, a.naoLidas || 1);
+        avisos.push({ id: a.ticketId, titulo: `${n > 1 ? n + ' mensagens' : 'Mensagem'} de ${a.contato || a.numero || 'cliente'}`, corpo: a.ultimaMsg || '(sem texto)' });
+        continue;
+      }
+    }
+  }
+  // Espera longa (pedido do Sergio 14/10/2026): limite de 15 min.
+  //  - meus: avisa aos 15 min e de novo a cada +15 (30, 45...) enquanto o
+  //    cliente continuar sem resposta;
+  //  - fila / outros atendentes: avisa 1 vez aos 15 min.
+  const ESPERA_MS = 15 * 60000;
+  for (const a of lista) {
+    if (!a.aguardandoDesde) continue;
+    const ms = agora - Date.parse(a.aguardandoDesde);
+    const nivel = Math.floor(ms / ESPERA_MS);
+    if (nivel < 1) continue;
+    const chave = a.ticketId + '|' + a.aguardandoDesde;
+    const jaAvisado = atendNotif.esperaAvisada[chave] || 0;
+    const quer = a.meu ? prefs.espera : prefs.esperaGeral;
+    if (!quer || nivel <= jaAvisado || (!a.meu && jaAvisado >= 1)) continue;
+    atendNotif.esperaAvisada[chave] = nivel;
+    if (!atendNotif.base) continue; // na 1a leitura so marca, nao avisa
+    const quem = a.meu ? '' : (a.naFila ? ' (na fila)' : ` (com ${a.atendente || 'outro atendente'})`);
+    avisos.push({ id: a.ticketId, titulo: `⏱ ${a.contato || 'Cliente'} esperando há ${atendDurCurta(ms)}${quem}`, corpo: a.ultimaMsg || '' });
+  }
+  atendNotif.prev = {};
+  for (const a of lista) atendNotif.prev[a.ticketId] = { ultimaMsgEm: a.ultimaMsgEm, naoLidas: a.naoLidas, naFila: a.naFila };
+  atendNotif.base = true;
+  // Titulo da aba: quantos do escopo estao esperando resposta
+  const pend = lista.filter(a => a.aguardandoDesde && noEscopo(a)).length;
+  document.title = (pend ? `(${pend}) ` : '') + atendNotif.tituloOrig;
+  if (avisos.length) atendNotifMostrar(avisos, prefs);
+}
+function atendNotifMostrar(avisos, prefs) {
+  if (prefs.som) atendNotifSom();
+  if (!('Notification' in window) || Notification.permission !== 'granted') return;
+  const lista = avisos.length > 4
+    ? [{ id: null, titulo: `${avisos.length} novidades nos atendimentos`, corpo: avisos.slice(0, 3).map(x => x.titulo).join(' · ') }]
+    : avisos;
+  for (const av of lista) {
+    try {
+      const n = new Notification(av.titulo, { body: String(av.corpo || '').slice(0, 160), tag: av.id ? 'atend-' + av.id : 'atend-resumo', renotify: true, silent: true });
+      n.onclick = () => {
+        try { window.focus(); } catch (e) {}
+        n.close();
+        goAtendimentos();
+        if (av.id) setTimeout(() => atendAbrir(av.id), 400);
+      };
+    } catch (e) {}
+  }
+}
+// "Plim" curto gerado na hora (sem arquivo de audio).
+function atendNotifSom() {
+  try {
+    const AC = window.AudioContext || window.webkitAudioContext; if (!AC) return;
+    atendNotif.audio = atendNotif.audio || new AC();
+    const ctx = atendNotif.audio; if (ctx.state === 'suspended') ctx.resume();
+    [[880, 0], [1320, 0.12]].forEach(([f, t]) => {
+      const o = ctx.createOscillator(), g = ctx.createGain();
+      o.type = 'sine'; o.frequency.value = f;
+      g.gain.setValueAtTime(0.0001, ctx.currentTime + t);
+      g.gain.exponentialRampToValueAtTime(0.18, ctx.currentTime + t + 0.02);
+      g.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + t + 0.25);
+      o.connect(g); g.connect(ctx.destination); o.start(ctx.currentTime + t); o.stop(ctx.currentTime + t + 0.3);
+    });
+  } catch (e) {}
+}
+async function atendNotifPermitir() {
+  if (!('Notification' in window)) { alert('Este navegador não suporta notificações.'); return; }
+  try { await Notification.requestPermission(); } catch (e) {}
+  atendNotifSom(); // aproveita o clique pra liberar o audio
+  atendNotifRenderConfig();
+}
+function atendNotifAlternarConfig() {
+  const el = document.getElementById('atend-notif-config');
+  if (!el) return;
+  el.style.display = el.style.display === 'block' ? 'none' : 'block';
+  atendNotifRenderConfig();
+}
+function atendNotifRenderConfig() {
+  const el = document.getElementById('atend-notif-config');
+  const aviso = document.getElementById('atend-notif-aviso');
+  const perm = ('Notification' in window) ? Notification.permission : 'unsupported';
+  if (aviso) {
+    aviso.innerHTML = perm === 'default'
+      ? `<div class="glass" style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding:10px 14px;margin-bottom:12px;border-color:rgba(90,160,230,.4)"><span style="font:600 13px Manrope;color:#cfe0f5">🔔 Quer ser avisado de mensagens novas mesmo com o portal em outra aba?</span><button class="btn-primary" onclick="atendNotifPermitir()" style="height:32px;padding:0 14px;font-size:12.5px">Ativar notificações</button></div>`
+      : (perm === 'denied' ? `<div style="font:500 12px Manrope;color:#e0a888;margin-bottom:10px">As notificações estão bloqueadas neste navegador — libere no cadeado ao lado do endereço do site (Notificações → Permitir).</div>` : '');
+  }
+  if (!el || el.style.display !== 'block') return;
+  const p = atendNotifPrefs();
+  const ck = (chave, rot) => `<label style="display:flex;align-items:center;gap:8px;padding:5px 0;font:500 12.5px Manrope;color:#dbe6fb;cursor:pointer"><input type="checkbox" ${p[chave] ? 'checked' : ''} onchange="atendNotifSalvar('${chave}',this.checked)" style="accent-color:#3fa08c"> ${rot}</label>`;
+  el.innerHTML = `<div style="font:700 12px Manrope;color:#9fb6e8;letter-spacing:.06em;text-transform:uppercase;margin-bottom:6px">Notificações neste navegador</div>
+    ${ck('msgMeus', 'Mensagem nova de cliente nos meus atendimentos e na fila')}
+    ${ck('msgTodos', 'Mensagem nova de cliente em TODOS os atendimentos')}
+    ${ck('fila', 'Atendimento novo entrando na fila')}
+    ${ck('espera', 'Atendimento MEU esperando resposta há 15+ min (repete a cada 15 min)')}
+    ${ck('esperaGeral', 'Qualquer cliente (fila ou outro atendente) esperando há 15+ min')}
+    ${ck('som', 'Tocar som')}
+    <div style="display:flex;gap:8px;align-items:center;margin-top:8px;flex-wrap:wrap">
+      <span style="font:500 11.5px Manrope;color:${perm === 'granted' ? '#4fbf8f' : '#e0a888'}">${perm === 'granted' ? 'Permissão do navegador: liberada' : (perm === 'denied' ? 'Permissão do navegador: bloqueada' : 'Permissão do navegador: ainda não pedida')}</span>
+      ${perm !== 'granted' && perm !== 'denied' && perm !== 'unsupported' ? `<button class="chip" onclick="atendNotifPermitir()" style="height:28px;padding:0 10px;font-size:11.5px">Ativar</button>` : ''}
+      <button class="chip" onclick="atendNotifTeste()" style="height:28px;padding:0 10px;font-size:11.5px">Testar</button>
+    </div>`;
+}
+function atendNotifTeste() {
+  atendNotifMostrar([{ id: null, titulo: 'Teste de notificação — Portal SRG', corpo: 'Se você viu isto (e ouviu o som), está tudo certo.' }], atendNotifPrefs());
 }
 </script>
 </body>
