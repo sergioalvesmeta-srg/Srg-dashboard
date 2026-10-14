@@ -6604,6 +6604,7 @@ function atendNotifPrefs() {
     fila: p.fila !== false,
     espera: p.espera !== false,
     esperaGeral: p.esperaGeral === true && !!(currentUser && currentUser.role === 'admin'), // so admin pode ligar (14/10/2026)
+    esperaFila: p.esperaFila !== false, // fila sem atendente 15+ min: avisa todo mundo
     som: p.som !== false,
   };
 }
@@ -6666,8 +6667,11 @@ function atendNotifProcessar(lista) {
     if (nivel < 1) continue;
     const chave = a.ticketId + '|' + a.aguardandoDesde;
     const jaAvisado = atendNotif.esperaAvisada[chave] || 0;
-    const quer = a.meu ? prefs.espera : prefs.esperaGeral; // fila/outros: so admin com a opcao ligada
-    if (!quer || nivel <= jaAvisado || (!a.meu && jaAvisado >= 1)) continue;
+    // meus: sempre; FILA (sem atendente): todo mundo, repete a cada 15 min;
+    // atendimentos de OUTROS: so admin com a opcao ligada, 1 vez.
+    const quer = a.meu ? prefs.espera : (a.naFila ? prefs.esperaFila : prefs.esperaGeral);
+    const repete = a.meu || a.naFila;
+    if (!quer || nivel <= jaAvisado || (!repete && jaAvisado >= 1)) continue;
     atendNotif.esperaAvisada[chave] = nivel;
     if (!atendNotif.base) continue; // na 1a leitura so marca, nao avisa
     const quem = a.meu ? '' : (a.naFila ? ' (na fila)' : ` (com ${a.atendente || 'outro atendente'})`);
@@ -6744,6 +6748,7 @@ function atendNotifRenderConfig() {
     ${ck('msgTodos', 'Mensagem nova de cliente em TODOS os atendimentos')}
     ${ck('fila', 'Atendimento novo entrando na fila')}
     ${ck('espera', 'Atendimento MEU esperando resposta há 15+ min (repete a cada 15 min)')}
+    ${ck('esperaFila', 'Cliente na FILA (sem atendente) esperando há 15+ min (repete a cada 15 min)')}
     ${(currentUser && currentUser.role === 'admin') ? ck('esperaGeral', 'Atendimentos de OUTROS atendentes esperando há 15+ min (monitoramento)') : ''}
     ${ck('som', 'Tocar som')}
     <div style="display:flex;gap:8px;align-items:center;margin-top:8px;flex-wrap:wrap">
