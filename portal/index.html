@@ -1431,10 +1431,14 @@ async function doLogin() {
   }
 }
 async function doLogout() {
+  const tokSair = currentUser && currentUser.token;
+  const tinhaAtend = (() => { try { return atendNotifPode(); } catch (e) { return false; } })();
   try { atendNotifParar(); } catch (e) {}
-  try { if (currentUser && currentUser.token && atendNotifPode()) await fetch(`${PROXY}/atend/presenca/sair`, { method: 'POST', headers: authD1() }); } catch (e) {}
-  if (currentUser && currentUser.token) await apiLogout(currentUser.token);
-  currentUser = null;
+  try { atendResetarEstado(); } catch (e) {}
+  currentUser = null; // antes dos await: leitura atrasada nao repinta titulo/notificacao
+  try { if (tokSair && tinhaAtend) await fetch(`${PROXY}/atend/presenca/sair`, { method: 'POST', headers: { 'Authorization': `Bearer ${tokSair}` } }); } catch (e) {}
+  if (tokSair) await apiLogout(tokSair);
+  try { atendNotifParar(); } catch (e) {}
   sessionStorage.removeItem('srg_user');
   localStorage.removeItem('srg_user');
   localStorage.removeItem('srg_manter');
@@ -5948,7 +5952,25 @@ ntEvidReset();
 // mensagem nova. Tela estreita (< 1000px): volta pro modal.
 // Ainda NAO responde pelo portal (fase 3).
 // ============================================================
-var atendState = { aba: null, busca: '', dados: [], offset: 0, timer: null, carregando: false, sincronizou: false, temAliases: false, erro: '', sel: null, conversas: {}, carregandoConversa: null, visiveis: [], admin: false, rascunhos: {}, enviando: false, notaModo: {}, anexos: {}, gravacao: null };
+function atendEstadoInicial() {
+  return { aba: null, busca: '', dados: [], offset: 0, timer: null, carregando: false, sincronizou: false, temAliases: false, erro: '', sel: null, conversas: {}, carregandoConversa: null, visiveis: [], admin: false, rascunhos: {}, enviando: false, notaModo: {}, anexos: {}, gravacao: null, filaEnvio: [], enviandoJob: null, ocupado: {} };
+}
+var atendState = atendEstadoInicial();
+var atendGeracao = 0; // muda no logout: respostas que chegarem depois sao ignoradas
+// Logout (15/10/2026): zera TUDO do Atendimentos -- antes rascunho, anexo,
+// modo nota, aba e notificacoes do usuario anterior passavam pro proximo login.
+function atendResetarEstado() {
+  atendGeracao++;
+  try { if (atendState.timer) clearInterval(atendState.timer); } catch (e) {}
+  try { if (atendState.gravacao) atendState.gravacao.rec.stop(); } catch (e) {}
+  try { Object.values(atendState.anexos || {}).forEach(an => { if (an && an.previa) URL.revokeObjectURL(an.previa); }); } catch (e) {}
+  atendState = atendEstadoInicial();
+  try { atendNotif.base = false; atendNotif.prev = {}; atendNotif.esperaAvisada = {}; atendNotif.metaPerg = {}; document.title = atendNotif.tituloOrig; } catch (e) {}
+  try { atendQR.lista = null; atendQR.em = 0; atendQR.aberto = false; } catch (e) {}
+  const p = document.getElementById('atend-painel'); if (p) { p.dataset.ticket = ''; p.innerHTML = ''; }
+  const l = document.getElementById('atend-lista'); if (l) l.innerHTML = '';
+}
+function atendAbaChave() { return 'srg_atend_aba:' + ((currentUser && currentUser.username) || ''); }
 
 function goAtendimentos() {
   // Permissao: flag "Atendimentos" no cadastro do usuario (ou admin) -- 13/10/2026.
@@ -5975,23 +5997,25 @@ function atendIniciarLive() {
   }, 8000);
 }
 async function atendCarregar(primeira) {
-  if (atendState.carregando) return;
+  if (atendState.carregando || !currentUser) return;
+  const ger = atendGeracao;
   atendState.carregando = true;
   try {
     const inativoSeg = Math.floor((Date.now() - atendPres.ultima) / 1000);
     const r = await fetch(`${PROXY}/atend/lista?inativo=${inativoSeg}&visivel=${document.hidden ? 0 : 1}`, { headers: authD1() });
     const d = await r.json().catch(() => ({}));
+    if (ger !== atendGeracao || !currentUser) return; // saiu/trocou de usuario no meio
     if (!r.ok || !d.ok) throw new Error(d.error || `Erro ${r.status}`);
     atendState.dados = d.atendimentos || [];
     atendMetaNormalizar(atendState.dados);
     atendState.presenca = d.presenca || [];
     atendState.temAliases = !!d.temAliases;
-    try { atendNotifProcessar(atendState.dados); } catch (e) { console.warn('[notif]', e); }
     atendState.admin = !!d.admin;
-    atendState.offset = d.agora ? (Date.parse(d.agora) - Date.now()) : 0;
+    atendState.offset = d.agora ? (Date.parse(d.agora) - Date.now()) : 0; // antes das notificacoes (relogio do PC errado)
+    try { atendNotifProcessar(atendState.dados); } catch (e) { console.warn('[notif]', e); }
     atendState.erro = '';
     if (!atendState.aba) {
-      let salva = null; try { salva = localStorage.getItem('srg_atend_aba'); } catch (e) {}
+      let salva = null; try { salva = localStorage.getItem(atendAbaChave()); } catch (e) {}
       atendState.aba = salva || (atendState.temAliases ? 'meus' : 'todos');
     }
     if (primeira && !atendState.dados.length && !atendState.sincronizou) {
@@ -6029,7 +6053,7 @@ function atendSetAba(aba) {
   if (aba === 'historico') atendState.histCarregado = false; // recarrega ao entrar
   if (aba === 'finalizados') atendFinCarregar();
   atendState.aba = aba;
-  try { localStorage.setItem('srg_atend_aba', aba); } catch (e) {}
+  try { localStorage.setItem(atendAbaChave(), aba); } catch (e) {}
   atendRender();
 }
 function atendAchar(id) {
@@ -6052,6 +6076,7 @@ function atendCor(a, agora) {
   return (agora - Date.parse(a.aguardandoDesde)) >= 300000 ? '#e0504a' : '#f2b84b';
 }
 function atendRender() {
+  if ((atendState.aba === 'historico' || String(atendState.aba || '').startsWith('u:')) && !(currentUser && currentUser.role === 'admin')) atendState.aba = 'todos';
   const todos = atendState.dados || [];
   const agora = atendAgora();
   const esperaMs = a => a.aguardandoDesde ? (agora - Date.parse(a.aguardandoDesde)) : null;
@@ -6080,14 +6105,14 @@ function atendRender() {
   const abaCards = atendState.aba || 'todos';
   const uSel = String(abaCards).startsWith('u:') ? abaCards.slice(2) : null;
   const escopo = uSel ? todos.filter(a => a.atendente === uSel) : (abaCards === 'meus' ? todos.filter(a => a.meu) : (abaCards === 'fila' ? todos.filter(a => a.naFila) : todos));
-  const sufixo = uSel ? ' · ' + uSel.split(' ')[0] : (abaCards === 'meus' ? ' · meus' : (abaCards === 'fila' ? ' · fila' : ' · equipe'));
+  const sufixo = uSel ? ' · ' + acEsc(uSel.split(' ')[0]) : (abaCards === 'meus' ? ' · meus' : (abaCards === 'fila' ? ' · fila' : ' · equipe'));
   const aguardEsc = escopo.filter(a => a.aguardandoDesde);
   const maiorEsc = aguardEsc.reduce((mx, a) => Math.max(mx, esperaMs(a) || 0), 0);
   document.getElementById('atend-stats').innerHTML =
     card('Aguardando resposta' + sufixo, aguardEsc.length, aguardEsc.length ? '#f2b84b' : '#4fbf8f') +
     card('Maior espera' + sufixo, aguardEsc.length ? atendDurCurta(maiorEsc) : '—', maiorEsc >= 300000 ? '#e0504a' : '#eaf1ff') +
     card('Na fila (sem atendente)', nFila, nFila ? '#f2b84b' : '#eaf1ff') +
-    card(uSel ? 'Com ' + uSel.split(' ')[0] + ' agora' : (abaCards === 'meus' ? 'Comigo agora' : 'Em atendimento' + (abaCards === 'fila' ? ' · equipe' : '')), (uSel || abaCards === 'meus') ? escopo.length : todos.length - nFila, '#5aa0e6');
+    card(uSel ? 'Com ' + acEsc(uSel.split(' ')[0]) + ' agora' : (abaCards === 'meus' ? 'Comigo agora' : 'Em atendimento' + (abaCards === 'fila' ? ' · equipe' : '')), (uSel || abaCards === 'meus') ? escopo.length : todos.length - nFila, '#5aa0e6');
 
   const aba = atendState.aba || 'todos';
   const abaBtn = (id, rot, n) => `<button class="chip ${aba === id ? 'active' : ''}" onclick="atendSetAba('${id}')">${rot} <span style="opacity:.75">(${n})</span></button>`;
@@ -6125,7 +6150,7 @@ function atendRender() {
   const cont = document.getElementById('atend-lista');
   const topo = cont.scrollTop;
   if (!lista.length) {
-    cont.innerHTML = `<div class="glass" style="padding:22px;font:500 13.5px Manrope;color:#7186ab">${aba === 'finalizados' ? (atendState.finCarregando ? 'Carregando...' : 'Nenhum atendimento finalizado nos últimos 7 dias.') : aba === 'meus' ? 'Nenhum atendimento aberto com você.' : (aba === 'fila' ? 'Fila vazia.' : (aba === 'meta' ? 'Nenhum atendimento aguardando a Meta.' : 'Nenhum atendimento aberto.'))}</div>`;
+    cont.innerHTML = `<div class="glass" style="padding:22px;font:500 13.5px Manrope;color:#7186ab">${aba === 'finalizados' ? (atendState.finCarregando ? 'Carregando...' : (atendState.finErro ? `<span style="color:#e29a9a">Erro ao carregar finalizados: ${acEsc(atendState.finErro)}</span>` : 'Nenhum atendimento finalizado nos últimos 7 dias.')) : aba === 'meus' ? 'Nenhum atendimento aberto com você.' : (aba === 'fila' ? 'Fila vazia.' : (aba === 'meta' ? 'Nenhum atendimento aguardando a Meta.' : 'Nenhum atendimento aberto.'))}</div>`;
   } else {
     cont.innerHTML = lista.map(a => {
       const esp = esperaMs(a);
@@ -6165,6 +6190,7 @@ function atendRender() {
 function atendRenderPainelVazio(msg) {
   const p = document.getElementById('atend-painel');
   if (!p) return;
+  p.dataset.ticket = '';
   p.innerHTML = `<div style="margin:auto;text-align:center;color:#7186ab;font:500 13.5px Manrope;max-width:320px">${msg || 'Selecione um atendimento na lista pra ver a conversa aqui.<br><span style="font-size:12px">Dica: use as setas ↑ / ↓ pra trocar.</span>'}</div>`;
 }
 function atendAbrir(ticketId) {
@@ -6178,6 +6204,7 @@ async function atendSelecionar(ticketId, silencioso) {
   const a = atendAchar(ticketId);
   if (!a) return;
   const mudou = atendState.sel !== ticketId;
+  if (mudou && atendState.gravacao && atendState.gravacao.ticketId !== ticketId) { try { atendState.gravacao.rec.stop(); } catch (e) {} }
   atendState.sel = ticketId;
   if (mudou) atendRender();
   const proto = String(a.protocolo || '').replace(/\D/g, '');
@@ -6185,7 +6212,7 @@ async function atendSelecionar(ticketId, silencioso) {
   if (!proto) { atendRenderPainelVazio('Esse atendimento ainda não tem protocolo no Digisac.'); return; }
   const cache = atendState.conversas[ticketId];
   if (cache && mudou) atendRenderPainel(cache.d, a, true); // mostra na hora o que ja tinha
-  else if (!cache && p) p.innerHTML = `<div style="margin:auto;text-align:center"><div class="spinner" style="margin:0 auto 12px"></div><div style="font:600 13px Manrope;color:#bcccea">Carregando conversa...</div></div>`;
+  else if (!cache && p) p.dataset.ticket = '', p.innerHTML = `<div style="margin:auto;text-align:center"><div class="spinner" style="margin:0 auto 12px"></div><div style="font:600 13px Manrope;color:#bcccea">Carregando conversa...</div></div>`;
   // Atualiza do Digisac (sempre na troca; no silencioso so quando a marca mudou).
   if (cache && !mudou && silencioso && cache.marca === atendMarca(a)) return;
   const pedido = Symbol();
@@ -6202,12 +6229,7 @@ async function atendSelecionar(ticketId, silencioso) {
     if (!cache) atendRenderPainelVazio(`<span style="color:#e29a9a">Erro ao carregar: ${acEsc(e.message)}</span>`);
   }
 }
-function atendRenderPainel(d, a, rolarFim) {
-  const p = document.getElementById('atend-painel');
-  if (!p) return;
-  dgDadosAtual = d; // "Copiar conversa" e "Abrir chamado" usam isso
-  const chatAntes = document.getElementById('atend-chat');
-  const estavaNoFim = !chatAntes || (chatAntes.scrollHeight - chatAntes.scrollTop - chatAntes.clientHeight < 60);
+function atendRenderPainelPartes(d, a) {
   const agora = atendAgora();
   const cor = atendCor(a, agora);
   const status = a.finalizado
@@ -6222,8 +6244,7 @@ function atendRenderPainel(d, a, rolarFim) {
        <button class="chip" style="height:30px;padding:0 10px;font-size:12px" onclick="buscarPorProtocolo('${dgEsc(d.protocolo)}')">Abrir no portal</button>`
     : `<span style="font:600 12px Manrope;color:#f3e2b8">Sem chamado Meta</span>
        <button class="btn-primary" style="height:30px;padding:0 12px;font-size:12px" onclick="dgNovoChamado()">Abrir chamado</button>`;
-  p.innerHTML = `
-    <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap">
+  const topo = `
       <div style="min-width:0">
         <div style="font:700 18px Outfit,sans-serif;color:#f4f8ff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${dgEsc(d.contato.nome || a.contato || 'Contato')}</div>
         <div style="font:500 12px Manrope;color:#93a6c4;margin-top:3px">${d.contato.numero ? dgEsc(d.contato.numero) + ' · ' : ''}Protocolo <span style="font-family:'IBM Plex Mono',monospace;color:#cfe0f5">${dgEsc(d.protocolo)}</span>${miniCopiar(d.protocolo)} · ${dgEsc(d.atendente || 'Na fila')} · ${dgEsc(d.departamento || '—')}</div>
@@ -6235,21 +6256,90 @@ function atendRenderPainel(d, a, rolarFim) {
         <button class="chip" id="dg-copiar-btn" style="height:30px;padding:0 10px;font-size:12px" onclick="dgCopiarConversa()">Copiar conversa</button>
         <button class="chip" style="height:30px;padding:0 10px;font-size:12px" title="Exportar o atendimento em PDF" onclick="dgExportarPdf()">PDF</button>
         <button class="chip" style="height:30px;padding:0 10px;font-size:12px" title="Abrir em janela com todos os detalhes (tempos, transferências)" onclick="dgAbrirProtocolo('${dgEsc(d.protocolo)}')">Detalhes</button>
-      </div>
-    </div>
-    <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-top:10px;padding:8px 12px;border-radius:10px;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08)">${chamado}</div>
+      </div>`;
+  const chat = dgLinhasHtml(d) || '<div style="padding:24px;text-align:center;color:#7186ab;font:500 13px Manrope">Sem mensagens.</div>';
+  return { topo, chamado, chat };
+}
+// Painel da conversa. 15/10/2026 (pente fino): quando e o MESMO atendimento
+// que ja esta na tela (recarga de 8s, mensagem nova, depois de enviar), NAO
+// recria o painel inteiro -- so atualiza topo, faixa do chamado, Meta, resumo
+// e conversa. Assim nao perde: caixa de Encerrar/Transferir aberta (e o que
+// foi digitado nela), cursor/selecao/Ctrl+Z da resposta, rolagem de quem esta
+// lendo mensagem antiga, e audio/video tocando.
+function atendRenderPainel(d, a, rolarFim) {
+  const p = document.getElementById('atend-painel');
+  if (!p) return;
+  dgDadosAtual = d; // "Copiar conversa" e "Abrir chamado" usam isso
+  const partes = atendRenderPainelPartes(d, a);
+  const chatAntes = document.getElementById('atend-chat');
+  const mesmo = p.dataset.ticket === a.ticketId && chatAntes;
+  if (mesmo) {
+    const topo = document.getElementById('atend-topo'); if (topo) topo.innerHTML = partes.topo;
+    const ch = document.getElementById('atend-chamado'); if (ch) ch.innerHTML = partes.chamado;
+    const rs = document.getElementById('atend-resumo'); if (rs) { const h = atendResumoHtml(atendState.conversas[a.ticketId] && atendState.conversas[a.ticketId].resumo); if (rs.innerHTML !== h) rs.innerHTML = h; }
+    atendMetaPainelAtualizar();
+    atendChatAtualizar(chatAntes, partes.chat, rolarFim);
+    atendAcaoAtualizar(a);
+    return;
+  }
+  p.dataset.ticket = a.ticketId;
+  p.innerHTML = `
+    <div id="atend-topo" style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap">${partes.topo}</div>
+    <div id="atend-chamado" style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-top:10px;padding:8px 12px;border-radius:10px;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08)">${partes.chamado}</div>
     <div id="atend-transf"></div>
     <div id="atend-meta" data-html="${acEsc(atendMetaPainelHtml(a))}">${atendMetaPainelHtml(a)}</div>
     <div id="atend-resumo">${atendResumoHtml(atendState.conversas[a.ticketId] && atendState.conversas[a.ticketId].resumo)}</div>
-    <div id="atend-chat" style="flex:1;min-height:0;overflow-y:auto;margin-top:12px;padding:6px 10px 10px;border-radius:12px;background:rgba(0,0,0,.18);border:1px solid rgba(255,255,255,.08)">${dgLinhasHtml(d) || '<div style="padding:24px;text-align:center;color:#7186ab;font:500 13px Manrope">Sem mensagens.</div>'}</div>
-    <div id="atend-acao" style="margin-top:10px">${atendAcaoHtml(a)}</div>`;
-  const chat = document.getElementById('atend-chat');
-  if (chat && (rolarFim || estavaNoFim)) dgRolarFim(chat);
+    <div id="atend-chat" style="flex:1;min-height:0;overflow-y:auto;margin-top:12px;padding:6px 10px 10px;border-radius:12px;background:rgba(0,0,0,.18);border:1px solid rgba(255,255,255,.08)">${partes.chat}</div>
+    <div id="atend-acao" style="margin-top:10px"></div>`;
+  const chatNovo = document.getElementById('atend-chat');
+  chatNovo.dataset.html = partes.chat;
+  dgRolarFim(chatNovo);
+  atendAcaoAtualizar(a, true);
+}
+// Conversa: se tem audio/video TOCANDO, espera terminar/pausar pra redesenhar
+// (antes o audio parava no meio quando chegava outra mensagem). Mantem a
+// rolagem de quem esta lendo la em cima; quem esta no fim continua no fim.
+function atendChatAtualizar(chat, html, rolarFim) {
+  if (!chat) return;
+  if (chat.dataset.html === html) return;
+  const tocando = [...chat.querySelectorAll('audio,video')].find(m => !m.paused && !m.ended);
+  if (tocando) {
+    chat.dataset.pendente = '1';
+    if (!tocando.dataset.esperaRedesenho) {
+      tocando.dataset.esperaRedesenho = '1';
+      const depois = () => { if (chat.isConnected && chat.dataset.pendente && atendState.sel) { const c = atendState.conversas[atendState.sel]; const a = atendAchar(atendState.sel); if (c && a) atendRenderPainel(c.d, a, false); } };
+      tocando.addEventListener('pause', depois, { once: true });
+      tocando.addEventListener('ended', depois, { once: true });
+    }
+    return;
+  }
+  const noFim = chat.scrollHeight - chat.scrollTop - chat.clientHeight < 60;
+  const topoAntes = chat.scrollTop;
+  chat.innerHTML = html; chat.dataset.html = html; delete chat.dataset.pendente;
+  if (rolarFim || noFim) dgRolarFim(chat); else chat.scrollTop = topoAntes;
+}
+// Campo de resposta: so recria quando o "formato" muda (nota/anexo/gravando/
+// fila...). Se nao mudou, deixa o campo como esta (cursor, selecao, Ctrl+Z, foco).
+function atendAcaoAtualizar(a, novo) {
+  const box = document.getElementById('atend-acao');
+  if (!box) return;
+  const html = atendAcaoHtml(a);
+  if (!novo && box.dataset.sig === html) return;
+  const taAntes = document.getElementById('atend-resposta');
+  const tinhaFoco = taAntes && document.activeElement === taAntes;
+  const selIni = taAntes ? taAntes.selectionStart : null, selFim = taAntes ? taAntes.selectionEnd : null;
+  box.innerHTML = html; box.dataset.sig = html;
   const ta = document.getElementById('atend-resposta');
-  if (ta) {
-    ta.value = atendState.rascunhos[a.ticketId] || '';
-    const fa = atendState.focarApos;
-    if (atendState.focoResposta === a.ticketId || (fa && fa.id === a.ticketId && Date.now() < fa.ate)) { ta.focus(); ta.setSelectionRange(ta.value.length, ta.value.length); }
+  if (!ta) { atendQRRender(); return; }
+  ta.value = atendState.rascunhos[a.ticketId] || '';
+  const fa = atendState.focarApos;
+  // so puxa o foco se a pessoa nao estiver digitando em OUTRO campo (busca, Encerrar...)
+  const ativo = document.activeElement;
+  const outroCampo = ativo && ativo !== document.body && ativo !== taAntes && /^(INPUT|TEXTAREA|SELECT)$/.test(ativo.tagName);
+  if (!outroCampo && (tinhaFoco || atendState.focoResposta === a.ticketId || (fa && fa.id === a.ticketId && Date.now() < fa.ate))) {
+    ta.focus();
+    const n = ta.value.length;
+    if (tinhaFoco && selIni != null && selIni <= n) ta.setSelectionRange(selIni, Math.min(selFim, n)); else ta.setSelectionRange(n, n);
   }
   // mensagens rapidas: lista aberta continua aberta depois do redesenho; e ja deixa carregada
   if (atendQR.aberto && atendQR.ticketId !== a.ticketId) atendQR.aberto = false;
@@ -6328,7 +6418,7 @@ function atendAcaoHtml(a) {
       ${podeResponder ? `<button class="chip" onclick="atendNotaAlternar('${id}')" title="Alternar nota interna (só a equipe vê)" style="${btnIco};${nota ? 'background:rgba(240,180,60,.25);border-color:rgba(240,180,60,.6)' : ''}">🔒</button>` : ''}
       ${!nota ? `<label class="chip" title="Anexar arquivo" style="${btnIco};cursor:pointer">📎<input type="file" style="display:none" onchange="atendAnexoArquivo('${id}', this.files[0]); this.value=''"></label>
       <button class="chip" id="atend-gravar-btn" onclick="atendGravarAlternar('${id}')" title="${gravando ? 'Parar gravação' : 'Gravar áudio'}" style="${btnIco};${gravando ? 'background:rgba(224,80,74,.3);border-color:#e0504a' : ''}">${gravando ? '⏹' : '🎤'}</button>` : ''}
-      <textarea id="atend-resposta" rows="2" placeholder="${nota ? 'Nota interna (só a equipe vê)...' : (anexo ? 'Legenda (opcional)...' : 'Escreva a resposta... (Enter envia, Shift+Enter quebra linha, / abre as mensagens rápidas)')}"
+      <textarea id="atend-resposta" data-ticket="${id}" rows="2" placeholder="${nota ? 'Nota interna (só a equipe vê)...' : (anexo ? 'Legenda (opcional)...' : 'Escreva a resposta... (Enter envia, Shift+Enter quebra linha, / abre as mensagens rápidas)')}"
         oninput="atendState.rascunhos['${id}']=this.value;atendQRDigitou(this,'${id}')" onfocus="atendState.focoResposta='${id}'" onblur="atendState.focoResposta=null;setTimeout(atendQRFechar,150)"
         onpaste="atendColar(event,'${id}')"
         onkeydown="if(atendQRTecla(event))return;if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();atendEnviar('${id}')}"
@@ -6341,13 +6431,12 @@ function atendRedesenharAcao(ticketId) {
   const a = atendAchar(ticketId);
   const box = document.getElementById('atend-acao');
   if (!a || !box || atendState.sel !== ticketId) return;
-  box.innerHTML = atendAcaoHtml(a);
-  const ta = document.getElementById('atend-resposta');
-  if (ta) { ta.value = atendState.rascunhos[ticketId] || ''; ta.focus(); ta.setSelectionRange(ta.value.length, ta.value.length); }
+  atendState.focoResposta = ticketId;
+  atendAcaoAtualizar(a, true);
 }
 function atendNotaAlternar(ticketId) {
   atendState.notaModo[ticketId] = !atendState.notaModo[ticketId];
-  if (atendState.notaModo[ticketId]) delete atendState.anexos[ticketId];
+  if (atendState.notaModo[ticketId]) { const an = atendState.anexos[ticketId]; if (an && an.previa) try { URL.revokeObjectURL(an.previa); } catch (e) {} delete atendState.anexos[ticketId]; }
   atendRedesenharAcao(ticketId);
 }
 const ATEND_MAX_ANEXO = 16 * 1024 * 1024;
@@ -6375,7 +6464,16 @@ function atendAnexoRemover(ticketId) {
 function atendColar(ev, ticketId) {
   const a = atendAchar(ticketId) || {};
   if (!(a.naFila || a.meu || atendState.admin)) return; // so nota: sem anexo
+  // Excel/Word copiam texto E imagem juntos: se tem texto, cola o texto (15/10/2026)
+  const txt = ev.clipboardData && ev.clipboardData.getData && ev.clipboardData.getData('text/plain');
+  if (txt && txt.trim()) return;
   const itens = (ev.clipboardData && ev.clipboardData.items) || [];
+  if (atendState.notaModo[ticketId] && [...itens].some(it => it.kind === 'file' && it.type.startsWith('image/'))) {
+    ev.preventDefault();
+    const m = document.getElementById('atend-acao-msg');
+    if (m) { m.style.color = '#e0c27a'; m.textContent = '🔒 Nota interna não leva print. Desligue o 🔒 se quiser mandar o print PARA O CLIENTE.'; }
+    return;
+  }
   for (const it of itens) {
     if (it.kind === 'file' && it.type.startsWith('image/')) {
       const f = it.getAsFile(); if (!f) continue;
@@ -6463,11 +6561,14 @@ async function atendSugerirAssunto(ticketId, forcar) {
   }
 }
 async function atendEncerrar(ticketId) {
+  atendState.ocupado = atendState.ocupado || {};
+  if (atendState.ocupado['enc:' + ticketId]) return;
   const btn = document.getElementById('atend-enc-btn');
   const posto = ((document.getElementById('atend-enc-posto') || {}).value || '').trim();
   const categoria = ((document.getElementById('atend-enc-cat') || {}).value || '').trim();
   if (!categoria && !confirm('Encerrar sem assunto? (não entra no histórico por assunto)')) return;
   if (btn) { btn.disabled = true; btn.textContent = 'Encerrando...'; }
+  atendState.ocupado['enc:' + ticketId] = true;
   try {
     const r = await fetch(`${PROXY}/atend/encerrar`, { method: 'POST', headers: authD1({ 'Content-Type': 'application/json' }), body: JSON.stringify({ ticketId, posto, categoria }) });
     const d = await r.json().catch(() => ({}));
@@ -6482,9 +6583,13 @@ async function atendEncerrar(ticketId) {
     atendRender();
     if (prox && prox !== ticketId) atendSelecionar(prox, false); else atendRenderPainelVazio('Atendimento encerrado ✓');
     setTimeout(() => atendCarregar(false), 1500);
+    atendFinCarregar(); // aba Finalizados ja mostra esse
   } catch (e) {
     alert('Não deu pra encerrar: ' + e.message);
-    if (btn) { btn.disabled = false; btn.textContent = 'Encerrar'; }
+    const b2 = document.getElementById('atend-enc-btn') || btn;
+    if (b2) { b2.disabled = false; b2.textContent = 'Encerrar'; }
+  } finally {
+    delete atendState.ocupado['enc:' + ticketId];
   }
 }
 async function atendTransfAbrir(ticketId) {
@@ -6533,6 +6638,10 @@ async function atendTransferir(ticketId) {
   }
 }
 async function atendPuxar(ticketId) {
+  atendState.ocupado = atendState.ocupado || {};
+  if (atendState.ocupado['pux:' + ticketId]) return;
+  atendState.ocupado['pux:' + ticketId] = true;
+  document.querySelectorAll(`#atend-lista [data-ticket="${CSS.escape(ticketId)}"] .btn-primary`).forEach(b => { b.disabled = true; b.textContent = '...'; });
   const btn = document.getElementById('atend-puxar-btn');
   const cb = document.getElementById('atend-saudacao');
   let saudacao = true; try { saudacao = cb ? cb.checked : (localStorage.getItem('srg_atend_saudacao') ?? '1') === '1'; } catch (e) {}
@@ -6545,84 +6654,110 @@ async function atendPuxar(ticketId) {
     const x = (atendState.dados || []).find(y => y.ticketId === ticketId);
     if (x) { x.naFila = false; x.meu = true; x.atendente = d.atendente || x.atendente; }
     if (atendState.conversas[ticketId]) atendState.conversas[ticketId].marca = '';
-    atendState.sel = ticketId;
-    atendRender();
-    atendSelecionar(ticketId, true);
+    if (!atendTelaEstreita()) { atendState.sel = ticketId; atendRender(); atendSelecionar(ticketId, true); } else atendRender();
     setTimeout(() => atendCarregar(false), 1500);
   } catch (e) {
     alert('Não deu pra puxar: ' + e.message);
     atendCarregar(false);
   } finally {
-    if (btn) { btn.disabled = false; btn.textContent = 'Puxar'; }
+    delete atendState.ocupado['pux:' + ticketId];
+    const b2 = document.getElementById('atend-puxar-btn') || btn;
+    if (b2) { b2.disabled = false; b2.textContent = 'Puxar'; }
   }
 }
-async function atendEnviar(ticketId) {
-  // Enter de novo enquanto a anterior ainda vai: manda essa logo depois (15/10/2026)
-  if (atendState.enviando) { atendState.enviarDepois = ticketId; return; }
+// Envio (15/10/2026, pente fino): o Enter CAPTURA na hora o texto, se e nota
+// e o anexo, limpa o campo e poe numa fila; a fila manda um por vez, na ordem.
+// Assim: (1) pode continuar digitando enquanto vai; (2) trocar de conversa
+// durante o envio nao mistura nada (cada envio sabe o seu atendimento);
+// (3) nota digitada enquanto a anterior salva continua sendo NOTA.
+// Se falhar, o texto volta pro rascunho DAQUELA conversa.
+function atendEnviar(ticketId) {
   const ta = document.getElementById('atend-resposta');
-  const texto = (ta ? ta.value : '').trim();
-  const a0 = (atendState.dados || []).find(y => y.ticketId === ticketId) || {};
+  if (!ta || ta.dataset.ticket !== ticketId) return;
+  const texto = ta.value.trim();
+  const a0 = atendAchar(ticketId) || {};
   const podeResponder = a0.naFila || a0.meu || atendState.admin;
   const nota = !podeResponder || !!atendState.notaModo[ticketId];
   const anexo = nota ? null : atendState.anexos[ticketId];
   if (!texto && !anexo) return;
   if (atendState.gravacao) { alert('Pare a gravação antes de enviar.'); return; }
+  const naFila = !nota && !!a0.naFila && !(atendState.filaEnvio || []).some(j => j.ticketId === ticketId && j.assumir);
+  ta.value = ''; atendState.rascunhos[ticketId] = '';
+  if (anexo) { delete atendState.anexos[ticketId]; atendRedesenharAcao(ticketId); }
+  atendState.filaEnvio = atendState.filaEnvio || [];
+  atendState.filaEnvio.push({ ticketId, texto, nota, anexo, assumir: naFila, contato: a0.contato || 'cliente' });
+  atendEnvioStatus();
+  atendProcessarFila();
+}
+function atendEnvioStatus() {
   const btn = document.getElementById('atend-enviar-btn');
-  const msg = document.getElementById('atend-acao-msg');
-  atendState.enviando = true;
-  if (btn) { btn.disabled = true; btn.textContent = nota ? 'Salvando...' : 'Enviando...'; }
-  // Limpa o campo NA HORA (15/10/2026): antes so limpava quando o Digisac
-  // confirmava (~1-2s); quem continuava digitando ficava com a msg antiga +
-  // a nova no campo (bug relatado pelo Felipe). Se der erro, o texto volta.
-  if (ta) { ta.value = ''; atendState.rascunhos[ticketId] = ''; ta.focus(); }
+  const ta = document.getElementById('atend-resposta');
+  if (!btn || !ta) return;
+  const t = ta.dataset.ticket;
+  const pend = (atendState.filaEnvio || []).filter(j => j.ticketId === t).length + (atendState.enviandoJob && atendState.enviandoJob.ticketId === t ? 1 : 0);
+  const nota = !!atendState.notaModo[t];
+  btn.textContent = pend ? (nota ? 'Salvando...' : (pend > 1 ? `Enviando (${pend})...` : 'Enviando...')) : (nota ? 'Salvar nota' : 'Enviar');
+}
+async function atendProcessarFila() {
+  if (atendState.enviando) return;
+  const job = (atendState.filaEnvio || []).shift();
+  if (!job) return;
+  atendState.enviando = true; atendState.enviandoJob = job;
+  const ger = atendGeracao;
+  atendEnvioStatus();
+  const t = job.ticketId;
   try {
-    const corpo = { ticketId, texto, assumir: !nota && !!a0.naFila, nota };
-    if (anexo) corpo.arquivo = { base64: anexo.base64, mimetype: anexo.mimetype, nome: anexo.nome };
+    const corpo = { ticketId: t, texto: job.texto, assumir: job.assumir, nota: job.nota };
+    if (job.anexo) corpo.arquivo = { base64: job.anexo.base64, mimetype: job.anexo.mimetype, nome: job.anexo.nome };
     const r = await fetch(`${PROXY}/atend/responder`, { method: 'POST', headers: authD1({ 'Content-Type': 'application/json' }), body: JSON.stringify(corpo) });
     const d = await r.json().catch(() => ({}));
+    if (ger !== atendGeracao) return; // saiu do portal no meio
     if (!r.ok || !d.ok) throw new Error(d.error || `Erro ${r.status}`);
-    const taAgora = document.getElementById('atend-resposta');
-    if (taAgora) atendState.rascunhos[ticketId] = taAgora.value; // o que ja digitou da proxima fica
-    // Cursor volta (e fica) no campo pra mandar a proxima mensagem (14/10/2026).
-    atendState.focarApos = { id: ticketId, ate: Date.now() + 8000 };
-    if (taAgora) taAgora.focus();
-    if (nota) atendState.notaModo[ticketId] = false; // depois da nota volta pro modo resposta
-    if (anexo) { if (anexo.previa) try { URL.revokeObjectURL(anexo.previa); } catch (e) {} delete atendState.anexos[ticketId]; }
-    const x = (atendState.dados || []).find(y => y.ticketId === ticketId);
-    if (x && !nota) {
-      x.aguardandoDesde = null; x.naoLidas = 0; x.ultimaMsg = anexo ? `📎 ${anexo.nome}${texto ? ': ' + texto : ''}` : texto; x.ultimaMsgOrigem = 'atendente'; x.ultimaMsgEm = new Date(atendAgora()).toISOString();
+    if (job.anexo && job.anexo.previa) try { URL.revokeObjectURL(job.anexo.previa); } catch (e) {}
+    // depois de salvar nota volta pro modo resposta -- MAS so se nao tiver
+    // outra nota na fila nem texto sendo digitado nessa conversa
+    if (job.nota && !(atendState.filaEnvio || []).some(j => j.ticketId === t && j.nota) && !String(atendState.rascunhos[t] || '').trim()) {
+      atendState.notaModo[t] = false;
+      if (atendState.sel === t) atendRedesenharAcao(t);
+    }
+    const x = (atendState.dados || []).find(y => y.ticketId === t);
+    if (x && !job.nota) {
+      x.aguardandoDesde = null; x.naoLidas = 0; x.perguntarMeta = false;
+      x.ultimaMsg = job.anexo ? `📎 ${job.anexo.nome}${job.texto ? ': ' + job.texto : ''}` : job.texto; x.ultimaMsgOrigem = 'atendente'; x.ultimaMsgEm = new Date(atendAgora()).toISOString();
       if (d.assumiu) { x.naFila = false; x.meu = true; x.atendente = currentUser.nome || String(currentUser.atendenteSRG || '').split(',')[0].trim() || x.atendente; }
     }
-    if (atendState.conversas[ticketId]) atendState.conversas[ticketId].marca = '';
-    atendState.focoResposta = ticketId;
+    if (atendState.conversas[t]) atendState.conversas[t].marca = '';
     atendRender();
-    atendSelecionar(ticketId, true);
+    if (atendState.sel === t) { atendState.focarApos = { id: t, ate: Date.now() + 8000 }; atendSelecionar(t, true); }
   } catch (e) {
-    // devolve o texto que nao foi (na frente do que a pessoa ja tiver digitado depois)
-    atendState.enviarDepois = null;
-    const taErr = document.getElementById('atend-resposta');
-    const resto = taErr ? taErr.value : (atendState.rascunhos[ticketId] || '');
-    const volta = texto + (resto.trim() ? '\n' + resto : '');
-    atendState.rascunhos[ticketId] = volta;
-    if (taErr) { taErr.value = volta; taErr.focus(); }
-    const msgErr = document.getElementById('atend-acao-msg') || msg;
-    if (msgErr) { msgErr.style.color = '#e29a9a'; msgErr.textContent = (nota ? 'Nota não salva: ' : 'Não enviou: ') + e.message + ' (o texto voltou pro campo)'; }
-    else alert('Não enviou: ' + e.message);
-  } finally {
-    atendState.enviando = false;
-    const btnF = document.getElementById('atend-enviar-btn') || btn;
-    if (btnF) { btnF.disabled = false; btnF.textContent = nota ? 'Salvar nota' : 'Enviar'; }
-    if (atendState.enviarDepois) {
-      const prox = atendState.enviarDepois; atendState.enviarDepois = null;
-      setTimeout(() => atendEnviar(prox), 0);
+    // devolve pro rascunho DESSA conversa (+ o que ainda estava na fila dela), na ordem
+    const resto = (atendState.filaEnvio || []).filter(j => j.ticketId === t);
+    atendState.filaEnvio = (atendState.filaEnvio || []).filter(j => j.ticketId !== t);
+    const naTela = atendState.sel === t ? document.getElementById('atend-resposta') : null;
+    const digitando = naTela && naTela.dataset.ticket === t ? naTela.value : (atendState.rascunhos[t] || '');
+    const volta = [job.texto, ...resto.map(j => j.texto), digitando].filter(v => String(v || '').trim()).join('\n');
+    atendState.rascunhos[t] = volta;
+    if (job.anexo && !atendState.anexos[t]) atendState.anexos[t] = job.anexo;
+    if (job.nota) atendState.notaModo[t] = true;
+    const aviso = (job.nota ? 'Nota não salva: ' : 'Não enviou: ') + e.message;
+    if (atendState.sel === t) {
+      atendRedesenharAcao(t);
+      const msgErr = document.getElementById('atend-acao-msg');
+      if (msgErr) { msgErr.style.color = '#e29a9a'; msgErr.textContent = aviso + ' (o texto voltou pro campo)'; }
+    } else {
+      alert(`${aviso}\n\nA mensagem para ${job.contato} voltou pro rascunho dessa conversa.`);
     }
+  } finally {
+    atendState.enviando = false; atendState.enviandoJob = null;
+    atendEnvioStatus();
+    if (ger === atendGeracao) setTimeout(atendProcessarFila, 0);
   }
 }
 // Setas ↑/↓ trocam de conversa (fora de campos de texto e sem modal aberto).
 document.addEventListener('keydown', e => {
-  if (!atendVisivel() || atendTelaEstreita() || document.getElementById('dg-overlay')) return;
+  if (!atendVisivel() || atendTelaEstreita() || document.getElementById('dg-overlay') || document.getElementById('dg-img-overlay') || atendQR.aberto) return;
   if (e.key !== 'ArrowDown' && e.key !== 'ArrowUp') return;
-  const t = e.target; if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable)) return;
+  const t = e.target; if (t && (/^(INPUT|TEXTAREA|SELECT|AUDIO|VIDEO|OPTION)$/.test(t.tagName) || t.isContentEditable)) return;
   const ids = atendState.visiveis || []; if (!ids.length) return;
   e.preventDefault();
   let i = ids.indexOf(atendState.sel);
@@ -6684,7 +6819,9 @@ function atendNotifPrefs() {
   };
 }
 function atendNotifSalvar(chave, valor) {
-  const p = atendNotifPrefs(); p[chave] = valor;
+  // grava SO a chave mexida (antes gravava o objeto calculado e "congelava" os padroes)
+  let p = {}; try { p = JSON.parse(localStorage.getItem('srg_atend_notif') || '{}') || {}; } catch (e) {}
+  p[chave] = valor;
   try { localStorage.setItem('srg_atend_notif', JSON.stringify(p)); } catch (e) {}
   atendNotifRenderConfig();
 }
@@ -6736,17 +6873,19 @@ function atendNotifProcessar(lista) {
   //  - fila / outros atendentes: avisa 1 vez aos 15 min.
   const ESPERA_MS = 15 * 60000;
   atendNotif.metaPerg = atendNotif.metaPerg || {};
+  const perguntouAgora = new Set();
   for (const a of lista) {
     if (!(a.perguntarMeta && a.meu && prefs.espera)) continue;
     const chave = a.ticketId + '|' + a.aguardandoDesde;
     if (atendNotif.metaPerg[chave]) continue;
     atendNotif.metaPerg[chave] = 1;
+    perguntouAgora.add(a.ticketId);
     if (!atendNotif.base) continue;
     avisos.push({ id: a.ticketId, titulo: `${a.contato || 'Cliente'} está há ${atendDurCurta(agora - Date.parse(a.aguardandoDesde))} sem resposta`, corpo: 'Está aguardando a Meta? Abra o atendimento pra marcar.' });
   }
   for (const a of lista) {
     if (!a.aguardandoDesde) continue;
-    if (a.perguntarMeta && a.meu) continue; // a pergunta da Meta ja avisa
+    const pularEsta = perguntouAgora.has(a.ticketId); // a pergunta da Meta ja avisou AGORA
     const ms = agora - Date.parse(a.aguardandoDesde);
     const nivel = Math.floor(ms / ESPERA_MS);
     if (nivel < 1) continue;
@@ -6758,7 +6897,7 @@ function atendNotifProcessar(lista) {
     const repete = a.meu || a.naFila;
     if (!quer || nivel <= jaAvisado || (!repete && jaAvisado >= 1)) continue;
     atendNotif.esperaAvisada[chave] = nivel;
-    if (!atendNotif.base) continue; // na 1a leitura so marca, nao avisa
+    if (!atendNotif.base || pularEsta) continue; // na 1a leitura so marca, nao avisa
     const quem = a.meu ? '' : (a.naFila ? ' (na fila)' : ` (com ${a.atendente || 'outro atendente'})`);
     avisos.push({ id: a.ticketId, titulo: `⏱ ${a.contato || 'Cliente'} esperando há ${atendDurCurta(ms)}${quem}`, corpo: a.ultimaMsg || '' });
   }
@@ -6766,7 +6905,7 @@ function atendNotifProcessar(lista) {
   for (const a of lista) atendNotif.prev[a.ticketId] = { ultimaMsgEm: a.ultimaMsgEm, naoLidas: a.naoLidas, naFila: a.naFila };
   atendNotif.base = true;
   // Titulo da aba: quantos do escopo estao esperando resposta
-  const pend = lista.filter(a => a.aguardandoDesde && noEscopo(a)).length;
+  const pend = lista.filter(a => a.aguardandoDesde && (a.meu || a.naFila)).length;
   document.title = (pend ? `(${pend}) ` : '') + atendNotif.tituloOrig;
   if (avisos.length) atendNotifMostrar(avisos, prefs);
 }
@@ -6889,7 +7028,7 @@ function atendHistRender() {
   const ranking = (titulo, itens, campo) => {
     const max = itens.length ? itens[0][1] : 1;
     return `<div class="glass" style="padding:16px 18px"><div style="font:700 14px Outfit,sans-serif;color:#f2f7ff;margin-bottom:10px">${titulo}</div>
-      ${itens.slice(0, 12).map(([k, n]) => `<div onclick="atendHistFiltrar('${campo}', '${acEsc(k).replace(/'/g, "\\'")}')" style="cursor:pointer;margin:6px 0">
+      ${itens.slice(0, 12).map(([k, n]) => `<div data-campo="${campo}" data-v="${acEsc(k)}" onclick="atendHistFiltrar(this.dataset.campo, this.dataset.v)" style="cursor:pointer;margin:6px 0">
         <div style="display:flex;justify-content:space-between;font:600 12.5px Manrope;color:#dbe6fb"><span>${acEsc(k)}</span><span>${n}</span></div>
         <div style="height:6px;border-radius:4px;background:rgba(255,255,255,.06);margin-top:3px"><div style="height:6px;border-radius:4px;width:${Math.max(4, n / max * 100)}%;background:linear-gradient(90deg,#2f5fb0,#3fa08c)"></div></div>
       </div>`).join('') || '<div style="font:500 12.5px Manrope;color:#7186ab">Sem dados no período.</div>'}</div>`;
@@ -7011,7 +7150,8 @@ async function atendFinCarregar() {
     const d = await r.json().catch(() => ({}));
     if (!r.ok || !d.ok) throw new Error(d.error || `Erro ${r.status}`);
     atendState.finalizados = d.finalizados || [];
-  } catch (e) { atendState.erro = 'Finalizados: ' + e.message; }
+    atendState.finErro = '';
+  } catch (e) { atendState.finErro = e.message; }
   atendState.finCarregando = false;
   atendRender();
 }
@@ -7316,7 +7456,7 @@ function atendAbasAtendentes(todos, aba, agora) {
       const corEspera = atrasado ? '#e0504a' : (esperando ? '#f2b84b' : '');
       const pres = atendPresDe(nome);
       // Bolinha = presenca no portal (verde/amarelo/cinza). Relogio = cliente esperando (vermelho 5+ min).
-      return `<button class="chip ${aba === id ? 'active' : ''}" onclick="atendSetAba('${acEsc(id).replace(/'/g, "\\'")}')" title="${acEsc(atendPresTexto(pres))} · ${deles.length} aberto(s)${esperando ? ' · tem cliente esperando' : ''}">${atendPresPonto(pres, 9)}${acEsc(nome.split(' ')[0])} <span style="opacity:.75">(${deles.length})</span>${corEspera ? ` <span style="margin-left:4px">${atendIcoRelogio(corEspera, 12)}</span>` : ''}</button>`;
+      return `<button class="chip ${aba === id ? 'active' : ''}" data-aba="${acEsc(id)}" onclick="atendSetAba(this.dataset.aba)" title="${acEsc(atendPresTexto(pres))} · ${deles.length} aberto(s)${esperando ? ' · tem cliente esperando' : ''}">${atendPresPonto(pres, 9)}${acEsc(nome.split(' ')[0])} <span style="opacity:.75">(${deles.length})</span>${corEspera ? ` <span style="margin-left:4px">${atendIcoRelogio(corEspera, 12)}</span>` : ''}</button>`;
     }).join('') + '</div>';
 }
 async function atendCarregarOpcoesAdmin() {
