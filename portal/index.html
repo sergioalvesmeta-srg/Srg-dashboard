@@ -72,6 +72,7 @@ button{font-family:inherit}
 
 header.navbar{position:sticky;top:0;z-index:20;display:flex;align-items:center;justify-content:space-between;gap:16px;padding:13px 30px;background:rgba(10,16,36,.6);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);border-bottom:1px solid rgba(255,255,255,.08)}
 main.shell{flex:1;width:100%;max-width:1600px;margin:0 auto;padding:38px 30px 60px}
+main.shell.shell-full{max-width:none;padding-left:24px;padding-right:24px} /* Atendimentos usa a largura toda da tela (14/10/2026) */
 footer.foot{border-top:1px solid rgba(255,255,255,.07);background:rgba(10,16,36,.4);backdrop-filter:blur(14px)}
 
 /* IA reformulando: spinner no botão + campos pulsando/travados */
@@ -937,7 +938,7 @@ footer.foot{border-top:1px solid rgba(255,255,255,.07);background:rgba(10,16,36,
       <div id="atend-notif-aviso"></div>
       <div id="atend-stats" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:12px;margin-bottom:16px"></div>
       <div style="display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap" id="atend-abas"></div>
-      <div id="atend-split" style="display:grid;grid-template-columns:minmax(320px,410px) minmax(0,1fr);gap:16px;align-items:start">
+      <div id="atend-split" style="display:grid;grid-template-columns:minmax(330px,clamp(380px,24vw,520px)) minmax(0,1fr);gap:16px;align-items:start">
         <div id="atend-lista" style="display:flex;flex-direction:column;gap:8px;max-height:calc(100vh - 140px);overflow-y:auto;padding:2px 6px 2px 2px"></div>
         <div id="atend-painel" class="glass" style="position:sticky;top:84px;height:calc(100vh - 140px);min-height:420px;display:flex;flex-direction:column;padding:16px 18px;min-width:0"></div>
       </div>
@@ -1359,6 +1360,7 @@ function showView(name) {
   document.getElementById('view-kpis').style.display = name==='kpis' ? 'block' : 'none';
   document.getElementById('view-acesso-clientes').style.display = name==='acesso-clientes' ? 'block' : 'none';
   document.getElementById('view-atendimentos').style.display = name==='atendimentos' ? 'block' : 'none';
+  { const sh = document.querySelector('main.shell'); if (sh) sh.classList.toggle('shell-full', name === 'atendimentos'); }
   if (name !== 'kpis') kpisPararAutoRefresh();
 }
 
@@ -6008,7 +6010,8 @@ function atendRender() {
   const aguardando = todos.filter(a => a.aguardandoDesde);
   {
     const badge0 = document.getElementById('nav-atend-badge');
-    const atr0 = aguardando.filter(a => esperaMs(a) >= 300000).length;
+    // Badge do menu: so o que e da pessoa (meus) + fila, esperando 5+ min.
+    const atr0 = aguardando.filter(a => (a.meu || a.naFila) && esperaMs(a) >= 300000).length;
     if (badge0) { badge0.style.display = atr0 ? 'inline-block' : 'none'; badge0.textContent = atr0; }
   }
   if (!atendVisivel()) return;
@@ -6017,18 +6020,25 @@ function atendRender() {
 
   // Badge no menu: quantos estao esperando resposta ha 5+ min.
   const badge = document.getElementById('nav-atend-badge');
-  const atrasados = aguardando.filter(a => esperaMs(a) >= 300000).length;
+  const atrasados = aguardando.filter(a => (a.meu || a.naFila) && esperaMs(a) >= 300000).length;
   if (badge) { badge.style.display = atrasados ? 'inline-block' : 'none'; badge.textContent = atrasados; }
 
   document.getElementById('atend-sub').innerHTML = atendState.erro
     ? `<span style="color:#e29a9a">Erro: ${acEsc(atendState.erro)}</span>`
     : `${todos.length} atendimento(s) aberto(s) · atualiza sozinho a cada 8s · setas ↑/↓ trocam de conversa`;
   const card = (rot, val, cor) => `<div class="glass" style="padding:12px 16px"><div style="font:600 10.5px Manrope;letter-spacing:.08em;text-transform:uppercase;color:#7186ab;margin-bottom:4px">${rot}</div><div style="font:700 22px Outfit,sans-serif;color:${cor}">${val}</div></div>`;
+  // Cards seguem a aba (14/10/2026): em "Meus" contam so os seus (o que o
+  // Maycon esta atendendo nao aparece como pendencia sua); "Todos" = equipe.
+  const abaCards = atendState.aba || 'todos';
+  const escopo = abaCards === 'meus' ? todos.filter(a => a.meu) : (abaCards === 'fila' ? todos.filter(a => a.naFila) : todos);
+  const sufixo = abaCards === 'meus' ? ' · meus' : (abaCards === 'fila' ? ' · fila' : ' · equipe');
+  const aguardEsc = escopo.filter(a => a.aguardandoDesde);
+  const maiorEsc = aguardEsc.reduce((mx, a) => Math.max(mx, esperaMs(a) || 0), 0);
   document.getElementById('atend-stats').innerHTML =
-    card('Aguardando resposta', aguardando.length, aguardando.length ? '#f2b84b' : '#4fbf8f') +
-    card('Maior espera', aguardando.length ? atendDurCurta(maiorEspera) : '—', maiorEspera >= 300000 ? '#e0504a' : '#eaf1ff') +
+    card('Aguardando resposta' + sufixo, aguardEsc.length, aguardEsc.length ? '#f2b84b' : '#4fbf8f') +
+    card('Maior espera' + sufixo, aguardEsc.length ? atendDurCurta(maiorEsc) : '—', maiorEsc >= 300000 ? '#e0504a' : '#eaf1ff') +
     card('Na fila (sem atendente)', nFila, nFila ? '#f2b84b' : '#eaf1ff') +
-    card('Em atendimento', todos.length - nFila, '#5aa0e6');
+    card(abaCards === 'meus' ? 'Comigo agora' : 'Em atendimento' + (abaCards === 'fila' ? ' · equipe' : ''), abaCards === 'meus' ? escopo.length : todos.length - nFila, '#5aa0e6');
 
   const aba = atendState.aba || 'todos';
   const abaBtn = (id, rot, n) => `<button class="chip ${aba === id ? 'active' : ''}" onclick="atendSetAba('${id}')">${rot} <span style="opacity:.75">(${n})</span></button>`;
@@ -6547,7 +6557,7 @@ function dgMidiaHtml(msg) {
   const mime = String(m.mime || '');
   const baixar = `<a href="${u}" target="_blank" rel="noopener" style="font:600 11.5px Manrope;color:#8fd0f5">baixar ${nome}</a>`;
   if (msg.tipo === 'image' || msg.tipo === 'sticker' || mime.startsWith('image/')) {
-    return `<a href="${u}" target="_blank" rel="noopener" title="Abrir em tamanho real"><img src="${u}" alt="${nome}" loading="lazy" style="display:block;max-width:280px;max-height:260px;border-radius:10px;margin:4px 0 6px;border:1px solid rgba(255,255,255,.12)" onerror="this.outerHTML='<span style=&quot;font:500 11.5px Manrope;color:#e0a888&quot;>Imagem expirou ou não carregou — reabra a conversa</span>'"></a>`;
+    return `<a href="${u}" onclick="event.preventDefault();event.stopPropagation();dgVerImagem(this.href)" title="Clique pra ampliar"><img src="${u}" alt="${nome}" loading="lazy" style="display:block;max-width:280px;max-height:260px;border-radius:10px;margin:4px 0 6px;border:1px solid rgba(255,255,255,.12)" onerror="this.outerHTML='<span style=&quot;font:500 11.5px Manrope;color:#e0a888&quot;>Imagem expirou ou não carregou — reabra a conversa</span>'"></a>`;
   }
   if (msg.tipo === 'ptt' || msg.tipo === 'audio' || mime.startsWith('audio/')) {
     return `<audio controls preload="none" src="${u}" style="display:block;width:260px;max-width:100%;margin:4px 0 4px"></audio><div style="margin-bottom:4px">${baixar}</div>`;
@@ -6902,6 +6912,27 @@ async function atendFinCarregar() {
   atendState.finCarregando = false;
   atendRender();
 }
+
+// Visualizador de imagem dentro do portal (14/10/2026): o link do Digisac
+// vem como download (content-disposition), entao abrir em aba nova baixava o
+// arquivo. Aqui a imagem abre por cima da tela; Esc ou clique fora fecha.
+function dgVerImagem(url) {
+  if (!/^https:\/\//.test(String(url || ''))) return;
+  let ov = document.getElementById('dg-img-overlay');
+  if (ov) ov.remove();
+  ov = document.createElement('div');
+  ov.id = 'dg-img-overlay';
+  ov.style.cssText = 'position:fixed;inset:0;z-index:10000;background:rgba(4,8,18,.92);display:flex;flex-direction:column;align-items:center;justify-content:center;padding:24px;cursor:zoom-out';
+  const u = String(url).replace(/"/g, '&quot;');
+  ov.innerHTML = `<img src="${u}" style="max-width:96vw;max-height:86vh;border-radius:10px;box-shadow:0 10px 40px rgba(0,0,0,.6);background:#fff;cursor:default" onclick="event.stopPropagation()">
+    <div style="margin-top:12px;display:flex;gap:10px" onclick="event.stopPropagation()">
+      <a href="${u}" download class="chip" style="height:34px;padding:0 14px;display:inline-flex;align-items:center;text-decoration:none">Baixar</a>
+      <button class="chip" style="height:34px;padding:0 14px" onclick="document.getElementById('dg-img-overlay').remove()">Fechar (Esc)</button>
+    </div>`;
+  ov.addEventListener('click', () => ov.remove());
+  document.body.appendChild(ov);
+}
+document.addEventListener('keydown', e => { if (e.key === 'Escape') { const o = document.getElementById('dg-img-overlay'); if (o) { o.remove(); e.stopImmediatePropagation(); } } }, true);
 </script>
 </body>
 </html>
