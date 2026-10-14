@@ -1400,6 +1400,7 @@ async function doLogin() {
 }
 async function doLogout() {
   try { atendNotifParar(); } catch (e) {}
+  try { if (currentUser && currentUser.token && atendNotifPode()) await fetch(`${PROXY}/atend/presenca/sair`, { method: 'POST', headers: authD1() }); } catch (e) {}
   if (currentUser && currentUser.token) await apiLogout(currentUser.token);
   currentUser = null;
   sessionStorage.removeItem('srg_user');
@@ -5945,10 +5946,12 @@ async function atendCarregar(primeira) {
   if (atendState.carregando) return;
   atendState.carregando = true;
   try {
-    const r = await fetch(`${PROXY}/atend/lista`, { headers: authD1() });
+    const inativoSeg = Math.floor((Date.now() - atendPres.ultima) / 1000);
+    const r = await fetch(`${PROXY}/atend/lista?inativo=${inativoSeg}&visivel=${document.hidden ? 0 : 1}`, { headers: authD1() });
     const d = await r.json().catch(() => ({}));
     if (!r.ok || !d.ok) throw new Error(d.error || `Erro ${r.status}`);
     atendState.dados = d.atendimentos || [];
+    atendState.presenca = d.presenca || [];
     atendState.temAliases = !!d.temAliases;
     try { atendNotifProcessar(atendState.dados); } catch (e) { console.warn('[notif]', e); }
     atendState.admin = !!d.admin;
@@ -6057,7 +6060,7 @@ function atendRender() {
   document.getElementById('atend-abas').innerHTML = abaBtn('meus', 'Meus atendimentos', nMeus) + abaBtn('fila', 'Fila', nFila) + abaBtn('todos', 'Todos', todos.length)
     + abaBtn('finalizados', 'Finalizados', (atendState.finalizados || []).length)
     + ((currentUser && currentUser.role === 'admin') ? `<button class="chip ${aba === 'historico' ? 'active' : ''}" onclick="atendSetAba('historico')" style="margin-left:6px">📊 Histórico por assunto</button>` : '')
-    + atendAbasAtendentes(todos, aba, agora)
+    + atendAbasAtendentes(todos, aba, agora) + atendEquipeHtml()
     + (!atendState.temAliases && aba === 'meus' ? `<span style="font:500 12px Manrope;color:#e0a888;align-self:center">Seu usuário não tem "Atendente SRG" preenchido — peça ao admin pra cadastrar o seu nome igual ao do Digisac.</span>` : '');
 
   const split = document.getElementById('atend-split'), hist = document.getElementById('atend-hist');
@@ -6454,7 +6457,7 @@ async function atendTransfAbrir(ticketId) {
   const sel = 'height:34px;padding:0 8px;border-radius:9px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.18);color:#eaf1ff;font:500 12.5px Manrope';
   box.innerHTML = `<div style="margin-top:10px;padding:10px 12px;border-radius:12px;background:rgba(90,160,230,.08);border:1px solid rgba(90,160,230,.3);display:flex;gap:8px;flex-wrap:wrap;align-items:center">
     <span style="font:700 12px Manrope;color:#cfe0f5">Transferir para</span>
-    <select id="atend-transf-user" style="${sel};min-width:220px"><option value="">Escolha o atendente...</option>${o.usuarios.filter(u => u.nome !== a.atendente).map(u => `<option value="${acEsc(u.id)}">${acEsc(u.nome)}</option>`).join('')}</select>
+    <select id="atend-transf-user" style="${sel};min-width:220px"><option value="">Escolha o atendente...</option>${o.usuarios.filter(u => u.nome !== a.atendente).map(u => ({ u, p: atendPresDe(u.nome) })).sort((x, y) => ({ online: 0, ausente: 1 }[x.p && x.p.status] ?? 2) - ({ online: 0, ausente: 1 }[y.p && y.p.status] ?? 2) || x.u.nome.localeCompare(y.u.nome, 'pt-BR')).map(({ u, p }) => `<option value="${acEsc(u.id)}">${atendPresEmoji(p)} ${acEsc(u.nome)}${p && p.status === 'online' ? '' : (p && p.status === 'ausente' ? ' (ausente)' : ' (offline)')}</option>`).join('')}</select>
     <button class="btn-primary" id="atend-transf-btn" onclick="atendTransferir('${acEsc(ticketId)}')" style="height:34px;padding:0 14px;font-size:12.5px">Transferir</button>
     <button class="chip" onclick="atendTransfAbrir('${acEsc(ticketId)}')" style="height:34px;padding:0 10px;font-size:12px">Cancelar</button>
   </div>`;
@@ -6972,6 +6975,57 @@ function atendAjustarAltura() {
 }
 window.addEventListener('resize', () => { try { atendAjustarAltura(); } catch (e) {} });
 
+// ---- Presenca dos atendentes no portal (14/10/2026) ----
+// Batimento vai junto com o /atend/lista (ja roda a cada 8s/15s). "Atividade"
+// = mexeu mouse/teclado/rolou/clicou no portal. Verde = ativo nos ultimos
+// 5 min; amarelo = portal aberto mas parado 5+ min (ou so em segundo plano);
+// cinza = fechou o portal, deslogou ou o PC dormiu (3+ min sem sinal).
+var atendPres = { ultima: Date.now(), t: 0 };
+(function () {
+  const marca = () => { const n = Date.now(); if (n - atendPres.t > 5000) { atendPres.t = n; atendPres.ultima = n; } };
+  ['mousemove', 'keydown', 'mousedown', 'wheel', 'touchstart', 'scroll'].forEach(ev => window.addEventListener(ev, marca, { passive: true, capture: true }));
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) { atendPres.ultima = Date.now(); } });
+  // Fechou a aba / o navegador: avisa na hora (keepalive deixa terminar o envio)
+  window.addEventListener('pagehide', () => {
+    try { if (currentUser && currentUser.token && atendNotifPode()) fetch(`${PROXY}/atend/presenca/sair`, { method: 'POST', headers: authD1(), keepalive: true }); } catch (e) {}
+  });
+})();
+const ATEND_PRES_COR = { online: '#4fbf8f', ausente: '#f2b84b', offline: '#5d6b85' };
+function atendNormNome(x) { return String(x || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim().toLowerCase(); }
+function atendPresDe(nomeDigisac) {
+  const lista = atendState.presenca || [];
+  const n = atendNormNome(nomeDigisac);
+  if (!n) return null;
+  return lista.find(p => atendNormNome(p.digisacNome) === n)
+    || lista.find(p => !p.digisacNome && atendNormNome(p.nome).split(' ')[0] === n.split(' ')[0]) || null;
+}
+function atendPresTexto(p) {
+  if (!p) return 'nunca entrou no portal (ou sem "Atendente SRG" no cadastro)';
+  const agora = atendAgora();
+  const hora = iso => { try { return new Date(iso).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }); } catch (e) { return ''; } };
+  if (p.status === 'online' && p.peloDigisac) return `Online · respondendo pelo Digisac (última resposta há ${atendDurCurta(agora - Date.parse(p.digisacEm))})`;
+  if (p.status === 'online') return 'Online no portal' + (p.segundoPlano ? ' (aba em segundo plano)' : '');
+  if (p.status === 'ausente') return `Ausente: portal aberto, sem mexer há ${atendDurCurta(agora - Date.parse(p.ativoEm))}` + (p.segundoPlano ? ' (aba em segundo plano)' : '');
+  return `Offline · visto por último ${hora(p.vistoEm)}`;
+}
+function atendPresPonto(p, tam) {
+  const cor = ATEND_PRES_COR[(p && p.status) || 'offline'];
+  const brilho = p && p.status === 'online' ? `;box-shadow:0 0 0 3px ${cor}33` : '';
+  return `<span title="${acEsc(atendPresTexto(p))}" style="display:inline-block;width:${tam || 9}px;height:${tam || 9}px;border-radius:50%;background:${cor}${brilho};margin-right:6px;vertical-align:middle;flex:none"></span>`;
+}
+function atendPresEmoji(p) { return p && p.status === 'online' ? '🟢' : (p && p.status === 'ausente' ? '🟡' : '⚪'); }
+// Faixa "Equipe" pra quem NAO e admin (admin ve os pontos nos botoes por atendente)
+function atendEquipeHtml() {
+  if (currentUser && currentUser.role === 'admin') return '';
+  const lista = (atendState.presenca || []).filter(p => p.digisacNome && p.username !== (currentUser && currentUser.username));
+  if (!lista.length) return '';
+  const ord = { online: 0, ausente: 1, offline: 2 };
+  lista.sort((a, b) => (ord[a.status] - ord[b.status]) || a.nome.localeCompare(b.nome, 'pt-BR'));
+  return `<span style="width:1px;height:26px;background:rgba(255,255,255,.14);margin:0 6px;align-self:center"></span>
+    <span style="font:600 11px Manrope;color:#7186ab;align-self:center;text-transform:uppercase;letter-spacing:.06em">Equipe</span>` +
+    lista.map(p => `<span title="${acEsc(atendPresTexto(p))}" style="display:inline-flex;align-items:center;font:600 12px Manrope;color:${p.status === 'offline' ? '#7186ab' : '#cfe0f5'};align-self:center;margin-right:4px">${atendPresPonto(p, 8)}${acEsc(p.digisacNome.split(' ')[0])}</span>`).join('');
+}
+
 // Monitoramento por atendente (14/10/2026, so admin): um botao por atendente
 // ativo com quantos atendimentos abertos ele tem; ponto vermelho = algum
 // cliente dele esperando resposta ha 5+ min. Clicar filtra a lista e os cards.
@@ -6988,8 +7042,10 @@ function atendAbasAtendentes(todos, aba, agora) {
       const atrasado = deles.some(a => a.aguardandoDesde && (agora - Date.parse(a.aguardandoDesde)) >= 300000);
       const esperando = deles.some(a => a.aguardandoDesde);
       const id = 'u:' + nome;
-      const ponto = atrasado ? '#e0504a' : (esperando ? '#f2b84b' : '');
-      return `<button class="chip ${aba === id ? 'active' : ''}" onclick="atendSetAba('${acEsc(id).replace(/'/g, "\\'")}')" title="${deles.length} aberto(s)${esperando ? ' · tem cliente esperando' : ''}">${ponto ? `<span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${ponto};margin-right:6px"></span>` : ''}${acEsc(nome.split(' ')[0])} <span style="opacity:.75">(${deles.length})</span></button>`;
+      const corEspera = atrasado ? '#e0504a' : (esperando ? '#f2b84b' : '');
+      const pres = atendPresDe(nome);
+      // Bolinha = presenca no portal (verde/amarelo/cinza). Relogio = cliente esperando (vermelho 5+ min).
+      return `<button class="chip ${aba === id ? 'active' : ''}" onclick="atendSetAba('${acEsc(id).replace(/'/g, "\\'")}')" title="${acEsc(atendPresTexto(pres))} · ${deles.length} aberto(s)${esperando ? ' · tem cliente esperando' : ''}">${atendPresPonto(pres, 9)}${acEsc(nome.split(' ')[0])} <span style="opacity:.75">(${deles.length})</span>${corEspera ? ` <span style="color:${corEspera};font-size:11px">⏱</span>` : ''}</button>`;
     }).join('');
 }
 async function atendCarregarOpcoesAdmin() {
