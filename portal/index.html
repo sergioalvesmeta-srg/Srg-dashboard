@@ -6193,7 +6193,8 @@ function atendBotoesTopo(a) {
       <button class="btn-primary" id="atend-puxar-btn" onclick="atendPuxar('${acEsc(a.ticketId)}')" style="height:30px;padding:0 14px;font-size:12px">Puxar</button>`;
   }
   if (a.meu || atendState.admin || (currentUser && currentUser.gestor)) {
-    return `<button class="chip" onclick="atendTransfAbrir('${acEsc(a.ticketId)}')" style="height:30px;padding:0 10px;font-size:12px">⇄ Transferir</button>`;
+    return `<button class="chip" onclick="atendTransfAbrir('${acEsc(a.ticketId)}')" style="height:30px;padding:0 10px;font-size:12px">⇄ Transferir</button>
+      <button class="chip" onclick="atendEncerrarAbrir('${acEsc(a.ticketId)}')" style="height:30px;padding:0 10px;font-size:12px;border-color:rgba(79,191,143,.5);color:#8fe3c0">✓ Encerrar</button>`;
   }
   return '';
 }
@@ -6312,11 +6313,49 @@ async function atendGravarAlternar(ticketId) {
   setTimeout(() => { if (atendState.gravacao && atendState.gravacao.rec === rec) try { rec.stop(); } catch (e) {} }, 5 * 60000); // teto 5 min
   atendRedesenharAcao(ticketId);
 }
+// Encerrar (14/10/2026): caixa inline com comentario opcional + confirmacao.
+function atendEncerrarAbrir(ticketId) {
+  const box = document.getElementById('atend-transf');
+  if (!box) return;
+  if (box.dataset.aberto === 'enc-' + ticketId) { box.innerHTML = ''; box.dataset.aberto = ''; return; }
+  box.dataset.aberto = 'enc-' + ticketId;
+  const campo = 'height:34px;padding:0 10px;border-radius:9px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.18);color:#eaf1ff;font:500 12.5px Manrope';
+  box.innerHTML = `<div style="margin-top:10px;padding:10px 12px;border-radius:12px;background:rgba(79,191,143,.08);border:1px solid rgba(79,191,143,.35);display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+    <span style="font:700 12px Manrope;color:#bdeedd">Encerrar atendimento</span>
+    <input id="atend-enc-com" placeholder="Comentário de encerramento (opcional)" style="${campo};flex:1;min-width:200px" onkeydown="if(event.key==='Enter')atendEncerrar('${acEsc(ticketId)}')">
+    <button class="btn-primary" id="atend-enc-btn" onclick="atendEncerrar('${acEsc(ticketId)}')" style="height:34px;padding:0 14px;font-size:12.5px">Encerrar</button>
+    <button class="chip" onclick="atendEncerrarAbrir('${acEsc(ticketId)}')" style="height:34px;padding:0 10px;font-size:12px">Cancelar</button>
+  </div>`;
+  const inp = document.getElementById('atend-enc-com'); if (inp) inp.focus();
+}
+async function atendEncerrar(ticketId) {
+  const btn = document.getElementById('atend-enc-btn');
+  const com = (document.getElementById('atend-enc-com') || {}).value || '';
+  if (btn) { btn.disabled = true; btn.textContent = 'Encerrando...'; }
+  try {
+    const r = await fetch(`${PROXY}/atend/encerrar`, { method: 'POST', headers: authD1({ 'Content-Type': 'application/json' }), body: JSON.stringify({ ticketId, comentario: com }) });
+    const d = await r.json().catch(() => ({}));
+    if (!r.ok || !d.ok) throw new Error(d.error || `Erro ${r.status}`);
+    // Sai da lista; seleciona o proximo da lista visivel (troca rapida).
+    const ids = atendState.visiveis || [];
+    const i = ids.indexOf(ticketId);
+    const prox = ids[i + 1] || ids[i - 1] || null;
+    atendState.dados = (atendState.dados || []).filter(x => x.ticketId !== ticketId);
+    delete atendState.conversas[ticketId];
+    atendState.sel = null;
+    atendRender();
+    if (prox && prox !== ticketId) atendSelecionar(prox, false); else atendRenderPainelVazio('Atendimento encerrado ✓');
+    setTimeout(() => atendCarregar(false), 1500);
+  } catch (e) {
+    alert('Não deu pra encerrar: ' + e.message);
+    if (btn) { btn.disabled = false; btn.textContent = 'Encerrar'; }
+  }
+}
 async function atendTransfAbrir(ticketId) {
   const box = document.getElementById('atend-transf');
   if (!box) return;
-  if (box.dataset.aberto === ticketId) { box.innerHTML = ''; box.dataset.aberto = ''; return; }
-  box.dataset.aberto = ticketId;
+  if (box.dataset.aberto === 'tr-' + ticketId) { box.innerHTML = ''; box.dataset.aberto = ''; return; }
+  box.dataset.aberto = 'tr-' + ticketId;
   box.innerHTML = `<div style="margin-top:10px;font:500 12px Manrope;color:#93a6c4">Carregando atendentes e departamentos...</div>`;
   try {
     if (!atendState.opcoes) {
