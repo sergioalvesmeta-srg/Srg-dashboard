@@ -5556,6 +5556,7 @@ async function dgAbrirProtocolo(proto) {
     }
     dgDadosAtual = d;
     dgRenderizar(d);
+    dgRolarFim(document.getElementById('dg-chat'));
   } catch (e) {
     ov.innerHTML = `<div class="glass" style="max-width:560px;margin:0 auto;padding:32px;text-align:center;color:#fc8181;font:600 14px Manrope">Erro ao consultar o Digisac: ${dgEsc(e.message)}<div style="margin-top:16px"><button class="btn-ghost" onclick="dgFechar()">Fechar</button></div></div>`;
   }
@@ -5630,7 +5631,7 @@ function dgRenderizar(d) {
       <div style="font:700 14px Outfit,sans-serif;color:#f2f7ff">Conversa <span style="font:500 12px Manrope;color:#7186ab">(${(d.mensagens||[]).length} itens)</span></div>
       <div style="display:flex;gap:8px"><button class="btn-ghost" id="dg-copiar-btn" style="height:32px;padding:0 12px;font-size:12.5px" onclick="dgCopiarConversa()">Copiar conversa</button><button class="btn-ghost" style="height:32px;padding:0 12px;font-size:12.5px" onclick="dgExportarPdf()">Exportar PDF</button></div>
     </div>
-    <div style="max-height:52vh;overflow-y:auto;padding:6px 10px 10px;border-radius:14px;background:rgba(0,0,0,.18);border:1px solid rgba(255,255,255,.08)">${linhas || '<div style="padding:24px;text-align:center;color:#7186ab;font:500 13px Manrope">Sem mensagens.</div>'}</div>
+    <div id="dg-chat" style="max-height:52vh;overflow-y:auto;padding:6px 10px 10px;border-radius:14px;background:rgba(0,0,0,.18);border:1px solid rgba(255,255,255,.08)">${linhas || '<div style="padding:24px;text-align:center;color:#7186ab;font:500 13px Manrope">Sem mensagens.</div>'}</div>
     ${d.truncado ? '<div style="margin-top:8px;font:500 12px Manrope;color:#f3e2b8">Conversa muito longa: mostrando só as primeiras 600 mensagens.</div>' : ''}
   </div>`;
 }
@@ -6198,11 +6199,12 @@ function atendRenderPainel(d, a, rolarFim) {
     <div id="atend-chat" style="flex:1;min-height:0;overflow-y:auto;margin-top:12px;padding:6px 10px 10px;border-radius:12px;background:rgba(0,0,0,.18);border:1px solid rgba(255,255,255,.08)">${dgLinhasHtml(d) || '<div style="padding:24px;text-align:center;color:#7186ab;font:500 13px Manrope">Sem mensagens.</div>'}</div>
     <div id="atend-acao" style="margin-top:10px">${atendAcaoHtml(a)}</div>`;
   const chat = document.getElementById('atend-chat');
-  if (chat && (rolarFim || estavaNoFim)) chat.scrollTop = chat.scrollHeight;
+  if (chat && (rolarFim || estavaNoFim)) dgRolarFim(chat);
   const ta = document.getElementById('atend-resposta');
   if (ta) {
     ta.value = atendState.rascunhos[a.ticketId] || '';
-    if (atendState.focoResposta === a.ticketId) { ta.focus(); ta.setSelectionRange(ta.value.length, ta.value.length); }
+    const fa = atendState.focarApos;
+    if (atendState.focoResposta === a.ticketId || (fa && fa.id === a.ticketId && Date.now() < fa.ate)) { ta.focus(); ta.setSelectionRange(ta.value.length, ta.value.length); }
   }
 }
 // Resumo por IA (fica guardado junto da conversa em cache; "Abrir chamado"
@@ -6289,7 +6291,7 @@ function atendRedesenharAcao(ticketId) {
   if (!a || !box || atendState.sel !== ticketId) return;
   box.innerHTML = atendAcaoHtml(a);
   const ta = document.getElementById('atend-resposta');
-  if (ta) { ta.value = atendState.rascunhos[ticketId] || ''; ta.focus(); }
+  if (ta) { ta.value = atendState.rascunhos[ticketId] || ''; ta.focus(); ta.setSelectionRange(ta.value.length, ta.value.length); }
 }
 function atendNotaAlternar(ticketId) {
   atendState.notaModo[ticketId] = !atendState.notaModo[ticketId];
@@ -6522,8 +6524,12 @@ async function atendEnviar(ticketId) {
     const r = await fetch(`${PROXY}/atend/responder`, { method: 'POST', headers: authD1({ 'Content-Type': 'application/json' }), body: JSON.stringify(corpo) });
     const d = await r.json().catch(() => ({}));
     if (!r.ok || !d.ok) throw new Error(d.error || `Erro ${r.status}`);
-    atendState.rascunhos[ticketId] = '';
-    if (ta) ta.value = '';
+    // So limpa se a pessoa nao comecou a digitar a proxima enquanto enviava.
+    const taAgora = document.getElementById('atend-resposta');
+    if (!taAgora || taAgora.value.trim() === texto) { atendState.rascunhos[ticketId] = ''; if (taAgora) taAgora.value = ''; }
+    // Cursor volta (e fica) no campo pra mandar a proxima mensagem (14/10/2026).
+    atendState.focarApos = { id: ticketId, ate: Date.now() + 8000 };
+    if (taAgora) taAgora.focus();
     if (nota) atendState.notaModo[ticketId] = false; // depois da nota volta pro modo resposta
     if (anexo) { if (anexo.previa) try { URL.revokeObjectURL(anexo.previa); } catch (e) {} delete atendState.anexos[ticketId]; }
     const x = (atendState.dados || []).find(y => y.ticketId === ticketId);
@@ -6993,6 +6999,27 @@ async function atendCarregarOpcoesAdmin() {
     const d = await r.json().catch(() => ({}));
     if (r.ok && d.ok) { atendState.opcoes = d; atendRender(); }
   } catch (e) {}
+}
+
+// Sempre abre a conversa na ULTIMA mensagem (14/10/2026). Imagem/audio/video
+// carregam depois e aumentam a altura -- enquanto a pessoa nao rolar pra
+// cima, reposiciona no fim a cada midia que termina de carregar.
+function dgRolarFim(el) {
+  if (!el) return;
+  const fim = () => { el.scrollTop = el.scrollHeight; };
+  fim();
+  requestAnimationFrame(fim);
+  el._grudadoNoFim = true;
+  if (!el._ouvindoRolagem) {
+    el._ouvindoRolagem = true;
+    el.addEventListener('scroll', () => { el._grudadoNoFim = (el.scrollHeight - el.scrollTop - el.clientHeight) < 80; }, { passive: true });
+  }
+  el.querySelectorAll('img, video, audio').forEach(m => {
+    if (m._ouvindoFim) return;
+    m._ouvindoFim = true;
+    const ev = m.tagName === 'IMG' ? 'load' : 'loadedmetadata';
+    m.addEventListener(ev, () => { if (el._grudadoNoFim) fim(); }, { once: true });
+  });
 }
 </script>
 </body>
