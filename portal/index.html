@@ -6251,6 +6251,10 @@ function atendRenderPainel(d, a, rolarFim) {
     const fa = atendState.focarApos;
     if (atendState.focoResposta === a.ticketId || (fa && fa.id === a.ticketId && Date.now() < fa.ate)) { ta.focus(); ta.setSelectionRange(ta.value.length, ta.value.length); }
   }
+  // mensagens rapidas: lista aberta continua aberta depois do redesenho; e ja deixa carregada
+  if (atendQR.aberto && atendQR.ticketId !== a.ticketId) atendQR.aberto = false;
+  atendQRRender();
+  if (!atendQR.lista && !atendQR.carregando && !a.finalizado) atendQRCarregar();
 }
 // Resumo por IA (fica guardado junto da conversa em cache; "Abrir chamado"
 // usa o resumo como rascunho do relato).
@@ -6318,14 +6322,16 @@ function atendAcaoHtml(a) {
       <span style="font:600 12px Manrope;color:#cfe0f5;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">📎 ${acEsc(anexo.nome)} <span style="color:#7186ab;font-weight:500">(${(anexo.tamanho / 1024 / 1024).toFixed(2)} MB)</span></span>
       <button class="chip" onclick="atendAnexoRemover('${id}')" title="Remover anexo" style="margin-left:auto;height:26px;padding:0 9px;font-size:12px">✕</button>
     </div>` : '';
-  return `${chipAnexo}<div style="display:flex;gap:8px;align-items:flex-end">
+  return `${chipAnexo}<div style="display:flex;gap:8px;align-items:flex-end;position:relative">
+      <div id="atend-qr" style="display:none;position:absolute;left:0;right:0;bottom:calc(100% + 6px);z-index:40;max-height:300px;overflow-y:auto;padding:6px;border-radius:12px;background:rgba(14,22,44,.98);border:1px solid rgba(120,160,230,.35);box-shadow:0 12px 30px rgba(0,0,0,.45)"></div>
+      <button class="chip" onmousedown="event.preventDefault()" onclick="atendQRAbrirBotao('${id}')" title="Mensagens rápidas do Digisac (ou digite / no campo)" style="${btnIco}">⚡</button>
       ${podeResponder ? `<button class="chip" onclick="atendNotaAlternar('${id}')" title="Alternar nota interna (só a equipe vê)" style="${btnIco};${nota ? 'background:rgba(240,180,60,.25);border-color:rgba(240,180,60,.6)' : ''}">🔒</button>` : ''}
       ${!nota ? `<label class="chip" title="Anexar arquivo" style="${btnIco};cursor:pointer">📎<input type="file" style="display:none" onchange="atendAnexoArquivo('${id}', this.files[0]); this.value=''"></label>
       <button class="chip" id="atend-gravar-btn" onclick="atendGravarAlternar('${id}')" title="${gravando ? 'Parar gravação' : 'Gravar áudio'}" style="${btnIco};${gravando ? 'background:rgba(224,80,74,.3);border-color:#e0504a' : ''}">${gravando ? '⏹' : '🎤'}</button>` : ''}
-      <textarea id="atend-resposta" rows="2" placeholder="${nota ? 'Nota interna (só a equipe vê)...' : (anexo ? 'Legenda (opcional)...' : 'Escreva a resposta... (Enter envia, Shift+Enter quebra linha)')}"
-        oninput="atendState.rascunhos['${id}']=this.value" onfocus="atendState.focoResposta='${id}'" onblur="atendState.focoResposta=null"
+      <textarea id="atend-resposta" rows="2" placeholder="${nota ? 'Nota interna (só a equipe vê)...' : (anexo ? 'Legenda (opcional)...' : 'Escreva a resposta... (Enter envia, Shift+Enter quebra linha, / abre as mensagens rápidas)')}"
+        oninput="atendState.rascunhos['${id}']=this.value;atendQRDigitou(this,'${id}')" onfocus="atendState.focoResposta='${id}'" onblur="atendState.focoResposta=null;setTimeout(atendQRFechar,150)"
         onpaste="atendColar(event,'${id}')"
-        onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();atendEnviar('${id}')}"
+        onkeydown="if(atendQRTecla(event))return;if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();atendEnviar('${id}')}"
         style="flex:1;resize:vertical;min-height:44px;max-height:160px;padding:10px 12px;border-radius:12px;background:${fundo};border:1px solid ${corBorda};color:#eaf1ff;font:500 13.5px/1.4 Manrope"></textarea>
       <button class="btn-primary" id="atend-enviar-btn" onclick="atendEnviar('${id}')" style="height:44px;padding:0 18px;font-size:13px;${nota ? 'background:linear-gradient(135deg,#b8862f,#d9a441)' : ''}">${nota ? 'Salvar nota' : 'Enviar'}</button>
     </div>
@@ -7027,6 +7033,124 @@ function atendAjustarAltura() {
   split.style.height = h + 'px';
 }
 window.addEventListener('resize', () => { try { atendAjustarAltura(); } catch (e) {} });
+
+// ---- Mensagens rapidas do Digisac (15/10/2026) ----
+// Le as respostas rapidas ja cadastradas no Digisac (GET /atend/respostas).
+// "/" no campo de resposta (inicio ou depois de espaco) abre a lista; o que
+// vem depois filtra. Setas escolhem, Enter/Tab insere, Esc fecha. O botao ⚡
+// abre a lista inteira. Variaveis: {nome} {atendente} {saudacao} {protocolo}
+// (aceita tambem {{...}} e nomes tipo contact.name / user.name).
+var atendQR = { lista: null, em: 0, carregando: null, erro: '', aberto: false, itens: [], idx: 0, ticketId: null, inicio: -1, fim: -1 };
+async function atendQRCarregar(forcar) {
+  if (!forcar && atendQR.lista && Date.now() - atendQR.em < 600000) return atendQR.lista;
+  if (atendQR.carregando) return atendQR.carregando;
+  atendQR.carregando = (async () => {
+    try {
+      const r = await fetch(`${PROXY}/atend/respostas`, { headers: authD1() });
+      const d = await r.json().catch(() => ({}));
+      if (!r.ok || !d.ok) throw new Error(d.error || `Erro ${r.status}`);
+      atendQR.lista = d.respostas || []; atendQR.em = Date.now(); atendQR.erro = '';
+    } catch (e) { atendQR.erro = e.message; if (!atendQR.lista) atendQR.lista = null; }
+    finally { atendQR.carregando = null; }
+    return atendQR.lista;
+  })();
+  return atendQR.carregando;
+}
+function atendQRUso() { try { return JSON.parse(localStorage.getItem('srg_qr_uso') || '{}') || {}; } catch (e) { return {}; } }
+function atendQRContarUso(id) { const u = atendQRUso(); u[id] = (u[id] || 0) + 1; try { localStorage.setItem('srg_qr_uso', JSON.stringify(u)); } catch (e) {} }
+function atendQRFiltrar(termo) {
+  const n = x => atendNormNome(x);
+  const t = n(termo);
+  const uso = atendQRUso();
+  let l = (atendQR.lista || []).slice();
+  if (t) l = l.filter(x => n(x.atalho).startsWith(t) || n(x.titulo).includes(t) || n(x.texto).includes(t))
+    .sort((a, b) => (n(b.atalho).startsWith(t) - n(a.atalho).startsWith(t)) || (n(b.titulo).startsWith(t) - n(a.titulo).startsWith(t)) || ((uso[b.id] || 0) - (uso[a.id] || 0)));
+  else l.sort((a, b) => ((uso[b.id] || 0) - (uso[a.id] || 0)) || a.titulo.localeCompare(b.titulo, 'pt-BR'));
+  return l;
+}
+function atendQRVars(texto, a) {
+  const h = new Date().getHours();
+  const saud = h < 12 ? 'Bom dia' : (h < 18 ? 'Boa tarde' : 'Boa noite');
+  const meuNome = ((currentUser && currentUser.nome) || '').split(' ')[0];
+  const mapa = { nome: a.contato || '', name: a.contato || '', contato: a.contato || '', cliente: a.contato || '', 'contact.name': a.contato || '',
+    'contact.internalname': a.contato || '', atendente: meuNome, 'user.name': meuNome, usuario: meuNome, user: meuNome,
+    saudacao: saud, greeting: saud, protocolo: String(a.protocolo || ''), protocol: String(a.protocolo || ''), 'ticket.protocol': String(a.protocolo || '') };
+  return String(texto || '').replace(/\{\{\s*([\w.]+)\s*\}\}|\{\s*([\w.]+)\s*\}/g, (m, k1, k2) => {
+    const k = atendNormNome(k1 || k2);
+    return Object.prototype.hasOwnProperty.call(mapa, k) && mapa[k] ? mapa[k] : m;
+  });
+}
+function atendQRRender() {
+  const box = document.getElementById('atend-qr');
+  if (!box) return;
+  if (!atendQR.aberto) { box.style.display = 'none'; return; }
+  box.style.display = 'block';
+  if (atendQR.lista === null) {
+    box.innerHTML = `<div style="padding:10px;font:500 12.5px Manrope;color:${atendQR.erro ? '#e29a9a' : '#93a6c4'}">${atendQR.erro ? 'Erro: ' + acEsc(atendQR.erro) : 'Carregando mensagens rápidas do Digisac...'}</div>`;
+    return;
+  }
+  if (!atendQR.itens.length) { box.innerHTML = `<div style="padding:10px;font:500 12.5px Manrope;color:#7186ab">Nenhuma mensagem rápida encontrada${(atendQR.lista || []).length ? ' com esse filtro' : ' no Digisac'}.</div>`; return; }
+  box.innerHTML = `<div style="padding:2px 6px 6px;font:600 10.5px Manrope;letter-spacing:.06em;text-transform:uppercase;color:#7186ab">Mensagens rápidas · ↑↓ escolhe · Enter insere · Esc fecha</div>` +
+    atendQR.itens.slice(0, 30).map((x, i) => `<div onmousedown="event.preventDefault();atendQRInserir(${i})" onmouseenter="atendQR.idx=${i};atendQRMarcar()" data-qr="${i}"
+      style="padding:7px 9px;border-radius:9px;cursor:pointer;${i === atendQR.idx ? 'background:rgba(90,160,230,.18)' : ''}">
+      <div style="font:700 12.5px Manrope;color:#eaf1ff">${acEsc(x.titulo || x.atalho || '(sem título)')}${x.atalho && x.atalho !== x.titulo ? ` <span style="font-weight:500;color:#7fd4c0">/${acEsc(x.atalho)}</span>` : ''}${x.temArquivo ? ' <span title="No Digisac essa resposta tem anexo; aqui vai só o texto" style="color:#e0c27a;font-weight:500">📎 só texto</span>' : ''}</div>
+      <div style="font:500 11.5px Manrope;color:#93a6c4;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${acEsc(x.texto)}</div>
+    </div>`).join('');
+}
+function atendQRMarcar() {
+  document.querySelectorAll('#atend-qr [data-qr]').forEach(el => { el.style.background = Number(el.dataset.qr) === atendQR.idx ? 'rgba(90,160,230,.18)' : ''; });
+  const el = document.querySelector(`#atend-qr [data-qr="${atendQR.idx}"]`); if (el) el.scrollIntoView({ block: 'nearest' });
+}
+function atendQRFechar() { atendQR.aberto = false; atendQR.inicio = -1; atendQRRender(); }
+async function atendQRMostrar(ticketId, termo, inicio, fim) {
+  atendQR.aberto = true; atendQR.ticketId = ticketId; atendQR.inicio = inicio; atendQR.fim = fim;
+  atendQR.itens = atendQRFiltrar(termo); atendQR.idx = 0; atendQRRender();
+  if (atendQR.lista === null || Date.now() - atendQR.em > 600000) {
+    await atendQRCarregar();
+    if (atendQR.aberto) { atendQR.itens = atendQRFiltrar(termo); atendQRRender(); }
+  }
+}
+// "/" + termo logo antes do cursor (no inicio ou depois de espaco/quebra de linha)
+function atendQRDigitou(ta, ticketId) {
+  const ate = ta.selectionStart, antes = ta.value.slice(0, ate);
+  const m = antes.match(/(^|\s)\/([^\s\/]{0,30})$/);
+  if (!m) { if (atendQR.aberto && atendQR.inicio >= 0) atendQRFechar(); return; }
+  atendQRMostrar(ticketId, m[2], ate - m[2].length - 1, ate);
+}
+function atendQRAbrirBotao(ticketId) {
+  const ta = document.getElementById('atend-resposta');
+  if (atendQR.aberto) { atendQRFechar(); return; }
+  if (ta) ta.focus();
+  const pos = ta ? ta.selectionStart : 0;
+  atendQRMostrar(ticketId, '', pos, pos);
+  atendQR.inicio = -2; // aberto pelo botao: insere no cursor, sem apagar nada
+}
+function atendQRTecla(ev) {
+  if (!atendQR.aberto) return false;
+  const n = Math.min(atendQR.itens.length, 30);
+  if (ev.key === 'Escape') { ev.preventDefault(); atendQRFechar(); return true; }
+  if (!n) return false;
+  if (ev.key === 'ArrowDown') { ev.preventDefault(); atendQR.idx = (atendQR.idx + 1) % n; atendQRMarcar(); return true; }
+  if (ev.key === 'ArrowUp') { ev.preventDefault(); atendQR.idx = (atendQR.idx - 1 + n) % n; atendQRMarcar(); return true; }
+  if ((ev.key === 'Enter' && !ev.shiftKey) || ev.key === 'Tab') { ev.preventDefault(); atendQRInserir(atendQR.idx); return true; }
+  return false;
+}
+function atendQRInserir(i) {
+  const x = atendQR.itens[i];
+  const ta = document.getElementById('atend-resposta');
+  if (!x || !ta) { atendQRFechar(); return; }
+  const a = atendAchar(atendQR.ticketId) || {};
+  const texto = atendQRVars(x.texto, a);
+  let ini, fim;
+  if (atendQR.inicio >= 0) { ini = atendQR.inicio; fim = ta.selectionStart; }
+  else { ini = ta.selectionStart; fim = ta.selectionEnd; }
+  ta.value = ta.value.slice(0, ini) + texto + ta.value.slice(fim);
+  const pos = ini + texto.length;
+  ta.focus(); ta.setSelectionRange(pos, pos);
+  atendState.rascunhos[atendQR.ticketId] = ta.value;
+  atendQRContarUso(x.id);
+  atendQRFechar();
+}
 
 // ---- Aguardando Meta (15/10/2026) ----
 // Caso escalado pra Meta (N3): sai das pendencias da SRG (espera, badge, alertas
