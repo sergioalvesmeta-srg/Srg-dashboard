@@ -1017,11 +1017,17 @@ header.navbar nav a{white-space:nowrap;flex:none}
               <h3 style="font:700 18px Outfit,sans-serif;color:#f4f8ff;margin:0">Clientes cadastrados</h3>
               <span id="ac-cfg-cnt" style="font:400 12.5px Manrope;color:#7186ab"></span>
             </div>
-            <button class="btn-primary" onclick="acAddCliente()" style="height:38px;padding:0 16px;font-size:13px">+ Novo cliente</button>
+            <div style="display:flex;gap:8px;flex-wrap:wrap">
+              <button class="btn-primary" onclick="acAddCliente()" style="height:38px;padding:0 16px;font-size:13px">+ Novo cliente</button>
+              <button class="btn-primary" onclick="acSalvarClientes()" style="height:38px;padding:0 16px;font-size:13px">Salvar alterações</button>
+            </div>
           </div>
           <div id="ac-cfg-lista"></div>
-          <button class="btn-primary" onclick="acSalvarClientes()" style="height:40px;padding:0 20px;font-size:13px;margin-top:12px">Salvar alterações</button>
-          <span id="ac-cfg-flash" style="display:none;color:#7fe0c0;font:600 12.5px Manrope;margin-left:10px">salvo!</span>
+          <!-- 15/10/2026: barra de salvar GRUDADA no rodape da tela (antes tinha que rolar ate o fim da lista) -->
+          <div style="position:sticky;bottom:12px;z-index:6;display:flex;justify-content:flex-end;align-items:center;gap:10px;margin-top:12px;padding:10px 14px;border-radius:14px;background:rgba(14,22,44,.94);border:1px solid rgba(255,255,255,.14);backdrop-filter:blur(10px);box-shadow:0 10px 30px rgba(0,0,0,.35)">
+            <span id="ac-cfg-flash" style="display:none;color:#7fe0c0;font:600 12.5px Manrope">salvo!</span>
+            <button class="btn-primary" onclick="acSalvarClientes()" style="height:40px;padding:0 20px;font-size:13px">Salvar alterações</button>
+          </div>
         </div>
       </div>
     </div>
@@ -3858,11 +3864,29 @@ async function acCarregarClientes() {
   }
 }
 
+// "Em atendimento" automatico (15/10/2026): o portal nao tem como saber quando
+// a sessao do AnyDesk/RustDesk termina, entao o status vale por AC_ATEND_MIN
+// minutos depois do "Conectar" e some sozinho (antes ficava preso ate alguem
+// clicar Finalizar). Registros antigos sem horario contam como disponivel.
+const AC_ATEND_MIN = 30;
+function acEmAtendimento(c) {
+  if (!c || c.status !== 'atendimento' || !c.atendimento_em) return false;
+  return Date.now() - Date.parse(c.atendimento_em) < AC_ATEND_MIN * 60000;
+}
+function acHaQuanto(iso) {
+  const m = Math.max(0, Math.floor((Date.now() - Date.parse(iso)) / 60000));
+  if (isNaN(m)) return '';
+  if (m < 1) return 'agora';
+  if (m < 60) return `há ${m} min`;
+  const h = Math.floor(m / 60);
+  return h < 24 ? `há ${h}h${m % 60 ? String(m % 60).padStart(2, '0') : ''}` : `há ${Math.floor(h / 24)} dia(s)`;
+}
+setInterval(() => { try { const v = document.getElementById('view-acesso-clientes'); if (v && v.style.display !== 'none' && acClientes.length) { acRenderStats(); acRenderCards(); } } catch (e) {} }, 60000);
 function acRenderStats() {
   const totalClientes = acClientes.length;
   const totalMaquinas = acClientes.reduce((s,c) => s + ((c.maquinas||[]).length), 0);
-  const disponiveis = acClientes.filter(c => c.status !== 'atendimento').length;
-  const emAtendimento = acClientes.filter(c => c.status === 'atendimento').length;
+  const disponiveis = acClientes.filter(c => !acEmAtendimento(c)).length;
+  const emAtendimento = acClientes.filter(c => acEmAtendimento(c)).length;
   const cards = [
     ['Clientes', totalClientes, '#3fa08c'],
     ['Máquinas', totalMaquinas, '#2f5fb0'],
@@ -3885,21 +3909,24 @@ function acRenderCards() {
   const termo = (document.getElementById('ac-busca').value || '').toLowerCase().trim();
   const cont = document.getElementById('ac-clientes-lista');
   let filtrados = acClientes.filter(c => {
-    if (acStatusFiltro === 'atendimento' && c.status !== 'atendimento') return false;
-    if (acStatusFiltro === 'disponivel' && c.status === 'atendimento') return false;
+    if (acStatusFiltro === 'atendimento' && !acEmAtendimento(c)) return false;
+    if (acStatusFiltro === 'disponivel' && acEmAtendimento(c)) return false;
     if (!termo) return true;
     const alvo = [c.nome, ...(c.maquinas||[]).map(m=>m.id), ...(c.maquinas||[]).map(m=>m.nome)].join(' ').toLowerCase();
     return alvo.includes(termo);
   });
   document.getElementById('ac-contador').textContent = `${filtrados.length} cliente(s)`;
   cont.innerHTML = filtrados.map(c => {
-    const emAtendimento = c.status === 'atendimento';
+    const emAtendimento = acEmAtendimento(c);
     const nMaq = (c.maquinas||[]).length;
+    const ultimo = c.atendimento_em && c.atendimento_usuario
+      ? (emAtendimento ? ` · com ${acEsc(c.atendimento_usuario)} (${acHaQuanto(c.atendimento_em)})` : ` · último acesso: ${acEsc(c.atendimento_usuario)} ${acHaQuanto(c.atendimento_em)}`)
+      : '';
     return `
     <div class="glass ac-card-cliente" style="padding:16px 20px;display:flex;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap;cursor:pointer" onclick="acAbrirModal('${c.id}')">
       <div style="min-width:180px">
         <div style="font:700 15.5px Outfit,sans-serif;color:#f4f8ff">${acEsc(c.nome)}</div>
-        <div style="font:400 12.5px Manrope;color:#7186ab;margin-top:2px">${nMaq} máquina(s)${c.versao ? ' · v'+acEsc(c.versao) : ''}${emAtendimento && c.atendimento_usuario ? ' · com '+acEsc(c.atendimento_usuario) : ''}</div>
+        <div style="font:400 12.5px Manrope;color:#7186ab;margin-top:2px">${nMaq} máquina(s)${c.versao ? ' · v'+acEsc(c.versao) : ''}${ultimo}</div>
       </div>
       <div style="display:flex;align-items:center;gap:10px">
         <span class="kpis-delta ${emAtendimento ? 'bad' : 'good'}" style="padding:4px 10px;border-radius:8px">${emAtendimento ? 'Em atendimento' : 'Disponível'}</span>
@@ -3930,10 +3957,9 @@ async function acFinalizarAtendimento(clienteId) {
   const c = acClientes.find(x => String(x.id) === String(clienteId));
   if (!c) return;
   try {
-    await acPatch('clientes', `?id=eq.${c.id}`, { status: 'disponivel', atendimento_maquina: '', atendimento_usuario: '' });
+    await acPatch('clientes', `?id=eq.${c.id}`, { status: 'disponivel', atendimento_maquina: '' });
     c.status = 'disponivel';
     c.atendimento_maquina = '';
-    c.atendimento_usuario = '';
     acRenderStats();
     acRenderCards();
   } catch(e) { alert('Erro ao finalizar atendimento: ' + e.message); }
@@ -3946,7 +3972,7 @@ async function acFinalizarAtendimento(clienteId) {
 // paralelo -- mesma chamada que acFinalizarAtendimento ja usa por
 // cliente, so que pra todos de uma vez.
 async function acFinalizarTodos() {
-  const emAtendimento = acClientes.filter(c => c.status === 'atendimento');
+  const emAtendimento = acClientes.filter(c => acEmAtendimento(c));
   if (!emAtendimento.length) return;
   if (!confirm(`Finalizar TODOS os ${emAtendimento.length} atendimento(s) em andamento agora?`)) return;
   const btn = document.getElementById('ac-finalizar-todos-btn');
@@ -4010,8 +4036,8 @@ function acRenderModal() {
     </div>
     <label style="font:600 11.5px Manrope;color:#7186ab;text-transform:uppercase">Ticket / motivo</label>
     <input id="ac-modal-ticket" type="text" placeholder="Nº do ticket ou motivo do atendimento" style="width:100%;height:40px;margin:6px 0 14px;padding:0 12px;border-radius:10px;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.16);color:#eaf1ff;font:500 13px Manrope">
-    <button class="btn-primary" style="width:100%;height:44px;font-size:14px;margin-bottom:${c.status==='atendimento'?'8px':'14px'}" onclick="acConectar('${protocolo}')">Abrir no ${protocolo==='rustdesk'?'RustDesk':'AnyDesk'}</button>
-    ${c.status==='atendimento' ? `<button class="chip" style="width:100%;height:38px;font-size:13px;margin-bottom:14px;color:#7fe0c0" onclick="acFinalizarAtendimento('${c.id}');acFecharModal()">Finalizar atendimento</button>` : ''}
+    <button class="btn-primary" style="width:100%;height:44px;font-size:14px;margin-bottom:${acEmAtendimento(c)?'8px':'14px'}" onclick="acConectar('${protocolo}')">Abrir no ${protocolo==='rustdesk'?'RustDesk':'AnyDesk'}</button>
+    ${acEmAtendimento(c) ? `<button class="chip" style="width:100%;height:38px;font-size:13px;margin-bottom:14px;color:#7fe0c0" onclick="acFinalizarAtendimento('${c.id}');acFecharModal()">Finalizar atendimento</button>` : ''}
     <label style="font:600 11.5px Manrope;color:#7186ab;text-transform:uppercase">Anotações</label>
     <textarea id="ac-modal-anot" rows="3" style="width:100%;margin:6px 0 10px;padding:10px 12px;border-radius:10px;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.16);color:#eaf1ff;font:400 13px Manrope;resize:vertical">${acEsc(c.anotacoes||'')}</textarea>
     <button class="chip" onclick="acSalvarAnotacoes()">Salvar anotações</button>
@@ -4031,7 +4057,8 @@ async function acConectar(protocolo) {
   if (m.senha) { try { await navigator.clipboard.writeText(m.senha); } catch(e) { /* clipboard pode falhar sem foco/permissao, segue mesmo assim */ } }
 
   try {
-    const atualizado = await acPatch('clientes', `?id=eq.${c.id}`, { status: 'atendimento', atendimento_maquina: m.id||'', atendimento_usuario: nomeUsuario });
+    const quando = new Date().toISOString();
+    const atualizado = await acPatch('clientes', `?id=eq.${c.id}`, { status: 'atendimento', atendimento_maquina: m.id||'', atendimento_usuario: nomeUsuario, atendimento_em: quando });
     if (!atualizado || !atualizado.length) {
       console.error('acConectar: PATCH em clientes não encontrou/atualizou nenhuma linha. id enviado =', c.id, 'resposta =', atualizado);
       alert('Aviso: não foi possível marcar o cliente como "Em atendimento" (nenhuma linha encontrada no banco). O acesso remoto vai abrir normalmente, mas avise o Sérgio pra checar o log do console.');
@@ -4039,6 +4066,7 @@ async function acConectar(protocolo) {
       c.status = 'atendimento';
       c.atendimento_maquina = m.id||'';
       c.atendimento_usuario = nomeUsuario;
+      c.atendimento_em = quando;
     }
     await acPost('historico', {
       cliente: c.nome, maquina: m.id||'', tipo: m.tipo||protocolo, usuario: nomeUsuario,
