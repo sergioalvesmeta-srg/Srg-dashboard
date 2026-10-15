@@ -5615,7 +5615,7 @@ function dgLinhasHtml(d) {
       ? `<div style="font:600 11.5px Manrope;color:#9fd0f0;margin-bottom:${msg.texto?'4px':'0'}">${({image:'🖼 Imagem',audio:'🎧 Áudio',ptt:'🎤 Áudio',video:'🎬 Vídeo',document:'📎 Documento',sticker:'Figurinha',vcard:'Contato',location:'📍 Localização'})[msg.tipo] || ('[' + dgEsc(msg.tipo) + ']')}${msg.arquivo?' · '+dgEsc(msg.arquivo):''}</div>` : '';
     const texto = msg.apagada ? '<i style="color:#7186ab">mensagem apagada</i>' : dgEsc(msg.texto).replace(/\n/g, '<br>');
     const player = (!msg.apagada && msg.midia) ? dgMidiaHtml(msg) : '';
-    const quem = msg.comentario ? 'Nota interna' : (msg.bot ? 'Bot' : (msg.deMim ? (msg.autor || 'Atendente') : (d.contato.nome || 'Cliente')));
+    const quem = msg.comentario ? 'Nota interna' : (msg.bot ? 'Bot' : (msg.deMim ? (msg.autor || 'Atendente') : dgNomeBalao(d)));
     let estilo, lado;
     if (msg.comentario) { lado = 'flex-end'; estilo = 'background:rgba(240,180,60,.10);border:1px dashed rgba(240,180,60,.45);color:#f3e2b8'; }
     else if (msg.bot) { lado = 'flex-end'; estilo = 'background:rgba(150,120,220,.14);border:1px solid rgba(170,140,230,.32);color:#e4dcf8'; }
@@ -5648,7 +5648,7 @@ function dgRenderizar(d) {
     <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:14px;flex-wrap:wrap">
       <div>
         <p style="font:600 12px Manrope;letter-spacing:.12em;text-transform:uppercase;color:#7fd4c0;margin-bottom:6px">Atendimento no Digisac</p>
-        <h2 style="font:700 21px Outfit,sans-serif;color:#f4f8ff">${dgEsc(d.contato.nome || 'Contato sem nome')}</h2>
+        <h2 style="font:700 21px Outfit,sans-serif;color:#f4f8ff">${dgEsc(d.contato.nome || 'Contato sem nome')}${dgNomeWhatsExtra(d)}</h2>
         <div style="font:500 12.5px Manrope;color:#93a6c4;margin-top:4px">${d.contato.numero ? dgEsc(d.contato.numero) + ' · ' : ''}Protocolo <span style="font-family:'IBM Plex Mono',monospace;color:#cfe0f5">${dgEsc(d.protocolo)}</span></div>
       </div>
       <div style="display:flex;align-items:center;gap:10px">${status}<button class="btn-ghost" style="height:34px;padding:0 14px" onclick="dgFechar()">Fechar ✕</button></div>
@@ -5676,7 +5676,7 @@ function dgCopiarConversa() {
   const d = dgDadosAtual; if (!d) return;
   const linhas = (d.mensagens || []).map(m => {
     if (m.tipo === 'ticket') return `[${fmtDateTime(m.quando)}] -- ${m.evento || 'Evento'} --`;
-    const quem = m.comentario ? 'Nota interna' : (m.bot ? 'Bot' : (m.deMim ? (m.autor || 'Atendente') : (d.contato.nome || 'Cliente')));
+    const quem = m.comentario ? 'Nota interna' : (m.bot ? 'Bot' : (m.deMim ? (m.autor || 'Atendente') : dgNomeBalao(d)));
     const midia = m.tipo && m.tipo !== 'chat' ? `[${m.tipo}${m.arquivo ? ': ' + m.arquivo : ''}] ` : '';
     return `[${fmtDateTime(m.quando)}] ${quem}: ${midia}${m.apagada ? '(mensagem apagada)' : m.texto}`;
   });
@@ -6229,6 +6229,16 @@ async function atendSelecionar(ticketId, silencioso) {
     if (!cache) atendRenderPainelVazio(`<span style="color:#e29a9a">Erro ao carregar: ${acEsc(e.message)}</span>`);
   }
 }
+// Nome do contato (15/10/2026): o Digisac tem o nome SALVO pela equipe
+// (alternativeName, o mesmo da lista) e o nome do PERFIL do WhatsApp (quem
+// esta escrevendo -- num numero de empresa pode ser outra pessoa). Cabecalho
+// mostra o salvo + "WhatsApp: X" quando for diferente; balao mostra quem escreveu.
+function dgNomeBalao(d) { return (d.contato && (d.contato.whatsapp || d.contato.nome)) || 'Cliente'; }
+function dgNomeWhatsExtra(d) {
+  const c = d.contato || {}, w = String(c.whatsapp || '').trim();
+  if (!w || atendNormNome(w) === atendNormNome(c.nome)) return '';
+  return ` <span title="Nome do perfil de WhatsApp de quem está escrevendo" style="font:500 12px Manrope;color:#93a6c4">· WhatsApp: ${dgEsc(w)}</span>`;
+}
 function atendRenderPainelPartes(d, a) {
   const agora = atendAgora();
   const cor = atendCor(a, agora);
@@ -6246,7 +6256,7 @@ function atendRenderPainelPartes(d, a) {
        <button class="btn-primary" style="height:30px;padding:0 12px;font-size:12px" onclick="dgNovoChamado()">Abrir chamado</button>`;
   const topo = `
       <div style="min-width:0">
-        <div style="font:700 18px Outfit,sans-serif;color:#f4f8ff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${dgEsc(d.contato.nome || a.contato || 'Contato')}</div>
+        <div style="font:700 18px Outfit,sans-serif;color:#f4f8ff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${dgEsc(d.contato.nome || a.contato || 'Contato')}${dgNomeWhatsExtra(d)}</div>
         <div style="font:500 12px Manrope;color:#93a6c4;margin-top:3px">${d.contato.numero ? dgEsc(d.contato.numero) + ' · ' : ''}Protocolo <span style="font-family:'IBM Plex Mono',monospace;color:#cfe0f5">${dgEsc(d.protocolo)}</span>${miniCopiar(d.protocolo)} · ${dgEsc(d.atendente || 'Na fila')} · ${dgEsc(d.departamento || '—')}</div>
       </div>
       <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
@@ -7082,7 +7092,7 @@ function dgExportarPdf() {
     const dia = dgDia(msg.quando);
     if (dia && dia !== ultimoDia) { ultimoDia = dia; bloco += `<div class="dia">${esc(dia)}</div>`; }
     if (msg.tipo === 'ticket') return bloco + `<div class="evento">${esc(msg.evento || 'Evento')} · ${dgHora(msg.quando)}</div>`;
-    const quem = msg.comentario ? 'Nota interna' : (msg.bot ? 'Bot' : (msg.deMim ? (msg.autor || 'Atendente') : (d.contato.nome || 'Cliente')));
+    const quem = msg.comentario ? 'Nota interna' : (msg.bot ? 'Bot' : (msg.deMim ? (msg.autor || 'Atendente') : dgNomeBalao(d)));
     const cls = msg.comentario ? 'nota' : (msg.deMim || msg.bot ? 'eu' : 'cli');
     let midia = '';
     if (!msg.apagada && msg.midia && /^https:\/\//.test(msg.midia.url || '')) {
@@ -7116,7 +7126,7 @@ function dgExportarPdf() {
   <h1>Atendimento ${esc(d.protocolo)} — ${esc(d.contato.nome || 'Contato')}</h1>
   <div class="sub">SRG Tecnologia · Portal de Atendimento · exportado em ${esc(new Date().toLocaleString('pt-BR'))}</div>
   <div class="info">
-    ${linhaInfo('Contato', [d.contato.nome, d.contato.numero].filter(Boolean).join(' · '))}
+    ${linhaInfo('Contato', [d.contato.nome, d.contato.whatsapp && d.contato.whatsapp !== d.contato.nome ? 'WhatsApp: ' + d.contato.whatsapp : '', d.contato.numero].filter(Boolean).join(' · '))}
     ${linhaInfo('Protocolo', d.protocolo)}
     ${linhaInfo('Atendente', d.atendente)}
     ${linhaInfo('Setor', d.departamento)}
