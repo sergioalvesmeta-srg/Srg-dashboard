@@ -1019,14 +1019,14 @@ header.navbar nav a{white-space:nowrap;flex:none}
             </div>
             <div style="display:flex;gap:8px;flex-wrap:wrap">
               <button class="btn-primary" onclick="acAddCliente()" style="height:38px;padding:0 16px;font-size:13px">+ Novo cliente</button>
-              <button class="btn-primary" onclick="acSalvarClientes()" style="height:38px;padding:0 16px;font-size:13px">Salvar alterações</button>
+              <button class="btn-primary ac-btn-salvar" onclick="acSalvarClientes()" style="height:38px;padding:0 16px;font-size:13px">Salvar alterações</button>
             </div>
           </div>
           <div id="ac-cfg-lista"></div>
           <!-- 15/10/2026: barra de salvar GRUDADA no rodape da tela (antes tinha que rolar ate o fim da lista) -->
           <div style="position:sticky;bottom:12px;z-index:6;display:flex;justify-content:flex-end;align-items:center;gap:10px;margin-top:12px;padding:10px 14px;border-radius:14px;background:rgba(14,22,44,.94);border:1px solid rgba(255,255,255,.14);backdrop-filter:blur(10px);box-shadow:0 10px 30px rgba(0,0,0,.35)">
-            <span id="ac-cfg-flash" style="display:none;color:#7fe0c0;font:600 12.5px Manrope">salvo!</span>
-            <button class="btn-primary" onclick="acSalvarClientes()" style="height:40px;padding:0 20px;font-size:13px">Salvar alterações</button>
+            <span id="ac-cfg-flash" style="display:none;font:600 13px Manrope"></span>
+            <button class="btn-primary ac-btn-salvar" onclick="acSalvarClientes()" style="height:40px;padding:0 20px;font-size:13px">Salvar alterações</button>
           </div>
         </div>
       </div>
@@ -3857,6 +3857,7 @@ async function acCarregarClientes() {
   lista.innerHTML = '<div style="font:400 13px Manrope;color:#7186ab">Carregando clientes...</div>';
   try {
     acClientes = await acGet('clientes', '?select=*&order=nome.asc') || [];
+    acClientes.forEach(acSnapGravar);
     acRenderStats();
     acRenderCards();
   } catch(e) {
@@ -4226,21 +4227,63 @@ function acRemoverMaquina(ci, mi) {
   acRenderConfig();
 }
 
+// Salvar (15/10/2026): so manda o que MUDOU (antes regravava os ~90 clientes
+// um por um e demorava; o "salvo!" pequeno aparecia so no fim e passava
+// despercebido). Mostra progresso no botao e um aviso claro no final.
+const acSnap = {};
+function acSnapDe(c) { return JSON.stringify({ nome: c.nome || '', obs: c.obs || '', versao: c.versao || '', maquinas: c.maquinas || [] }); }
+function acSnapGravar(c) { if (c && c.id) acSnap[c.id] = acSnapDe(c); }
+function acSalvarAviso(txt, cor) {
+  const f = document.getElementById('ac-cfg-flash');
+  if (f) { f.textContent = txt; f.style.color = cor; f.style.display = 'inline'; clearTimeout(acSalvarAviso._t); acSalvarAviso._t = setTimeout(() => { f.style.display = 'none'; }, 5000); }
+  try { mostrarAvisoTopo(txt, cor); } catch (e) {}
+}
+function mostrarAvisoTopo(txt, cor) {
+  let t = document.getElementById('aviso-topo');
+  if (!t) {
+    t = document.createElement('div'); t.id = 'aviso-topo';
+    t.style.cssText = 'position:fixed;left:50%;top:18px;transform:translateX(-50%);z-index:400;padding:11px 18px;border-radius:12px;font:700 13.5px Manrope;background:rgba(14,22,44,.97);box-shadow:0 12px 30px rgba(0,0,0,.45);transition:opacity .3s;pointer-events:none';
+    document.body.appendChild(t);
+  }
+  t.textContent = txt; t.style.color = cor; t.style.border = `1px solid ${cor}66`; t.style.opacity = '1';
+  clearTimeout(mostrarAvisoTopo._t); mostrarAvisoTopo._t = setTimeout(() => { t.style.opacity = '0'; }, 3500);
+}
 async function acSalvarClientes() {
-  try {
-    for (const c of acClientes) {
-      if (c.id) {
-        await acPatch('clientes', `?id=eq.${c.id}`, { nome:c.nome, obs:c.obs||'', versao:c.versao||'', maquinas:c.maquinas||[] });
-      } else {
-        const criado = await acPost('clientes', { nome:c.nome, obs:c.obs||'', versao:c.versao||'', status:'disponivel', maquinas:c.maquinas||[] });
-        if (criado && criado[0]) c.id = criado[0].id;
-      }
-    }
-    const flash = document.getElementById('ac-cfg-flash');
-    flash.style.display = 'inline';
-    setTimeout(()=> flash.style.display='none', 2000);
-    acRenderStats();
-  } catch(e) { alert('Erro ao salvar: ' + e.message); }
+  if (acSalvarClientes._rodando) return;
+  const novosSemNome = acClientes.filter(c => !c.id && !String(c.nome || '').trim());
+  const pendentes = acClientes.filter(c => (c.id ? acSnap[c.id] !== acSnapDe(c) : String(c.nome || '').trim()));
+  if (!pendentes.length) {
+    acSalvarAviso(novosSemNome.length ? 'Preencha o nome do cliente novo antes de salvar.' : 'Nada pra salvar: nenhuma alteração.', novosSemNome.length ? '#e0c27a' : '#93a6c4');
+    return;
+  }
+  acSalvarClientes._rodando = true;
+  const botoes = [...document.querySelectorAll('.ac-btn-salvar')];
+  const marca = (t, dis) => botoes.forEach(b => { b.textContent = t; b.disabled = dis; });
+  let feitos = 0; const erros = [];
+  marca(`Salvando... 0/${pendentes.length}`, true);
+  for (let i = 0; i < pendentes.length; i += 5) {
+    await Promise.all(pendentes.slice(i, i + 5).map(async c => {
+      try {
+        if (c.id) {
+          await acPatch('clientes', `?id=eq.${c.id}`, { nome:c.nome, obs:c.obs||'', versao:c.versao||'', maquinas:c.maquinas||[] });
+        } else {
+          const criado = await acPost('clientes', { nome:c.nome, obs:c.obs||'', versao:c.versao||'', status:'disponivel', maquinas:c.maquinas||[] });
+          if (criado && criado[0]) c.id = criado[0].id;
+        }
+        acSnapGravar(c);
+      } catch (e) { erros.push(`${c.nome || 'sem nome'}: ${e.message}`); }
+      feitos++; marca(`Salvando... ${feitos}/${pendentes.length}`, true);
+    }));
+  }
+  marca('Salvar alterações', false);
+  acSalvarClientes._rodando = false;
+  acRenderStats();
+  if (erros.length) {
+    acSalvarAviso(`⚠ ${pendentes.length - erros.length} salvo(s), ${erros.length} com erro`, '#e29a9a');
+    alert('Alguns clientes não foram salvos:\n\n' + erros.join('\n'));
+  } else {
+    acSalvarAviso(`✓ Salvo com sucesso (${pendentes.length} cliente${pendentes.length > 1 ? 's' : ''})`, '#7fe0c0');
+  }
 }
 
 async function carregarPainelGestor(forcar=false) {
@@ -7370,7 +7413,7 @@ function atendMetaPodeMexer(a) {
 }
 function atendMetaTag(a, agora) {
   if (!a.meta) return '';
-  const cobrou = a.meta.cobrouEm ? ` <span title="O cliente mandou mensagem enquanto estava com a Meta" style="color:#f2a65a">· cobrou</span>` : '';
+  const cobrou = a.meta.cobrouEm ? ` <span title="O cliente mandou mensagem (que não é só 'ok/obrigado') enquanto estava com a Meta" style="color:#f2a65a">· cliente escreveu</span>` : '';
   return `<span style="font:700 11px Manrope;color:${ATEND_META_COR};white-space:nowrap">Meta · ${atendDurCurta(agora - Date.parse(a.meta.desde))}${cobrou}</span>`;
 }
 function atendMetaPainelHtml(a) {
@@ -7385,7 +7428,7 @@ function atendMetaPainelHtml(a) {
       <span style="font:700 12.5px Manrope;color:#d6c8fb">🟣 Aguardando a Meta desde ${hora(a.meta.desde)} (${(d => d === 'agora' ? 'agora mesmo' : 'há ' + d)(atendDurCurta(agora - Date.parse(a.meta.desde)))})</span>
       <span style="font:500 11.5px Manrope;color:#a99cc9;flex:1;min-width:180px">${origem}</span>
       ${pode ? btn('Meta respondeu', 'desativar', true) + (a.meta.origem === 'auto' ? btn('Desfazer (não era Meta)', 'desfazer') : '') : ''}
-      ${a.meta.cobrouEm ? `<div style="flex-basis:100%;font:600 12px Manrope;color:#f2a65a">⚠ O cliente cobrou há ${atendDurCurta(agora - Date.parse(a.meta.cobrouEm))}. Vale dar um retorno pra ele enquanto a Meta não responde.</div>` : ''}
+      ${a.meta.cobrouEm ? `<div style="flex-basis:100%;font:600 12px Manrope;color:#f2a65a">💬 O cliente escreveu há ${atendDurCurta(agora - Date.parse(a.meta.cobrouEm))} (não foi só "ok/obrigado"). Vale dar uma olhada e um retorno enquanto a Meta não responde.</div>` : ''}
     </div>`;
   }
   if (a.perguntarMeta && a.meu) {
