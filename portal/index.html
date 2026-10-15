@@ -1022,6 +1022,8 @@ header.navbar nav a{white-space:nowrap;flex:none}
               <button class="btn-primary ac-btn-salvar" onclick="acSalvarClientes()" style="height:38px;padding:0 16px;font-size:13px">Salvar alterações</button>
             </div>
           </div>
+          <!-- 15/10/2026: busca na aba Configuracoes (achar o cliente pra incluir maquina/trocar senha) -->
+          <input type="text" id="ac-cfg-busca" placeholder="Buscar cliente, máquina ou ID..." oninput="acCfgFiltrar()" style="width:100%;height:42px;margin-bottom:14px;padding:0 14px;border-radius:12px;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.16);color:#eaf1ff;font:500 13.5px Manrope">
           <div id="ac-cfg-lista"></div>
           <!-- 15/10/2026: barra de salvar GRUDADA no rodape da tela (antes tinha que rolar ate o fim da lista) -->
           <div style="position:sticky;bottom:12px;z-index:6;display:flex;justify-content:flex-end;align-items:center;gap:10px;margin-top:12px;padding:10px 14px;border-radius:14px;background:rgba(14,22,44,.94);border:1px solid rgba(255,255,255,.14);backdrop-filter:blur(10px);box-shadow:0 10px 30px rgba(0,0,0,.35)">
@@ -4164,7 +4166,7 @@ async function acLimparHistorico() {
 function acRenderConfig() {
   document.getElementById('ac-cfg-cnt').textContent = `${acClientes.length} cliente(s)`;
   document.getElementById('ac-cfg-lista').innerHTML = acClientes.map((c, ci) => `
-    <div class="glass" style="padding:16px 18px;margin-bottom:12px">
+    <div class="glass ac-cfg-card" data-ci="${ci}" style="padding:16px 18px;margin-bottom:12px">
       <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:10px">
         <input type="text" value="${acEsc(c.nome||'')}" placeholder="Nome do cliente" oninput="acClientes[${ci}].nome=this.value" style="flex:2;min-width:160px;height:38px;padding:0 10px;border-radius:8px;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.16);color:#eaf1ff;font:500 13px Manrope">
         <input type="text" value="${acEsc(c.versao||'')}" placeholder="Versão" oninput="acClientes[${ci}].versao=this.value" style="flex:1;min-width:90px;height:38px;padding:0 10px;border-radius:8px;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.16);color:#eaf1ff;font:500 13px Manrope">
@@ -4182,6 +4184,24 @@ function acRenderConfig() {
         </div>`).join('')}
       <button class="chip" style="padding:6px 10px;margin-top:4px" onclick="acAddMaquina(${ci})">+ máquina</button>
     </div>`).join('') || '<div style="color:#7186ab;font:400 13px Manrope">Nenhum cliente cadastrado.</div>';
+  acCfgFiltrar();
+}
+// Filtra os cards da aba Configuracoes sem redesenhar (nao perde o que foi
+// digitado). Cliente novo ainda nao salvo aparece sempre.
+function acCfgFiltrar() {
+  const inp = document.getElementById('ac-cfg-busca');
+  const termo = (inp && inp.value || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim();
+  let vis = 0;
+  document.querySelectorAll('#ac-cfg-lista .ac-cfg-card').forEach(el => {
+    const c = acClientes[+el.dataset.ci] || {};
+    const alvo = [c.nome, c.obs, c.versao, ...(c.maquinas || []).flatMap(m => [m.nome, m.id, m.tipo])].join(' ')
+      .normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+    const ok = !termo || !c.id || alvo.includes(termo);
+    el.style.display = ok ? '' : 'none';
+    if (ok) vis++;
+  });
+  const cnt = document.getElementById('ac-cfg-cnt');
+  if (cnt) cnt.textContent = termo ? `${vis} de ${acClientes.length} cliente(s)` : `${acClientes.length} cliente(s)`;
 }
 
 // unshift (nao push) pra aparecer no TOPO da lista -- com 85+ clientes
