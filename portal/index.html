@@ -492,7 +492,8 @@ header.navbar nav a{white-space:nowrap;flex:none}
         <div id="nt-cliente-wrap" style="display:none;margin-bottom:22px">
           <label style="display:block;font:600 12.5px Manrope;color:#bcccea;margin-bottom:8px">Cliente que pediu <span style="font-weight:500;color:#7186ab">(equipe SRG)</span></label>
           <input type="text" id="nt-cliente-busca" placeholder="Digite pra buscar o nome..." autocomplete="off" oninput="ntFiltrarClientes()" onkeydown="if(event.key==='Enter'){event.preventDefault();ntFiltrarClientes(true)}" style="width:100%;height:44px;margin-bottom:8px;padding:0 14px;border-radius:12px;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.22);color:#eaf1ff;font:500 14px Manrope">
-          <select id="nt-cliente-pessoa" onchange="ntAtualizarPreview()" style="width:100%;height:52px;padding:0 14px;border-radius:13px;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.22);color:#eaf1ff;font:500 14px Manrope"></select>
+          <div id="nt-cliente-sug" style="display:none;font:500 12px Manrope;color:#9fb6dc;margin:-2px 0 8px"></div>
+          <select id="nt-cliente-pessoa" onchange="document.getElementById('nt-cliente-sug').style.display='none';ntAtualizarPreview()" style="width:100%;height:52px;padding:0 14px;border-radius:13px;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.22);color:#eaf1ff;font:500 14px Manrope"></select>
           <p id="nt-cliente-nota" style="font:400 12px Manrope;color:#7186ab;margin:8px 0 0">Quando o chamado for resolvido, essa pessoa recebe no computador dela a pergunta "Já está resolvido?". Exige o Protocolo.</p>
         </div>
 
@@ -1384,8 +1385,14 @@ function atualizarNavAtiva(view) {
 function goNew(nomeSugerido) {
   ntPreviewEditado = false;
   ntEvidReset();
-  window.ntNomeSugerido = nomeSugerido || ''; // so o "Abrir chamado" da conversa sugere nome
+  // so o "Abrir chamado" da conversa sugere nome (lista de candidatos, em ordem de confianca)
+  window.ntNomeSugerido = Array.isArray(nomeSugerido) ? nomeSugerido.filter(Boolean) : (nomeSugerido ? [nomeSugerido] : []);
+  window.ntSugAplicada = null;
+  // 21/10/2026: todo chamado novo comeca em "— nao informar —" (antes ficava o cliente do chamado anterior)
   const bc = document.getElementById('nt-cliente-busca'); if (bc) bc.value = '';
+  const sp = document.getElementById('nt-cliente-pessoa');
+  if (sp) { sp.value = ''; sp.dataset.posto = '__reset__'; sp._opcoes = sp._opcoes || []; ntFiltrarClientes(); }
+  const sg = document.getElementById('nt-cliente-sug'); if (sg) { sg.style.display = 'none'; sg.innerHTML = ''; }
   buildNewTicketChips();
   showView('newticket');
   window.scrollTo(0,0);
@@ -3001,15 +3008,56 @@ function ntAtualizarClientes(forcar) {
   const notaCli = document.getElementById('nt-cliente-nota'); if (notaCli) notaCli.style.display = opcoes.length ? '' : 'none';
   const bcx = document.getElementById('nt-cliente-busca');
   if (bcx) bcx.placeholder = opcoes.length ? 'Digite pra buscar o nome (ou digite um nome que não está na lista)...' : 'Nome de quem pediu (opcional)';
-  if (!opcoes.length && bcx && !bcx.value && window.ntNomeSugerido) bcx.value = window.ntNomeSugerido.charAt(0).toUpperCase() + window.ntNomeSugerido.slice(1);
   ntFiltrarClientes();
-  // Veio do "Abrir chamado" de uma conversa e o cliente disse o nome (ex.: "kamila"): ja escolhe
-  if (!sel.value && window.ntNomeSugerido) {
-    const n = x => String(x || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim();
-    const alvo = n(window.ntNomeSugerido);
-    const achou = opcoes.filter(p => n(p.nome).split(/\s+/)[0] === alvo || n(p.nome) === alvo);
-    if (achou.length === 1) { sel.value = achou[0].id; ntAtualizarPreview(); }
+  ntSugerirCliente(opcoes);
+}
+// 21/10/2026: "Abrir chamado" da conversa -> tenta achar quem pediu no cadastro.
+// Candidatos (em ordem): nome que o cliente disse no chat, nome do WhatsApp,
+// partes do nome salvo no Digisac. 1 exato = ja escolhe; varios/parecidos = deixa
+// a busca preenchida (o select mostra so os possiveis); nenhum = so sugere.
+function ntSugerirCliente(opcoes) {
+  const cands = window.ntNomeSugerido || [];
+  const sel = document.getElementById('nt-cliente-pessoa');
+  const bcx = document.getElementById('nt-cliente-busca');
+  const sg = document.getElementById('nt-cliente-sug');
+  if (!cands.length || !sel || !bcx) return;
+  const posto = sel.dataset.posto || '';
+  if (window.ntSugAplicada === posto) return; // ja sugeriu pra esse posto (nao briga com o atendente)
+  if (sel.value || bcx.value.trim()) return;  // atendente ja escolheu/digitou
+  window.ntSugAplicada = posto;
+  const n = x => String(x || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9\s]/g, ' ').replace(/\s+/g, ' ').trim();
+  const cap = t => String(t).split(' ').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
+  const esc = t => String(t).replace(/[&<>"']/g, c => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[c]));
+  const mostra = h => { if (sg) { sg.innerHTML = h; sg.style.display = h ? 'block' : 'none'; } };
+  let parcial = null;
+  for (const c0 of cands) {
+    const c = n(c0); if (c.length < 3) continue;
+    const exatos = opcoes.filter(p => { const pn = n(p.nome); return pn === c || pn.split(' ')[0] === c; });
+    if (exatos.length === 1) {
+      sel.value = exatos[0].id; ntAtualizarPreview();
+      mostra(`✓ Achei <b>${esc(exatos[0].nome)}</b> pelo nome da conversa (“${esc(c0)}”). Confere se é a pessoa certa.`);
+      return;
+    }
+    if (exatos.length > 1) {
+      bcx.value = cap(c0); ntFiltrarClientes();
+      mostra(`🔎 ${exatos.length} pessoas com o nome “${esc(c0)}” — escolhe a certa na lista.`);
+      return;
+    }
+    if (!parcial) {
+      const parc = opcoes.filter(p => n(p.nome).split(' ').some(w => w.startsWith(c) || (w.length >= 4 && c.startsWith(w))));
+      if (parc.length) parcial = { c0, parc };
+    }
   }
+  if (parcial) {
+    // parecido (ex.: "Kami" x "Kamila"): busca pelo pedaco em comum pra lista mostrar so eles
+    const termo = n(parcial.c0).length <= Math.min(...parcial.parc.map(p => n(p.nome).split(' ')[0].length)) ? parcial.c0 : n(parcial.parc[0].nome).split(' ')[0];
+    bcx.value = cap(termo); ntFiltrarClientes();
+    mostra(parcial.parc.length === 1 ? `✓ Parece ser <b>${esc(parcial.parc[0].nome)}</b> (“${esc(parcial.c0)}” na conversa). Confere.` : `🔎 Possíveis pra “${esc(parcial.c0)}” — escolhe na lista (ou apaga a busca).`);
+    return;
+  }
+  const c0 = cands[0];
+  if (!opcoes.length) { bcx.value = cap(c0); ntAtualizarPreview(); mostra(''); return; }
+  mostra(`Não achei “${esc(c0)}” no cadastro desse posto. <a href="#" data-nome="${esc(cap(c0))}" onclick="event.preventDefault();const b=document.getElementById('nt-cliente-busca');b.value=this.dataset.nome;ntFiltrarClientes();ntAtualizarPreview();this.parentNode.style.display='none'" style="color:#7fb2ff">Usar “${esc(cap(c0))}” mesmo assim</a>`);
 }
 // Busca digitando (21/10/2026): filtra as opcoes do select pelo nome (sem
 // acento); se sobrar 1, ja escolhe. Enter escolhe o primeiro.
@@ -5591,6 +5639,13 @@ async function gestorAbrirTicket(id) {
     ? Math.round((parseDataBR(c.dataConclusao) - parseDataBR(c.dataAbertura)) / 86400000)
     : diasDesde(c.dataAbertura);
   const diasAbertoLabel = diasAberto === null ? '—' : (c.dataConclusao ? `${diasLabel(diasAberto)} até a conclusão` : `${diasLabel(diasAberto)} (em aberto)`);
+  // "Avisar o cliente" tambem no Painel do Gestor (21/10/2026)
+  const protoG = String(c.protocolo || '').replace(/\D/g, '');
+  window.atendAvisarCtx = { protocolo: protoG, chamado: c.idInterno || '', titulo: c.cliente || '', status: c.status || '', contato: d1.contato_digisac_nome || '' };
+  const acoesConversa = (protoG && dgEhEquipe()) ? `<div style="display:flex;gap:8px;flex-wrap:wrap;margin:-6px 0 14px">
+      <button class="chip" onclick="dgAbrirProtocolo('${protoG}')" style="height:34px;padding:0 12px;font-size:12.5px">💬 Ver conversa no Digisac</button>
+      ${atendNotifPode() ? `<button class="btn-primary" onclick="atendAvisarCliente()" style="height:34px;padding:0 14px;font-size:12.5px" title="Mandar mensagem pro cliente desse chamado">📣 Avisar o cliente</button>` : ''}
+    </div>` : '';
   document.getElementById('gestor-modal-body').innerHTML = `
     <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:16px">
       <h3 style="font:700 19px Outfit,sans-serif;color:#f2f7ff;margin:0">${c.cliente}</h3>
@@ -5599,6 +5654,7 @@ async function gestorAbrirTicket(id) {
         ${pillHtml(c.status)}
       </div>
     </div>
+    ${acoesConversa}
     <div class="chamado-detalhe-grid" style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:18px">
       <div><div style="font:600 11.5px Manrope;color:#93a6c4">Protocolo</div><div style="display:flex;align-items:center;gap:8px;margin-top:2px"><span style="font:600 14px Manrope;color:#eaf1ff">${c.protocolo||'—'}</span>${c.protocolo?botaoCopiar(c.protocolo):''}</div></div>
       <div><div style="font:600 11.5px Manrope;color:#93a6c4">Ticket Meta</div><div style="display:flex;align-items:center;gap:8px;margin-top:2px"><span style="font:600 14px Manrope;color:#eaf1ff">${c.ticketMeta||'—'}</span>${c.ticketMeta?botaoCopiar(c.ticketMeta):''}</div></div>
@@ -5872,7 +5928,14 @@ function dgRelatoCliente(d) {
 function dgNovoChamado() {
   const d = dgDadosAtual; if (!d) return;
   const falas = dgRelatoCliente(d);
-  const nomeSug = (falas.find(t => /^[a-zà-ú]{3,15}$/i.test(t)) || '');
+  // candidatos pro "Cliente que pediu": nome solto no chat > nome do WhatsApp > partes do nome salvo
+  const ruido = new Set('posto auto rede loja conv conveniencia gerente caixa frentista escritorio financeiro adm admin sr sra srg cliente meta suporte comercial ltda'.split(' '));
+  const nomesDe = t => String(t || '').split(/\s*[-|·/(),]\s*/).map(x => x.trim()).filter(Boolean).flatMap(seg => {
+    const ws = seg.split(/\s+/).filter(w => /^[a-zà-ú]{3,15}$/i.test(w) && !ruido.has(w.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase()));
+    return ws.length ? [ws.slice(0, 2).join(' '), ws[0]] : [];
+  });
+  const ct = d.contato || {};
+  const nomeSug = [...new Set([falas.find(t => /^[a-zà-ú]{3,15}$/i.test(t)) || '', ...nomesDe(ct.whatsapp), ...nomesDe(ct.nome)].filter(Boolean))].slice(0, 6);
   const ia = d.resumoIA;
   const rascunho = ia
     ? [ia.posto ? 'Posto: ' + ia.posto : '', ia.problema || '', ia.resumo || '', ia.proximoPasso ? 'Próximo passo: ' + ia.proximoPasso : ''].filter(Boolean).join('\n')
@@ -7663,6 +7726,7 @@ async function atendNCEnviar() {
     const d = await r.json().catch(() => ({}));
     if (!r.ok || !d.ok) throw new Error(d.error || `Erro ${r.status}`);
     atendNCFechar();
+    const gm = document.getElementById('gestor-modal'); if (gm) gm.style.display = 'none';
     if (d.aviso) alert(d.aviso);
     mostrarAvisoTopo('✓ Mensagem enviada' + (d.existente ? ' (no atendimento que já estava aberto)' : ' — conversa aberta com você' + (d.protocoloEnviado ? ` · protocolo ${d.protocolo} enviado` : '')), '#7fe0c0');
     goAtendimentos();
