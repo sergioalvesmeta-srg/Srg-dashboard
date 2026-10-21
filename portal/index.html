@@ -957,6 +957,7 @@ header.navbar nav a{white-space:nowrap;flex:none}
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#7186ab" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
             <input type="text" id="atend-busca" placeholder="Buscar contato, posto, protocolo..." oninput="atendState.busca=this.value;if(atendState.aba==='historico')atendHistRender();else atendRender()">
           </div>
+          <button class="btn-primary" onclick="atendNovaConversaAbrir()" title="Mandar mensagem pra um cliente que não está em atendimento" style="height:42px;padding:0 16px;font-size:13px">+ Nova conversa</button>
           <button class="chip" id="atend-sync-btn" onclick="atendSincronizar(false)" title="Puxa do Digisac os atendimentos abertos (use se algo parecer faltando)" style="height:42px;padding:0 14px">Sincronizar</button>
           <div style="position:relative">
             <button class="chip" onclick="atendNotifAlternarConfig()" title="Notificações" style="height:42px;padding:0 14px">🔔</button>
@@ -2610,6 +2611,8 @@ async function detalheRenderizar(found) {
   const editado  = found.ultima_interacao_data || found.updated_at;
   const idInternoAtual = found.id_interno;
   currentProto = proto || '';
+  // contexto do "Avisar o cliente" (21/10/2026) -- guardado aqui pra nao passar texto por onclick
+  window.atendAvisarCtx = { protocolo: String(proto || '').replace(/\D/g, ''), chamado: idInternoAtual || '', titulo: nome || '', status: status || '', contato: nomeContato || '' };
 
   document.getElementById('detalhe-header').innerHTML = `
     <div onclick="voltarLista()" style="display:flex;align-items:flex-start;justify-content:space-between;gap:16px;flex-wrap:wrap;cursor:pointer" title="Clique para recolher e voltar aos chamados">
@@ -2645,6 +2648,7 @@ async function detalheRenderizar(found) {
       </div>
       ${found.entrega_prevista ? (() => { const e = entregaInfo(found.entrega_prevista, statusKind(status)==='resolvido'); return `<div style="padding:10px 16px;border-radius:12px;background:rgba(240,180,60,.10);border:1px solid rgba(240,180,60,.32)"><div style="font:600 10.5px Manrope;letter-spacing:.1em;text-transform:uppercase;color:#e8cf8f">Entrega prevista</div><div style="font:600 15px Manrope;color:#eaf3ff;margin-top:3px">${e.l1}${e.l2?` <span style="font:600 12px Manrope;color:${e.cor}">· ${e.l2}</span>`:''}</div></div>`; })() : ''}
       ${(proto && dgEhEquipe()) ? `<button class="btn-ghost" style="height:auto;align-self:stretch;padding:0 16px" onclick="dgAbrirProtocolo('${String(proto).replace(/\D/g,'')}')">💬 Ver conversa no Digisac</button>` : ''}
+      ${(proto && dgEhEquipe() && atendNotifPode()) ? `<button class="btn-primary" style="height:auto;align-self:stretch;padding:0 16px" onclick="atendAvisarCliente()" title="Mandar mensagem pro cliente desse chamado (abre a conversa no Digisac com você)">📣 Avisar o cliente</button>` : ''}
     </div>`;
 
   const ehEquipeSRG = !!(currentUser && (currentUser.atendenteSRG || currentUser.gestor || currentUser.role === 'admin'));
@@ -6207,6 +6211,11 @@ async function atendCarregar(primeira) {
     atendState.carregando = false;
   }
   atendRender();
+  if (atendState.selPendente && (atendState.dados || []).some(a => a.ticketId === atendState.selPendente)) {
+    const tp = atendState.selPendente; atendState.selPendente = null;
+    if (atendState.aba !== 'meus' && atendState.aba !== 'todos') { atendState.aba = 'meus'; atendRender(); }
+    atendSelecionar(tp, false);
+  }
   // Conversa aberta: se chegou mensagem nova (ou mudou o ticket), atualiza sozinha.
   const sel = atendState.sel && atendState.dados.find(a => a.ticketId === atendState.sel);
   const cache = sel && atendState.conversas[sel.ticketId];
@@ -7538,6 +7547,130 @@ function atendQRInserir(i) {
   atendState.rascunhos[atendQR.ticketId] = ta.value;
   atendQRContarUso(x.id);
   atendQRFechar();
+}
+
+// ---- Nova conversa / Avisar o cliente (21/10/2026) ----
+// Abre conversa com um cliente que nao esta em atendimento (ou usa o aberto
+// dele). O Worker manda pelo Digisac e ja deixa o atendimento com quem enviou.
+// Limite de 20 conversas NOVAS por hora por pessoa (protecao anti-disparo).
+var atendNC = { contato: null, protocolo: '', timer: null, buscaSeq: 0 };
+function atendNCSaudacao() { const h = new Date().getHours(); return h < 12 ? 'Bom dia' : (h < 18 ? 'Boa tarde' : 'Boa noite'); }
+function atendNCMeuNome() { return ((currentUser && currentUser.nome) || '').split(' ')[0] || 'equipe SRG'; }
+function atendNCModal(html) {
+  let o = document.getElementById('atend-nc-overlay');
+  if (!o) {
+    o = document.createElement('div'); o.id = 'atend-nc-overlay';
+    o.style.cssText = 'position:fixed;inset:0;z-index:300;background:rgba(4,8,20,.7);backdrop-filter:blur(6px);display:flex;align-items:flex-start;justify-content:center;padding:60px 16px;overflow-y:auto';
+    o.addEventListener('click', e => { if (e.target === o) atendNCFechar(); });
+    document.body.appendChild(o);
+  }
+  o.innerHTML = `<div class="glass" style="width:100%;max-width:620px;padding:22px 24px;background:rgba(14,22,44,.98)">${html}</div>`;
+  o.style.display = 'flex';
+}
+function atendNCFechar() { const o = document.getElementById('atend-nc-overlay'); if (o) o.style.display = 'none'; atendNC.contato = null; atendNC.protocolo = ''; }
+document.addEventListener('keydown', e => { if (e.key === 'Escape') { const o = document.getElementById('atend-nc-overlay'); if (o && o.style.display !== 'none') atendNCFechar(); } });
+function atendNCCorpo(titulo, topoHtml, textoInicial) {
+  const campo = 'width:100%;padding:10px 12px;border-radius:12px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.18);color:#eaf1ff;font:500 13.5px Manrope';
+  return `<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
+      <h3 style="font:700 19px Outfit,sans-serif;color:#f4f8ff;margin:0">${titulo}</h3>
+      <button class="chip" onclick="atendNCFechar()" style="height:32px;padding:0 10px">✕</button>
+    </div>
+    ${topoHtml}
+    <label style="display:block;font:600 11.5px Manrope;color:#7186ab;text-transform:uppercase;margin:14px 0 6px">Mensagem</label>
+    <textarea id="atend-nc-texto" rows="6" style="${campo};resize:vertical;font:400 13.5px/1.45 Manrope">${acEsc(textoInicial || '')}</textarea>
+    <div style="font:500 11.5px Manrope;color:#7186ab;margin-top:6px">Vai pelo WhatsApp da SRG, assinado com o seu nome. O atendimento fica com você. Use pra clientes que já falam com a SRG (o WhatsApp bloqueia disparo em massa; limite de 20 conversas novas por hora).</div>
+    <div id="atend-nc-msg" style="font:600 12.5px Manrope;margin-top:10px;min-height:18px"></div>
+    <div style="display:flex;justify-content:flex-end;gap:10px;margin-top:8px">
+      <button class="chip" onclick="atendNCFechar()" style="height:40px;padding:0 16px">Cancelar</button>
+      <button class="btn-primary" id="atend-nc-enviar" onclick="atendNCEnviar()" style="height:40px;padding:0 20px">Enviar</button>
+    </div>`;
+}
+function atendNovaConversaAbrir() {
+  atendNC.contato = null; atendNC.protocolo = '';
+  const campo = 'width:100%;height:44px;padding:0 14px;border-radius:12px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.18);color:#eaf1ff;font:500 14px Manrope';
+  atendNCModal(atendNCCorpo('Nova conversa', `
+    <label style="display:block;font:600 11.5px Manrope;color:#7186ab;text-transform:uppercase;margin-bottom:6px">Cliente</label>
+    <input id="atend-nc-busca" type="text" autocomplete="off" placeholder="Nome, posto ou número (ex.: CAC 35, Kamila, 8699...)" oninput="atendNCBuscar()" style="${campo}">
+    <div id="atend-nc-res" style="margin-top:8px;max-height:260px;overflow-y:auto"></div>`, ''));
+  setTimeout(() => { const b = document.getElementById('atend-nc-busca'); if (b) b.focus(); }, 30);
+}
+function atendNCBuscar() {
+  clearTimeout(atendNC.timer);
+  atendNC.timer = setTimeout(async () => {
+    const q = ((document.getElementById('atend-nc-busca') || {}).value || '').trim();
+    const box = document.getElementById('atend-nc-res'); if (!box) return;
+    if (q.length < 2) { box.innerHTML = ''; return; }
+    const seq = ++atendNC.buscaSeq;
+    box.innerHTML = '<div style="font:500 12.5px Manrope;color:#93a6c4;padding:6px">Buscando... (na 1ª vez do dia carrega a lista de contatos do Digisac, pode levar uns segundos)</div>';
+    try {
+      const r = await fetch(`${PROXY}/atend/contatos?q=${encodeURIComponent(q)}`, { headers: authD1() });
+      const d = await r.json().catch(() => ({}));
+      if (seq !== atendNC.buscaSeq) return;
+      if (!r.ok || !d.ok) throw new Error(d.error || `Erro ${r.status}`);
+      atendNC.resultados = d.contatos || [];
+      box.innerHTML = atendNC.resultados.length ? atendNC.resultados.map((c, i) => `<div onclick="atendNCEscolher(${i})" style="padding:9px 12px;border-radius:10px;cursor:pointer;margin-bottom:4px;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08)">
+          <div style="font:700 13.5px Manrope;color:#eaf1ff">${acEsc(c.nome || c.numero)}${c.whatsapp ? ` <span style="font-weight:500;color:#93a6c4">· WhatsApp: ${acEsc(c.whatsapp)}</span>` : ''}</div>
+          <div style="font:500 12px Manrope;color:#7186ab">${acEsc(c.numero)}${c.aberto ? ` · <span style="color:#f2b84b">atendimento aberto${c.aberto.atendente ? ' com ' + acEsc(c.aberto.atendente) : ' (na fila)'}</span>` : ''}</div>
+        </div>`).join('') : '<div style="font:500 12.5px Manrope;color:#7186ab;padding:6px">Ninguém encontrado. Tente outro pedaço do nome ou o número.</div>';
+    } catch (e) { if (seq === atendNC.buscaSeq) box.innerHTML = `<div style="color:#e29a9a;font:500 12.5px Manrope;padding:6px">Erro: ${acEsc(e.message)}</div>`; }
+  }, 300);
+}
+function atendNCEscolher(i) {
+  const c = (atendNC.resultados || [])[i]; if (!c) return;
+  atendNC.contato = c;
+  const box = document.getElementById('atend-nc-res');
+  const busca = document.getElementById('atend-nc-busca');
+  if (busca) busca.style.display = 'none';
+  if (box) box.innerHTML = `<div style="display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:12px;background:rgba(63,160,140,.12);border:1px solid rgba(90,190,160,.35)">
+      <div style="flex:1;min-width:0"><div style="font:700 14px Manrope;color:#eaf1ff">${acEsc(c.nome || c.numero)}</div><div style="font:500 12px Manrope;color:#93a6c4">${acEsc(c.numero)}${c.aberto ? ' · <span style="color:#f2b84b">já tem atendimento aberto' + (c.aberto.atendente ? ' com ' + acEsc(c.aberto.atendente) : ' na fila') + '</span>' : ''}</div></div>
+      <button class="chip" onclick="atendNovaConversaAbrir()" style="height:30px;padding:0 10px;font-size:12px">Trocar</button>
+    </div>`;
+  const tx = document.getElementById('atend-nc-texto');
+  // cumprimenta pelo nome da PESSOA (perfil do WhatsApp), nao pelo nome salvo ("CAC 10 - Caixa")
+  const pessoaNome = String(c.whatsapp || (/ - /.test(c.nome || '') ? '' : (c.nome || ''))).trim().split(/\s+/)[0] || '';
+  if (tx && !tx.value.trim()) tx.value = `${atendNCSaudacao()}${pessoaNome && !/^\d/.test(pessoaNome) ? ', ' + pessoaNome : ''}! Aqui é o ${atendNCMeuNome()}, da SRG Tecnologia. `;
+  if (tx) { tx.focus(); tx.setSelectionRange(tx.value.length, tx.value.length); }
+}
+function atendAvisarCliente() {
+  const ctx = window.atendAvisarCtx || {};
+  if (!ctx.protocolo) { alert('Esse chamado não tem protocolo do Digisac.'); return; }
+  atendNC.contato = null; atendNC.protocolo = ctx.protocolo;
+  const st = (typeof statusLabel === 'function' ? statusLabel(ctx.status) : ctx.status) || ctx.status || '';
+  const resolvido = /resolvid|conclu/i.test(String(ctx.status) + ' ' + st);
+  const texto = `${atendNCSaudacao()}! Aqui é o ${atendNCMeuNome()}, da SRG Tecnologia. Passando pra dar um retorno sobre o chamado ${ctx.chamado}${ctx.titulo ? ' (' + ctx.titulo + ')' : ''}: `
+    + (resolvido ? 'ele foi resolvido ✅. Pode conferir aí e me avisar se ficou tudo certo?' : `o status agora é "${st}". `);
+  atendNCModal(atendNCCorpo('Avisar o cliente', `<div style="padding:10px 12px;border-radius:12px;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.1);font:500 13px Manrope;color:#cfe0f5">
+      Chamado <b>${acEsc(ctx.chamado)}</b> · protocolo <b>${acEsc(ctx.protocolo)}</b>${ctx.contato ? ' · contato: <b>' + acEsc(ctx.contato) + '</b>' : ''}
+      <div style="font:500 11.5px Manrope;color:#7186ab;margin-top:4px">Vai pro mesmo contato que abriu esse atendimento no Digisac.</div></div>`, texto));
+  setTimeout(() => { const t = document.getElementById('atend-nc-texto'); if (t) { t.focus(); t.setSelectionRange(t.value.length, t.value.length); } }, 30);
+}
+async function atendNCEnviar() {
+  const tx = document.getElementById('atend-nc-texto');
+  const msg = document.getElementById('atend-nc-msg');
+  const btn = document.getElementById('atend-nc-enviar');
+  const texto = (tx && tx.value || '').trim();
+  const corpo = { texto };
+  if (atendNC.contato) corpo.contactId = atendNC.contato.id;
+  else if (atendNC.protocolo) corpo.protocolo = atendNC.protocolo;
+  else { if (msg) { msg.style.color = '#e0c27a'; msg.textContent = 'Escolha o cliente.'; } return; }
+  if (!texto) { if (msg) { msg.style.color = '#e0c27a'; msg.textContent = 'Escreva a mensagem.'; } return; }
+  if (btn) { if (btn.disabled) return; btn.disabled = true; btn.textContent = 'Enviando...'; }
+  if (msg) { msg.style.color = '#93a6c4'; msg.textContent = 'Enviando pelo Digisac e passando o atendimento pra você...'; }
+  try {
+    const r = await fetch(`${PROXY}/atend/nova-conversa`, { method: 'POST', headers: authD1({ 'Content-Type': 'application/json' }), body: JSON.stringify(corpo) });
+    const d = await r.json().catch(() => ({}));
+    if (!r.ok || !d.ok) throw new Error(d.error || `Erro ${r.status}`);
+    atendNCFechar();
+    if (d.aviso) alert(d.aviso);
+    mostrarAvisoTopo('✓ Mensagem enviada' + (d.existente ? ' (no atendimento que já estava aberto)' : ' — conversa aberta com você'), '#7fe0c0');
+    goAtendimentos();
+    if (d.ticketId) atendState.selPendente = d.ticketId;
+    setTimeout(() => atendCarregar(false), 400);
+  } catch (e) {
+    if (msg) { msg.style.color = '#e29a9a'; msg.textContent = 'Não enviou: ' + e.message; }
+  } finally {
+    const b2 = document.getElementById('atend-nc-enviar'); if (b2) { b2.disabled = false; b2.textContent = 'Enviar'; }
+  }
 }
 
 // ---- Aguardando Meta (15/10/2026) ----
