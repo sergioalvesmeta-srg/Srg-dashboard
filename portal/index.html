@@ -1387,7 +1387,7 @@ function goNew(nomeSugerido) {
   ntEvidReset();
   // so o "Abrir chamado" da conversa sugere nome (lista de candidatos, em ordem de confianca)
   window.ntNomeSugerido = Array.isArray(nomeSugerido) ? nomeSugerido.filter(Boolean) : (nomeSugerido ? [nomeSugerido] : []);
-  window.ntSugAplicada = null;
+  window.ntSugAplicada = null; window.ntSugFeito = {};
   // 21/10/2026: todo chamado novo comeca em "— nao informar —" (antes ficava o cliente do chamado anterior)
   const bc = document.getElementById('nt-cliente-busca'); if (bc) bc.value = '';
   const sp = document.getElementById('nt-cliente-pessoa');
@@ -3021,10 +3021,17 @@ function ntSugerirCliente(opcoes) {
   const bcx = document.getElementById('nt-cliente-busca');
   const sg = document.getElementById('nt-cliente-sug');
   if (!cands.length || !sel || !bcx) return;
-  const posto = sel.dataset.posto || '';
+  // chave = posto + lista carregada (na 1a chamada a lista do Dispatch ainda nao chegou)
+  const posto = (sel.dataset.posto || '') + '|' + (ntPessoasCliente ? ntPessoasCliente.length : '-');
   if (window.ntSugAplicada === posto) return; // ja sugeriu pra esse posto (nao briga com o atendente)
+  // busca/escolha feita pela propria sugestao (posto anterior) e refeita; so respeita o que o atendente fez
+  const dele = window.ntSugFeito || {};
+  if (bcx.value && bcx.value === dele.busca) { bcx.value = ''; ntFiltrarClientes(); }
+  if (sel.value && sel.value === dele.sel) { sel.value = ''; ntAtualizarPreview(); }
   if (sel.value || bcx.value.trim()) return;  // atendente ja escolheu/digitou
   window.ntSugAplicada = posto;
+  window.ntSugFeito = {};
+  const marca = () => { window.ntSugFeito = { busca: bcx.value, sel: sel.value }; };
   const n = x => String(x || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9\s]/g, ' ').replace(/\s+/g, ' ').trim();
   const cap = t => String(t).split(' ').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
   const esc = t => String(t).replace(/[&<>"']/g, c => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[c]));
@@ -3034,12 +3041,12 @@ function ntSugerirCliente(opcoes) {
     const c = n(c0); if (c.length < 3) continue;
     const exatos = opcoes.filter(p => { const pn = n(p.nome); return pn === c || pn.split(' ')[0] === c; });
     if (exatos.length === 1) {
-      sel.value = exatos[0].id; ntAtualizarPreview();
+      sel.value = exatos[0].id; marca(); ntAtualizarPreview();
       mostra(`✓ Achei <b>${esc(exatos[0].nome)}</b> pelo nome da conversa (“${esc(c0)}”). Confere se é a pessoa certa.`);
       return;
     }
     if (exatos.length > 1) {
-      bcx.value = cap(c0); ntFiltrarClientes();
+      bcx.value = cap(c0); ntFiltrarClientes(); marca();
       mostra(`🔎 ${exatos.length} pessoas com o nome “${esc(c0)}” — escolhe a certa na lista.`);
       return;
     }
@@ -3051,13 +3058,12 @@ function ntSugerirCliente(opcoes) {
   if (parcial) {
     // parecido (ex.: "Kami" x "Kamila"): busca pelo pedaco em comum pra lista mostrar so eles
     const termo = n(parcial.c0).length <= Math.min(...parcial.parc.map(p => n(p.nome).split(' ')[0].length)) ? parcial.c0 : n(parcial.parc[0].nome).split(' ')[0];
-    bcx.value = cap(termo); ntFiltrarClientes();
+    bcx.value = cap(termo); ntFiltrarClientes(); marca();
     mostra(parcial.parc.length === 1 ? `✓ Parece ser <b>${esc(parcial.parc[0].nome)}</b> (“${esc(parcial.c0)}” na conversa). Confere.` : `🔎 Possíveis pra “${esc(parcial.c0)}” — escolhe na lista (ou apaga a busca).`);
     return;
   }
   const c0 = cands[0];
-  if (!opcoes.length) { bcx.value = cap(c0); ntAtualizarPreview(); mostra(''); return; }
-  mostra(`Não achei “${esc(c0)}” no cadastro desse posto. <a href="#" data-nome="${esc(cap(c0))}" onclick="event.preventDefault();const b=document.getElementById('nt-cliente-busca');b.value=this.dataset.nome;ntFiltrarClientes();ntAtualizarPreview();this.parentNode.style.display='none'" style="color:#7fb2ff">Usar “${esc(cap(c0))}” mesmo assim</a>`);
+  mostra(`Não achei “${esc(c0)}” no cadastro${opcoes.length ? ' desse posto' : ''}. <a href="#" data-nome="${esc(cap(c0))}" onclick="event.preventDefault();const b=document.getElementById('nt-cliente-busca');b.value=this.dataset.nome;ntFiltrarClientes();ntAtualizarPreview();this.parentNode.style.display='none'" style="color:#7fb2ff">Usar “${esc(cap(c0))}” mesmo assim</a>`);
 }
 // Busca digitando (21/10/2026): filtra as opcoes do select pelo nome (sem
 // acento); se sobrar 1, ja escolhe. Enter escolhe o primeiro.
@@ -5906,6 +5912,16 @@ function dgCopiarConversa() {
 // so as 6 primeiras mensagens (geralmente "boa tarde"/"ok"). Agora: todas as
 // mensagens do cliente, midia com rotulo + legenda, sem as que sao so
 // cumprimento/confirmacao (quando tem coisa mais util), ate ~1500 caracteres.
+// 21/10/2026: palavra solta que NAO e nome (cumprimento/resposta curta). Evita "Ola" virar cliente.
+const DG_NAO_NOME = new Set(('ola oi oie opa eai hello alo bom boa dia tarde noite ok okk okay blz beleza certo sim nao isso ta to tudo bem '
+  + 'obrigado obrigada obg brigado valeu vlw entendi aguardo fico pronto feito show perfeito otimo combinado tranquilo claro exato '
+  + 'pode pois entao bom-dia boa-tarde boa-noite gente pessoal suporte ajuda urgente teste caixa posto nota cupom sistema meta erro '
+  + 'agora hoje amanha ainda voltou funcionou resolvido resolveu travou caiu').split(' '));
+function dgPareceNome(t) {
+  const x = String(t || '').trim();
+  if (!/^[a-zà-ú]{3,15}$/i.test(x)) return false;
+  return !DG_NAO_NOME.has(x.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase());
+}
 function dgRelatoCliente(d) {
   const ROT = { image: 'Imagem', audio: 'Áudio', ptt: 'Áudio', video: 'Vídeo', document: 'Documento', sticker: 'Figurinha', location: 'Localização' };
   const soCumprimento = t => {
@@ -5916,7 +5932,7 @@ function dgRelatoCliente(d) {
   const linhas = (d.mensagens || []).filter(m => !m.deMim && !m.bot && !m.comentario && m.tipo !== 'ticket' && !m.apagada).map(m => {
     const t = String(m.texto || '').trim();
     const rot = m.tipo && m.tipo !== 'chat' ? (ROT[m.tipo] || 'Anexo') : '';
-    return { txt: rot ? `[${rot}${m.arquivo ? ': ' + m.arquivo : ''}]${t ? ' ' + t : ''}` : t, util: !!rot || (t && !soCumprimento(t)), nome: !rot && /^[a-zà-ú]{3,15}$/i.test(t) };
+    return { txt: rot ? `[${rot}${m.arquivo ? ': ' + m.arquivo : ''}]${t ? ' ' + t : ''}` : t, util: !!rot || (t && !soCumprimento(t)), nome: !rot && dgPareceNome(t) };
   }).filter(x => x.txt);
   // se tem mensagem util, tira os "ok"/"boa tarde" (mas mantem nome solto, ex.: "kamila")
   const temUtil = linhas.some(x => x.util);
@@ -5931,11 +5947,11 @@ function dgNovoChamado() {
   // candidatos pro "Cliente que pediu": nome solto no chat > nome do WhatsApp > partes do nome salvo
   const ruido = new Set('posto auto rede loja conv conveniencia gerente caixa frentista escritorio financeiro adm admin sr sra srg cliente meta suporte comercial ltda'.split(' '));
   const nomesDe = t => String(t || '').split(/\s*[-|·/(),]\s*/).map(x => x.trim()).filter(Boolean).flatMap(seg => {
-    const ws = seg.split(/\s+/).filter(w => /^[a-zà-ú]{3,15}$/i.test(w) && !ruido.has(w.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase()));
+    const ws = seg.split(/\s+/).filter(w => dgPareceNome(w) && !ruido.has(w.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase()));
     return ws.length ? [ws.slice(0, 2).join(' '), ws[0]] : [];
   });
   const ct = d.contato || {};
-  const nomeSug = [...new Set([falas.find(t => /^[a-zà-ú]{3,15}$/i.test(t)) || '', ...nomesDe(ct.whatsapp), ...nomesDe(ct.nome)].filter(Boolean))].slice(0, 6);
+  const nomeSug = [...new Set([falas.find(t => dgPareceNome(t)) || '', ...nomesDe(ct.whatsapp), ...nomesDe(ct.nome)].filter(Boolean))].slice(0, 6);
   const ia = d.resumoIA;
   const rascunho = ia
     ? [ia.posto ? 'Posto: ' + ia.posto : '', ia.problema || '', ia.resumo || '', ia.proximoPasso ? 'Próximo passo: ' + ia.proximoPasso : ''].filter(Boolean).join('\n')
