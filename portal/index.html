@@ -109,6 +109,9 @@ header.navbar nav{min-width:0;overflow-x:auto;scrollbar-width:none;-webkit-overf
 header.navbar nav::-webkit-scrollbar{display:none}
 header.navbar nav a{white-space:nowrap;flex:none}
 .atend-grupo{display:contents}
+.dg-bolha .dg-resp{opacity:0;transition:opacity .15s}
+.dg-bolha:hover .dg-resp,.dg-bolha .dg-resp:focus{opacity:1}
+@media (hover:none){.dg-bolha .dg-resp{opacity:.6}}
 @media(max-width:680px){
   header.navbar{padding:10px 12px;flex-wrap:wrap;gap:8px}
   header.navbar>div:first-child{width:100%;gap:10px!important}
@@ -5693,8 +5696,18 @@ async function dgAbrirProtocolo(proto) {
     ov.innerHTML = `<div class="glass" style="max-width:560px;margin:0 auto;padding:32px;text-align:center;color:#fc8181;font:600 14px Manrope">Erro ao consultar o Digisac: ${dgEsc(e.message)}<div style="margin-top:16px"><button class="btn-ghost" onclick="dgFechar()">Fechar</button></div></div>`;
   }
 }
-function dgLinhasHtml(d) {
+function dgQuemMsg(d, m) { return m.comentario ? 'Nota interna' : (m.bot ? 'Bot' : (m.deMim ? (m.autor || 'Atendente') : dgNomeBalao(d))); }
+function dgResumoMsg(m) {
+  const rot = ({image:'🖼 Imagem',audio:'🎧 Áudio',ptt:'🎤 Áudio',video:'🎬 Vídeo',document:'📎 Documento',sticker:'Figurinha',location:'📍 Localização'})[m.tipo];
+  const t = String(m.texto || '').replace(/\s+/g, ' ').trim();
+  const r = rot ? (t ? rot + ': ' + t : rot) : t;
+  return r.length > 140 ? r.slice(0, 140) + '…' : (r || '(sem texto)');
+}
+function dgLinhasHtml(d, opts) {
   // Linhas do chat, com separador por dia (usado pelo modal e pelo painel de Atendimentos)
+  // opts.responder = ticketId -> mostra o botao "↩ Responder" em cada balao (16/10/2026)
+  const responderEm = opts && opts.responder;
+  const porId = {}; (d.mensagens || []).forEach(m => { if (m.id) porId[m.id] = m; });
   let ultimoDia = '';
   return (d.mensagens || []).map(msg => {
     let bloco = '';
@@ -5711,14 +5724,21 @@ function dgLinhasHtml(d) {
     const texto = msg.apagada ? '<i style="color:#7186ab">mensagem apagada</i>' : dgEsc(msg.texto).replace(/\n/g, '<br>');
     const player = (!msg.apagada && msg.midia) ? dgMidiaHtml(msg) : '';
     const quem = msg.comentario ? 'Nota interna' : (msg.bot ? 'Bot' : (msg.deMim ? (msg.autor || 'Atendente') : dgNomeBalao(d)));
+    const citada = msg.citadaId ? porId[msg.citadaId] : null;
+    const blocoCitada = msg.citadaId ? `<div style="margin:2px 0 6px;padding:5px 9px;border-left:3px solid #7fd4c0;border-radius:6px;background:rgba(0,0,0,.18);font:500 12px/1.35 Manrope;color:#b9c8e2;max-height:54px;overflow:hidden">
+        ${citada ? `<b style="color:#7fd4c0">${dgEsc(dgQuemMsg(d, citada))}</b><br>${dgEsc(dgResumoMsg(citada))}` : '<i>mensagem citada</i>'}</div>` : '';
+    const btnResp = (responderEm && !msg.comentario && !msg.apagada && msg.id)
+      ? `<button class="dg-resp" title="Responder esta mensagem (citar)" onclick="atendCitar('${dgEsc(responderEm)}','${dgEsc(msg.id)}')" style="align-self:center;margin:0 6px;height:26px;width:26px;border-radius:50%;border:1px solid rgba(255,255,255,.18);background:rgba(255,255,255,.06);color:#cfe0f5;cursor:pointer;font-size:13px;flex:none">↩</button>` : '';
     let estilo, lado;
     if (msg.comentario) { lado = 'flex-end'; estilo = 'background:rgba(240,180,60,.10);border:1px dashed rgba(240,180,60,.45);color:#f3e2b8'; }
     else if (msg.bot) { lado = 'flex-end'; estilo = 'background:rgba(150,120,220,.14);border:1px solid rgba(170,140,230,.32);color:#e4dcf8'; }
     else if (msg.deMim) { lado = 'flex-end'; estilo = 'background:rgba(63,160,140,.20);border:1px solid rgba(90,190,160,.38);color:#e6fbf4'; }
     else { lado = 'flex-start'; estilo = 'background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.12);color:#eaf1ff'; }
-    return bloco + `<div style="display:flex;justify-content:${lado};margin:5px 0"><div style="max-width:78%;padding:9px 13px;border-radius:14px;${estilo}">
+    const balao = `<div style="max-width:78%;padding:9px 13px;border-radius:14px;${estilo}">
       <div style="font:700 11px Manrope;opacity:.75;margin-bottom:3px">${dgEsc(quem)} <span style="font-weight:500;margin-left:6px">${dgHora(msg.quando)}</span></div>
-      ${midia}${player}<div style="font:400 13.5px/1.45 Manrope;word-break:break-word">${texto}</div></div></div>`;
+      ${blocoCitada}${midia}${player}<div style="font:400 13.5px/1.45 Manrope;word-break:break-word">${texto}</div></div>`;
+    // botao fica do lado de dentro (cliente: a direita do balao; nosso: a esquerda)
+    return bloco + `<div class="dg-bolha" data-msgid="${dgEsc(msg.id || '')}" style="display:flex;justify-content:${lado};margin:5px 0">${lado === 'flex-end' ? btnResp + balao : balao + btnResp}</div>`;
   }).join('');
 }
 function dgRenderizar(d) {
@@ -6048,7 +6068,7 @@ ntEvidReset();
 // Ainda NAO responde pelo portal (fase 3).
 // ============================================================
 function atendEstadoInicial() {
-  return { aba: null, busca: '', dados: [], offset: 0, timer: null, carregando: false, sincronizou: false, temAliases: false, erro: '', sel: null, conversas: {}, carregandoConversa: null, visiveis: [], admin: false, rascunhos: {}, enviando: false, notaModo: {}, anexos: {}, gravacao: null, filaEnvio: [], enviandoJob: null, ocupado: {} };
+  return { citando: {}, aba: null, busca: '', dados: [], offset: 0, timer: null, carregando: false, sincronizou: false, temAliases: false, erro: '', sel: null, conversas: {}, carregandoConversa: null, visiveis: [], admin: false, rascunhos: {}, enviando: false, notaModo: {}, anexos: {}, gravacao: null, filaEnvio: [], enviandoJob: null, ocupado: {} };
 }
 var atendState = atendEstadoInicial();
 var atendGeracao = 0; // muda no logout: respostas que chegarem depois sao ignoradas
@@ -6362,7 +6382,7 @@ function atendRenderPainelPartes(d, a) {
         <button class="chip" style="height:30px;padding:0 10px;font-size:12px" title="Exportar o atendimento em PDF" onclick="dgExportarPdf()">PDF</button>
         <button class="chip" style="height:30px;padding:0 10px;font-size:12px" title="Abrir em janela com todos os detalhes (tempos, transferências)" onclick="dgAbrirProtocolo('${dgEsc(d.protocolo)}')">Detalhes</button>
       </div>`;
-  const chat = dgLinhasHtml(d) || '<div style="padding:24px;text-align:center;color:#7186ab;font:500 13px Manrope">Sem mensagens.</div>';
+  const chat = dgLinhasHtml(d, a.finalizado ? null : { responder: a.ticketId }) || '<div style="padding:24px;text-align:center;color:#7186ab;font:500 13px Manrope">Sem mensagens.</div>';
   return { topo, chamado, chat };
 }
 // Painel da conversa. 15/10/2026 (pente fino): quando e o MESMO atendimento
@@ -6508,7 +6528,8 @@ function atendAcaoHtml(a) {
   const fundo = nota ? 'rgba(240,180,60,.08)' : 'rgba(255,255,255,.05)';
   const dica = nota
     ? (podeResponder ? '🔒 Nota interna: só a equipe vê no Digisac, NÃO vai pro cliente.' : `🔒 Atendimento com ${acEsc(a.atendente || 'outro atendente')} — aqui você só pode deixar nota interna (o cliente não vê).`)
-    : (a.naFila ? 'Atendimento na fila: ao enviar, ele passa a ser seu (sem saudação automática — a sua mensagem é a saudação).' : 'Vai pelo WhatsApp da SRG (via Digisac). Cole um print com Ctrl+V, anexe 📎 ou grave 🎤.');
+    : (a.naFila ? 'Atendimento na fila: ao enviar, ele passa a ser seu (sem saudação automática — a sua mensagem é a saudação).'
+      : (!a.meu && a.atendente ? `⚠ Atendimento com ${acEsc(a.atendente)}: se você responder, ele passa pra você (vai pedir confirmação). Pra orientar sem tirar dele, use a 🔒 nota interna.` : 'Vai pelo WhatsApp da SRG (via Digisac). Cole um print com Ctrl+V, anexe 📎 ou grave 🎤.'));
   const btnIco = 'height:44px;width:44px;flex-shrink:0;padding:0;font-size:17px;display:inline-flex;align-items:center;justify-content:center';
   const gravando = atendState.gravacao && atendState.gravacao.ticketId === a.ticketId;
   const chipAnexo = anexo ? `<div style="display:flex;align-items:center;gap:10px;margin-bottom:8px;padding:6px 10px;border-radius:10px;background:rgba(90,160,230,.10);border:1px solid rgba(90,160,230,.3)">
@@ -6517,7 +6538,12 @@ function atendAcaoHtml(a) {
       <span style="font:600 12px Manrope;color:#cfe0f5;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">📎 ${acEsc(anexo.nome)} <span style="color:#7186ab;font-weight:500">(${(anexo.tamanho / 1024 / 1024).toFixed(2)} MB)</span></span>
       <button class="chip" onclick="atendAnexoRemover('${id}')" title="Remover anexo" style="margin-left:auto;height:26px;padding:0 9px;font-size:12px">✕</button>
     </div>` : '';
-  return `${chipAnexo}<div style="display:flex;gap:8px;align-items:flex-end;position:relative">
+  const cit = !nota && atendState.citando && atendState.citando[a.ticketId];
+  const chipCitar = cit ? `<div style="display:flex;align-items:center;gap:10px;margin-bottom:8px;padding:6px 10px;border-radius:10px;background:rgba(127,212,192,.08);border-left:3px solid #7fd4c0">
+      <span style="flex:1;min-width:0;font:500 12px/1.35 Manrope;color:#b9c8e2;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">↩ Respondendo a <b style="color:#7fd4c0">${acEsc(cit.quem)}</b>: ${acEsc(cit.texto)}</span>
+      <button class="chip" onclick="atendCitarCancelar('${id}')" title="Não citar" style="height:24px;padding:0 8px;font-size:11.5px">✕</button>
+    </div>` : '';
+  return `${chipCitar}${chipAnexo}<div style="display:flex;gap:8px;align-items:flex-end;position:relative">
       <div id="atend-qr" style="display:none;position:absolute;left:0;right:0;bottom:calc(100% + 6px);z-index:40;max-height:300px;overflow-y:auto;padding:6px;border-radius:12px;background:rgba(14,22,44,.98);border:1px solid rgba(120,160,230,.35);box-shadow:0 12px 30px rgba(0,0,0,.45)"></div>
       <button class="chip" onmousedown="event.preventDefault()" onclick="atendQRAbrirBotao('${id}')" title="Mensagens rápidas do Digisac (ou digite / no campo)" style="${btnIco}">⚡</button>
       ${podeResponder ? `<button class="chip" onclick="atendNotaAlternar('${id}')" title="Alternar nota interna (só a equipe vê)" style="${btnIco};${nota ? 'background:rgba(240,180,60,.25);border-color:rgba(240,180,60,.6)' : ''}">🔒</button>` : ''}
@@ -6526,7 +6552,7 @@ function atendAcaoHtml(a) {
       <textarea id="atend-resposta" data-ticket="${id}" rows="2" placeholder="${nota ? 'Nota interna (só a equipe vê)...' : (anexo ? 'Legenda (opcional)...' : 'Escreva a resposta... (Enter envia, Shift+Enter quebra linha, / abre as mensagens rápidas)')}"
         oninput="atendState.rascunhos['${id}']=this.value;atendQRDigitou(this,'${id}')" onfocus="atendState.focoResposta='${id}'" onblur="atendState.focoResposta=null;setTimeout(atendQRFechar,150)"
         onpaste="atendColar(event,'${id}')"
-        onkeydown="if(atendQRTecla(event))return;if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();atendEnviar('${id}')}"
+        onkeydown="if(atendQRTecla(event))return;if(event.key==='Escape'&&atendState.citando&&atendState.citando['${id}']){event.preventDefault();atendCitarCancelar('${id}');return;}if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();atendEnviar('${id}')}"
         style="flex:1;resize:vertical;min-height:44px;max-height:160px;padding:10px 12px;border-radius:12px;background:${fundo};border:1px solid ${corBorda};color:#eaf1ff;font:500 13.5px/1.4 Manrope"></textarea>
       <button class="btn-primary" id="atend-enviar-btn" onclick="atendEnviar('${id}')" style="height:44px;padding:0 18px;font-size:13px;${nota ? 'background:linear-gradient(135deg,#b8862f,#d9a441)' : ''}">${nota ? 'Salvar nota' : 'Enviar'}</button>
     </div>
@@ -6787,12 +6813,29 @@ function atendEnviar(ticketId) {
   if (!texto && !anexo) return;
   if (atendState.gravacao) { alert('Pare a gravação antes de enviar.'); return; }
   const naFila = !nota && !!a0.naFila && !(atendState.filaEnvio || []).some(j => j.ticketId === ticketId && j.assumir);
+  const citar = (!nota && atendState.citando && atendState.citando[ticketId]) || null;
   ta.value = ''; atendState.rascunhos[ticketId] = '';
-  if (anexo) { delete atendState.anexos[ticketId]; atendRedesenharAcao(ticketId); }
+  if (citar) delete atendState.citando[ticketId];
+  if (anexo || citar) atendRedesenharAcao(ticketId);
   atendState.filaEnvio = atendState.filaEnvio || [];
-  atendState.filaEnvio.push({ ticketId, texto, nota, anexo, assumir: naFila, contato: a0.contato || 'cliente' });
+  atendState.filaEnvio.push({ ticketId, texto, nota, anexo, citar, assumir: naFila, contato: a0.contato || 'cliente' });
   atendEnvioStatus();
   atendProcessarFila();
+}
+// Responder citando (16/10/2026): ↩ no balao -> aparece "Respondendo a ..." em
+// cima do campo; vai junto no proximo envio (quotedMessageId no Digisac).
+function atendCitar(ticketId, msgId) {
+  const c = atendState.conversas[ticketId];
+  const m = c && c.d && (c.d.mensagens || []).find(x => x.id === msgId);
+  if (!m) return;
+  atendState.citando = atendState.citando || {};
+  atendState.citando[ticketId] = { id: msgId, quem: dgQuemMsg(c.d, m), texto: dgResumoMsg(m) };
+  if (atendState.notaModo[ticketId]) atendState.notaModo[ticketId] = false; // citacao vai pro cliente
+  atendRedesenharAcao(ticketId);
+}
+function atendCitarCancelar(ticketId) {
+  if (atendState.citando) delete atendState.citando[ticketId];
+  atendRedesenharAcao(ticketId);
 }
 function atendEnvioStatus() {
   const btn = document.getElementById('atend-enviar-btn');
@@ -6813,9 +6856,18 @@ async function atendProcessarFila() {
   const t = job.ticketId;
   try {
     const corpo = { ticketId: t, texto: job.texto, assumir: job.assumir, nota: job.nota };
+    if (job.citar) corpo.citarId = job.citar.id;
     if (job.anexo) corpo.arquivo = { base64: job.anexo.base64, mimetype: job.anexo.mimetype, nome: job.anexo.nome };
-    const r = await fetch(`${PROXY}/atend/responder`, { method: 'POST', headers: authD1({ 'Content-Type': 'application/json' }), body: JSON.stringify(corpo) });
-    const d = await r.json().catch(() => ({}));
+    let r = await fetch(`${PROXY}/atend/responder`, { method: 'POST', headers: authD1({ 'Content-Type': 'application/json' }), body: JSON.stringify(corpo) });
+    let d = await r.json().catch(() => ({}));
+    // 21/10/2026: admin escrevendo no atendimento de outro -> confirma antes de tirar do colega
+    if (r.status === 409 && d.precisaConfirmar && ger === atendGeracao) {
+      if (confirm(`Esse atendimento está com ${d.dono}.\n\nSe você responder, o Digisac passa o atendimento pra você (sai do ${d.dono}).\n\nResponder mesmo assim?\n(Pra só orientar o colega sem tirar dele, use a 🔒 nota interna.)`)) {
+        corpo.forcar = true;
+        r = await fetch(`${PROXY}/atend/responder`, { method: 'POST', headers: authD1({ 'Content-Type': 'application/json' }), body: JSON.stringify(corpo) });
+        d = await r.json().catch(() => ({}));
+      } else { d = { ok: false, error: 'cancelado — o atendimento continua com ' + d.dono }; }
+    }
     if (ger !== atendGeracao) return; // saiu do portal no meio
     if (!r.ok || !d.ok) throw new Error(d.error || `Erro ${r.status}`);
     if (job.anexo && job.anexo.previa) try { URL.revokeObjectURL(job.anexo.previa); } catch (e) {}
@@ -6843,6 +6895,7 @@ async function atendProcessarFila() {
     const volta = [job.texto, ...resto.map(j => j.texto), digitando].filter(v => String(v || '').trim()).join('\n');
     atendState.rascunhos[t] = volta;
     if (job.anexo && !atendState.anexos[t]) atendState.anexos[t] = job.anexo;
+    if (job.citar && !(atendState.citando || {})[t]) { atendState.citando = atendState.citando || {}; atendState.citando[t] = job.citar; }
     if (job.nota) atendState.notaModo[t] = true;
     const aviso = (job.nota ? 'Nota não salva: ' : 'Não enviou: ') + e.message;
     if (atendState.sel === t) {
