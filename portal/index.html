@@ -491,6 +491,7 @@ header.navbar nav a{white-space:nowrap;flex:none}
              resolvido? Sim/Não". Só equipe SRG e só postos com pessoas. -->
         <div id="nt-cliente-wrap" style="display:none;margin-bottom:22px">
           <label style="display:block;font:600 12.5px Manrope;color:#bcccea;margin-bottom:8px">Cliente que pediu <span style="font-weight:500;color:#7186ab">(equipe SRG)</span></label>
+          <input type="text" id="nt-cliente-busca" placeholder="Digite pra buscar o nome..." autocomplete="off" oninput="ntFiltrarClientes()" onkeydown="if(event.key==='Enter'){event.preventDefault();ntFiltrarClientes(true)}" style="width:100%;height:44px;margin-bottom:8px;padding:0 14px;border-radius:12px;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.22);color:#eaf1ff;font:500 14px Manrope">
           <select id="nt-cliente-pessoa" onchange="ntAtualizarPreview()" style="width:100%;height:52px;padding:0 14px;border-radius:13px;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.22);color:#eaf1ff;font:500 14px Manrope"></select>
           <p id="nt-cliente-nota" style="font:400 12px Manrope;color:#7186ab;margin:8px 0 0">Quando o chamado for resolvido, essa pessoa recebe no computador dela a pergunta "Já está resolvido?". Exige o Protocolo.</p>
         </div>
@@ -1379,9 +1380,11 @@ function atualizarNavAtiva(view) {
     if (nav && alvo && nav.scrollWidth > nav.clientWidth) nav.scrollLeft = Math.max(0, alvo.offsetLeft - nav.offsetLeft - 12);
   } catch (e) {}
 }
-function goNew() {
+function goNew(nomeSugerido) {
   ntPreviewEditado = false;
   ntEvidReset();
+  window.ntNomeSugerido = nomeSugerido || ''; // so o "Abrir chamado" da conversa sugere nome
+  const bc = document.getElementById('nt-cliente-busca'); if (bc) bc.value = '';
   buildNewTicketChips();
   showView('newticket');
   window.scrollTo(0,0);
@@ -2985,13 +2988,42 @@ function ntAtualizarClientes(forcar) {
   const opcoes = (ntPessoasCliente || [])
     .filter(p => !p.posto || p.posto === posto)
     .sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR'));
-  if (!ehEquipeSRG || !opcoes.length) { wrap.style.display = 'none'; sel.value = ''; return; }
+  if (!ehEquipeSRG) { wrap.style.display = 'none'; sel.value = ''; return; }
+  // 21/10/2026: aparece sempre pra equipe. Sem pessoas cadastradas no Dispatch
+  // pra esse posto, fica so o campo de nome (vai pra linha "Cliente:" do texto).
+  sel._opcoes = opcoes;
+  wrap.style.display = 'block';
+  sel.style.display = opcoes.length ? '' : 'none';
+  const notaCli = document.getElementById('nt-cliente-nota'); if (notaCli) notaCli.style.display = opcoes.length ? '' : 'none';
+  const bcx = document.getElementById('nt-cliente-busca');
+  if (bcx) bcx.placeholder = opcoes.length ? 'Digite pra buscar o nome (ou digite um nome que não está na lista)...' : 'Nome de quem pediu (opcional)';
+  if (!opcoes.length && bcx && !bcx.value && window.ntNomeSugerido) bcx.value = window.ntNomeSugerido.charAt(0).toUpperCase() + window.ntNomeSugerido.slice(1);
+  ntFiltrarClientes();
+  // Veio do "Abrir chamado" de uma conversa e o cliente disse o nome (ex.: "kamila"): ja escolhe
+  if (!sel.value && window.ntNomeSugerido) {
+    const n = x => String(x || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim();
+    const alvo = n(window.ntNomeSugerido);
+    const achou = opcoes.filter(p => n(p.nome).split(/\s+/)[0] === alvo || n(p.nome) === alvo);
+    if (achou.length === 1) { sel.value = achou[0].id; ntAtualizarPreview(); }
+  }
+}
+// Busca digitando (21/10/2026): filtra as opcoes do select pelo nome (sem
+// acento); se sobrar 1, ja escolhe. Enter escolhe o primeiro.
+function ntFiltrarClientes(enter) {
+  const sel = document.getElementById('nt-cliente-pessoa');
+  if (!sel) return;
+  const opcoes = sel._opcoes || [];
+  const n = x => String(x || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+  const termo = n((document.getElementById('nt-cliente-busca') || {}).value || '').trim();
+  const lista = termo ? opcoes.filter(p => n(p.nome + ' ' + (p.posto || '')).includes(termo)) : opcoes;
   const atual = sel.value;
   const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[c]));
-  sel.innerHTML = '<option value="">— não informar —</option>' + opcoes.map(p =>
+  sel.innerHTML = `<option value="">${termo ? (lista.length ? `— ${lista.length} encontrado(s) —` : '— ninguém com esse nome —') : '— não informar —'}</option>` + lista.map(p =>
     `<option value="${esc(p.id)}">${esc(p.nome)}${p.posto ? ' · ' + esc(p.posto) : ''}${p.tem_maquina ? '' : ' (sem computador cadastrado no Dispatch)'}</option>`).join('');
-  sel.value = opcoes.some(p => p.id === atual) ? atual : '';
-  wrap.style.display = 'block';
+  if (lista.some(p => p.id === atual)) sel.value = atual;
+  else if (termo && (lista.length === 1 || (enter && lista.length))) sel.value = lista[0].id;
+  else sel.value = '';
+  if (sel.value !== atual) ntAtualizarPreview();
 }
 
 // Guarda quem pediu + protocolo. Quando o chamado chega pela planilha da
@@ -3190,7 +3222,13 @@ function ntMontarMensagem() {
   const ehEquipeSRG = !!(currentUser && (currentUser.atendenteSRG || currentUser.gestor || currentUser.role === 'admin'));
   // Equipe SRG: a linha Cliente volta quando escolhe "Cliente que pediu".
   const pessoa = ehEquipeSRG ? ntPessoaEscolhida() : null;
-  const cliente = ehEquipeSRG ? (pessoa ? pessoa.nome : '') : ((currentUser?.nome || '').trim() || currentUser?.username || '');
+  // Nome digitado que nao esta na lista do Dispatch tambem entra (21/10/2026)
+  const wrapCli = document.getElementById('nt-cliente-wrap');
+  const digitado = (wrapCli && wrapCli.style.display !== 'none') ? ((document.getElementById('nt-cliente-busca') || {}).value || '').trim() : '';
+  const selCli = document.getElementById('nt-cliente-pessoa');
+  const semMatch = digitado && !(selCli && selCli._opcoes || []).some(p => String(p.nome).toLowerCase().includes(digitado.toLowerCase()));
+  const nomeLivre = semMatch ? digitado.replace(/\s+/g, ' ').replace(/(^|\s)\S/g, c => c.toUpperCase()) : '';
+  const cliente = ehEquipeSRG ? (pessoa ? pessoa.nome : nomeLivre) : ((currentUser?.nome || '').trim() || currentUser?.username || '');
   const posto = document.getElementById('nt-posto-select').value;
   const setorSel = document.getElementById('nt-setor-select').value;
   const setor = setorSel === 'Outro (digitar abaixo)' ? document.getElementById('nt-setor-custom').value.trim() : setorSel;
@@ -5830,12 +5868,13 @@ function dgRelatoCliente(d) {
 function dgNovoChamado() {
   const d = dgDadosAtual; if (!d) return;
   const falas = dgRelatoCliente(d);
+  const nomeSug = (falas.find(t => /^[a-zà-ú]{3,15}$/i.test(t)) || '');
   const ia = d.resumoIA;
   const rascunho = ia
     ? [ia.posto ? 'Posto: ' + ia.posto : '', ia.problema || '', ia.resumo || '', ia.proximoPasso ? 'Próximo passo: ' + ia.proximoPasso : ''].filter(Boolean).join('\n')
     : (d.resumoAtendente ? d.resumoAtendente + '\n\n' : '') + (falas.length ? 'Relato do cliente:\n' + falas.join('\n') : '');
   dgFechar();
-  goNew();
+  goNew(nomeSug);
   setTimeout(() => {
     const pr = document.getElementById('nt-protocolo'); if (pr) pr.value = d.protocolo;
     const tx = document.getElementById('nt-texto-livre'); if (tx) tx.value = rascunho.trim();
