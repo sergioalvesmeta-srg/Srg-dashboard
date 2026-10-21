@@ -5803,9 +5803,33 @@ function dgCopiarConversa() {
 }
 // Leva pro "Novo chamado" já com o protocolo e um rascunho do relato
 // (cliente: primeiras falas) -- a equipe só confere e manda a IA reformular.
+// Relato do cliente pro "Abrir chamado" (21/10/2026): antes pegava so texto
+// puro (perdia a LEGENDA de video/imagem, onde muitas vezes esta o problema) e
+// so as 6 primeiras mensagens (geralmente "boa tarde"/"ok"). Agora: todas as
+// mensagens do cliente, midia com rotulo + legenda, sem as que sao so
+// cumprimento/confirmacao (quando tem coisa mais util), ate ~1500 caracteres.
+function dgRelatoCliente(d) {
+  const ROT = { image: 'Imagem', audio: 'Áudio', ptt: 'Áudio', video: 'Vídeo', document: 'Documento', sticker: 'Figurinha', location: 'Localização' };
+  const soCumprimento = t => {
+    const w = String(t || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9\s]/g, ' ').trim().split(/\s+/).filter(Boolean);
+    const ok = new Set('ok okk okay blz beleza certo ta bom boa dia tarde noite tudo bem obrigado obrigada obg valeu vlw sim isso entendi aguardo fico no oi ola e ai'.split(' '));
+    return w.length <= 4 && w.every(x => ok.has(x));
+  };
+  const linhas = (d.mensagens || []).filter(m => !m.deMim && !m.bot && !m.comentario && m.tipo !== 'ticket' && !m.apagada).map(m => {
+    const t = String(m.texto || '').trim();
+    const rot = m.tipo && m.tipo !== 'chat' ? (ROT[m.tipo] || 'Anexo') : '';
+    return { txt: rot ? `[${rot}${m.arquivo ? ': ' + m.arquivo : ''}]${t ? ' ' + t : ''}` : t, util: !!rot || (t && !soCumprimento(t)), nome: !rot && /^[a-zà-ú]{3,15}$/i.test(t) };
+  }).filter(x => x.txt);
+  // se tem mensagem util, tira os "ok"/"boa tarde" (mas mantem nome solto, ex.: "kamila")
+  const temUtil = linhas.some(x => x.util);
+  const sel = temUtil ? linhas.filter(x => x.util || x.nome) : linhas;
+  const out = []; let tam = 0;
+  for (const x of sel) { if (tam + x.txt.length > 1500) break; out.push(x.txt); tam += x.txt.length + 1; }
+  return out;
+}
 function dgNovoChamado() {
   const d = dgDadosAtual; if (!d) return;
-  const falas = (d.mensagens || []).filter(m => m.tipo === 'chat' && !m.deMim && !m.bot && m.texto).slice(0, 6).map(m => m.texto.trim());
+  const falas = dgRelatoCliente(d);
   const ia = d.resumoIA;
   const rascunho = ia
     ? [ia.posto ? 'Posto: ' + ia.posto : '', ia.problema || '', ia.resumo || '', ia.proximoPasso ? 'Próximo passo: ' + ia.proximoPasso : ''].filter(Boolean).join('\n')
