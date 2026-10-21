@@ -7578,6 +7578,7 @@ function atendNCCorpo(titulo, topoHtml, textoInicial) {
     ${topoHtml}
     <label style="display:block;font:600 11.5px Manrope;color:#7186ab;text-transform:uppercase;margin:14px 0 6px">Mensagem</label>
     <textarea id="atend-nc-texto" rows="6" style="${campo};resize:vertical;font:400 13.5px/1.45 Manrope">${acEsc(textoInicial || '')}</textarea>
+    <label style="display:flex;align-items:center;gap:6px;margin-top:8px;font:500 12.5px Manrope;color:#bcccea;cursor:pointer"><input type="checkbox" id="atend-nc-proto" checked style="accent-color:#3fa08c"> Em conversa nova, mandar logo depois: "Seu número de protocolo para esse atendimento é: …"</label>
     <div style="font:500 11.5px Manrope;color:#7186ab;margin-top:6px">Vai pelo WhatsApp da SRG, assinado com o seu nome. O atendimento fica com você. Use pra clientes que já falam com a SRG (o WhatsApp bloqueia disparo em massa; limite de 20 conversas novas por hora).</div>
     <div id="atend-nc-msg" style="font:600 12.5px Manrope;margin-top:10px;min-height:18px"></div>
     <div style="display:flex;justify-content:flex-end;gap:10px;margin-top:8px">
@@ -7650,7 +7651,7 @@ async function atendNCEnviar() {
   const msg = document.getElementById('atend-nc-msg');
   const btn = document.getElementById('atend-nc-enviar');
   const texto = (tx && tx.value || '').trim();
-  const corpo = { texto };
+  const corpo = { texto, enviarProtocolo: !!(document.getElementById('atend-nc-proto') || { checked: true }).checked };
   if (atendNC.contato) corpo.contactId = atendNC.contato.id;
   else if (atendNC.protocolo) corpo.protocolo = atendNC.protocolo;
   else { if (msg) { msg.style.color = '#e0c27a'; msg.textContent = 'Escolha o cliente.'; } return; }
@@ -7663,7 +7664,7 @@ async function atendNCEnviar() {
     if (!r.ok || !d.ok) throw new Error(d.error || `Erro ${r.status}`);
     atendNCFechar();
     if (d.aviso) alert(d.aviso);
-    mostrarAvisoTopo('✓ Mensagem enviada' + (d.existente ? ' (no atendimento que já estava aberto)' : ' — conversa aberta com você'), '#7fe0c0');
+    mostrarAvisoTopo('✓ Mensagem enviada' + (d.existente ? ' (no atendimento que já estava aberto)' : ' — conversa aberta com você' + (d.protocoloEnviado ? ` · protocolo ${d.protocolo} enviado` : '')), '#7fe0c0');
     goAtendimentos();
     if (d.ticketId) atendState.selPendente = d.ticketId;
     setTimeout(() => atendCarregar(false), 400);
