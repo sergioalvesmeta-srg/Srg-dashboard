@@ -7586,7 +7586,7 @@ function atendNCCorpo(titulo, topoHtml, textoInicial) {
     </div>`;
 }
 function atendNovaConversaAbrir() {
-  atendNC.contato = null; atendNC.protocolo = '';
+  atendNC.contato = null; atendNC.protocolo = ''; atendNC.todos = false;
   const campo = 'width:100%;height:44px;padding:0 14px;border-radius:12px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.18);color:#eaf1ff;font:500 14px Manrope';
   atendNCModal(atendNCCorpo('Nova conversa', `
     <label style="display:block;font:600 11.5px Manrope;color:#7186ab;text-transform:uppercase;margin-bottom:6px">Cliente</label>
@@ -7603,15 +7603,16 @@ function atendNCBuscar() {
     const seq = ++atendNC.buscaSeq;
     box.innerHTML = '<div style="font:500 12.5px Manrope;color:#93a6c4;padding:6px">Buscando... (na 1ª vez do dia carrega a lista de contatos do Digisac, pode levar uns segundos)</div>';
     try {
-      const r = await fetch(`${PROXY}/atend/contatos?q=${encodeURIComponent(q)}`, { headers: authD1() });
+      const r = await fetch(`${PROXY}/atend/contatos?q=${encodeURIComponent(q)}${atendNC.todos ? '&todos=1' : ''}`, { headers: authD1() });
       const d = await r.json().catch(() => ({}));
       if (seq !== atendNC.buscaSeq) return;
       if (!r.ok || !d.ok) throw new Error(d.error || `Erro ${r.status}`);
       atendNC.resultados = d.contatos || [];
       box.innerHTML = atendNC.resultados.length ? atendNC.resultados.map((c, i) => `<div onclick="atendNCEscolher(${i})" style="padding:9px 12px;border-radius:10px;cursor:pointer;margin-bottom:4px;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08)">
-          <div style="font:700 13.5px Manrope;color:#eaf1ff">${acEsc(c.nome || c.numero)}${c.whatsapp ? ` <span style="font-weight:500;color:#93a6c4">· WhatsApp: ${acEsc(c.whatsapp)}</span>` : ''}</div>
-          <div style="font:500 12px Manrope;color:#7186ab">${acEsc(c.numero)}${c.aberto ? ` · <span style="color:#f2b84b">atendimento aberto${c.aberto.atendente ? ' com ' + acEsc(c.aberto.atendente) : ' (na fila)'}</span>` : ''}</div>
-        </div>`).join('') : '<div style="font:500 12.5px Manrope;color:#7186ab;padding:6px">Ninguém encontrado. Tente outro pedaço do nome ou o número.</div>';
+          <div style="font:700 13.5px Manrope;color:#eaf1ff">${acEsc(c.nome || c.numero)}${c.nuncaConversou ? ' <span style="font:600 11px Manrope;color:#e0c27a">· da agenda, nunca conversou</span>' : ''}${c.whatsapp ? ` <span style="font-weight:500;color:#93a6c4">· WhatsApp: ${acEsc(c.whatsapp)}</span>` : ''}</div>
+          <div style="font:500 12px Manrope;color:#7186ab">${acEsc(c.numero)}${c.ultimo && !c.aberto ? ` · última conversa ${(() => { try { return new Date(c.ultimo).toLocaleDateString('pt-BR'); } catch (e) { return ''; } })()}` : ''}${c.aberto ? ` · <span style="color:#f2b84b">atendimento aberto${c.aberto.atendente ? ' com ' + acEsc(c.aberto.atendente) : ' (na fila)'}</span>` : ''}</div>
+        </div>`).join('') + (d.ocultos && !atendNC.todos ? `<div style="font:500 12px Manrope;color:#7186ab;padding:6px">${d.ocultos} contato(s) da agenda que nunca conversaram com a SRG ficaram de fora. <a href="#" onclick="atendNC.todos=true;atendNCBuscar();return false" style="color:#7fd4c0">Mostrar também</a></div>` : '')
+        : `<div style="font:500 12.5px Manrope;color:#7186ab;padding:6px">Ninguém que já conversou com a SRG com esse nome.${d.ocultos && !atendNC.todos ? ` <a href="#" onclick="atendNC.todos=true;atendNCBuscar();return false" style="color:#7fd4c0">Procurar também na agenda (${d.ocultos})</a>` : ' Tente outro pedaço do nome ou o número.'}</div>`;
     } catch (e) { if (seq === atendNC.buscaSeq) box.innerHTML = `<div style="color:#e29a9a;font:500 12.5px Manrope;padding:6px">Erro: ${acEsc(e.message)}</div>`; }
   }, 300);
 }
