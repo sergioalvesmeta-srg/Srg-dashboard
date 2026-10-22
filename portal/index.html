@@ -4471,12 +4471,21 @@ function setGestorDataCustom(campo, valor) {
 // alterna pra multi-select): se o card jah representa "Em aberto" e o
 // usuario clica nele de novo, o esperado eh continuar em "Em aberto", nao
 // desligar e voltar pra "Todos".
+// O filtro de status atual e exatamente este card? ("todos" = sem filtro, nunca conta como selecionado.)
+function gestorKpiAtivo(filtro) {
+  const lista = Array.isArray(filtro) ? filtro : [filtro];
+  const atual = gestorState.statusFiltro || [];
+  if (lista.length === 1 && lista[0] === 'todos') return false;
+  return lista.length === atual.length && lista.every(x => atual.includes(x));
+}
 function gestorFiltrarPorKPI(s) {
   // Aceita um status unico ("aberto") ou uma lista (usado pelo card
   // "Pendências do período", cujo numero soma varios baldes de uma vez --
   // o clique precisa selecionar TODOS eles, senao o filtro aplicado nao
   // bate com o numero que o card estava mostrando.
-  const lista = Array.isArray(s) ? s : [s];
+  let lista = Array.isArray(s) ? s : [s];
+  // Clicar de novo no card que ja esta selecionado desfaz o filtro (volta pra "Todos").
+  if (gestorKpiAtivo(lista)) lista = ['todos'];
   gestorState.statusFiltro = lista;
   document.querySelectorAll('[data-gstatus]').forEach(b => b.classList.toggle('active', lista.includes(b.dataset.gstatus)));
   gestorRenderTudo();
@@ -4846,25 +4855,31 @@ function gestorRenderKPIs(baseSemPeriodo, janela) {
   // resolveram), entao taxa de resolucao nunca passa de 100%.
   const tituloAbertura = 'Conta pela data de ABERTURA dentro do período selecionado (mesmo critério de "Todos os chamados").';
   const cards = [
-    { label:'Pendências do período <span style="font-weight:500;color:#5c7095">· fluxo</span>', val: atuais.backlog, click:`gestorFiltrarPorKPI('aberto')`, cor:'#a992e0', title: tituloAbertura,
+    { label:'Pendências do período <span style="font-weight:500;color:#5c7095">· fluxo</span>', val: atuais.backlog, click:`gestorFiltrarPorKPI('aberto')`, filtro:'aberto', cor:'#a992e0', title: tituloAbertura,
       badge: (anteriores ? gestorBadge(atuais.backlog, anteriores.backlog, {modo:'desce-bom', sufixo}) : '') + `<div style="margin-top:6px;font:600 11px Manrope;color:#7186ab" title="Passivo total acumulado ate agora, independente do periodo selecionado.">Total atual: <span style="color:#dbe6fb;font-weight:700">${backlogTotalAtual}</span> <span style="color:${variacaoCor}">(${variacaoTxt})</span></div>` },
-    { label:'Pendentes Meta <span style="font-weight:500;color:#5c7095">· fluxo</span>', val: atuais.pendentesMeta, click:`gestorFiltrarPorKPI('pendenteMeta')`, cor:'#e0955f', title: tituloAbertura,
+    { label:'Pendentes Meta <span style="font-weight:500;color:#5c7095">· fluxo</span>', val: atuais.pendentesMeta, click:`gestorFiltrarPorKPI('pendenteMeta')`, filtro:'pendenteMeta', cor:'#e0955f', title: tituloAbertura,
       badge: anteriores ? gestorBadge(atuais.pendentesMeta, anteriores.pendentesMeta, {modo:'desce-bom', sufixo}) : '' },
-    { label:'Pendentes SRG <span style="font-weight:500;color:#5c7095">· fluxo</span>', val: atuais.pendentes, click:`gestorFiltrarPorKPI('pendente')`, cor:'#c15c5c', title: tituloAbertura,
+    { label:'Pendentes SRG <span style="font-weight:500;color:#5c7095">· fluxo</span>', val: atuais.pendentes, click:`gestorFiltrarPorKPI('pendente')`, filtro:'pendente', cor:'#c15c5c', title: tituloAbertura,
       badge: anteriores ? gestorBadge(atuais.pendentes, anteriores.pendentes, {modo:'desce-bom', sufixo}) : '' },
-    { label:'Resolvidos <span style="font-weight:500;color:#5c7095">· fluxo</span>', val: atuais.resolvidos, click:`gestorFiltrarPorKPI('resolvido')`, cor:'#3fa08c', title: tituloAbertura + ' Dentre os "Chamados recebidos" no período, quantos já estão resolvidos.',
+    { label:'Resolvidos <span style="font-weight:500;color:#5c7095">· fluxo</span>', val: atuais.resolvidos, click:`gestorFiltrarPorKPI('resolvido')`, filtro:'resolvido', cor:'#3fa08c', title: tituloAbertura + ' Dentre os "Chamados recebidos" no período, quantos já estão resolvidos.',
       badge: anteriores ? gestorBadge(atuais.resolvidos, anteriores.resolvidos, {modo:'sobe-bom', sufixo}) : '' },
-    { label:'Taxa de resolução <span style="font-weight:500;color:#5c7095">· fluxo</span>', val: atuais.taxaResolucao.toFixed(0)+'%', click:`gestorFiltrarPorKPI('resolvido')`, cor:'#5db4e6', title: tituloAbertura + ' Divide Resolvidos por Chamados recebidos (ambos por abertura) -- nunca passa de 100%.',
+    { label:'Taxa de resolução <span style="font-weight:500;color:#5c7095">· fluxo</span>', val: atuais.taxaResolucao.toFixed(0)+'%', click:`gestorFiltrarPorKPI('resolvido')`, filtro:'resolvido', cor:'#5db4e6', title: tituloAbertura + ' Divide Resolvidos por Chamados recebidos (ambos por abertura) -- nunca passa de 100%.',
       badge: anteriores ? gestorBadge(atuais.taxaResolucao, anteriores.taxaResolucao, {modo:'sobe-bom', pontosPercentuais:true, casas:1, sufixo}) : '' },
-    { label:'Chamados recebidos <span style="font-weight:500;color:#5c7095">· fluxo</span>', val: atuais.recebidos, click:`gestorFiltrarPorKPI('todos')`, cor:'#f2f7ff', title: tituloAbertura,
+    { label:'Chamados recebidos <span style="font-weight:500;color:#5c7095">· fluxo</span>', val: atuais.recebidos, click:`gestorFiltrarPorKPI('todos')`, filtro:'todos', cor:'#f2f7ff', title: tituloAbertura,
       badge: anteriores ? gestorBadge(atuais.recebidos, anteriores.recebidos, {modo:'neutro', sufixo}) : '' },
   ];
-  document.getElementById('gestor-kpis').innerHTML = cards.map(c => `
-    <div class="glass" ${c.click?`onclick="${c.click}"`:''} title="${c.title||''}" style="padding:20px 20px;cursor:${c.click?'pointer':'default'};text-align:left">
+  document.getElementById('gestor-kpis').innerHTML = cards.map(c => {
+    // Card selecionado (e o filtro que esta valendo na lista): anel + brilho na cor do card, fundo suave e selo "filtro ativo".
+    const sel = !!c.click && gestorKpiAtivo(c.filtro);
+    const estiloSel = sel ? `;box-shadow:0 0 0 2px ${c.cor},0 0 26px -2px ${c.cor}66,0 24px 60px -24px rgba(0,0,0,.5);background-image:linear-gradient(160deg,${c.cor}26,${c.cor}0d);border-color:${c.cor}` : '';
+    return `
+    <div class="glass" ${c.click?`onclick="${c.click}" role="button" aria-pressed="${sel}"`:''} title="${c.title||''}" style="position:relative;padding:20px 20px;cursor:${c.click?'pointer':'default'};text-align:left;transition:box-shadow .15s ease${estiloSel}">
+      ${sel ? `<span style="position:absolute;top:10px;right:12px;font:700 9.5px Manrope;letter-spacing:.06em;text-transform:uppercase;color:${c.cor}">● filtro ativo</span>` : ''}
       <div style="font:600 12px Manrope;color:#93a6c4;margin-bottom:8px">${c.label}</div>
       <div style="font:700 26px Outfit,sans-serif;color:${c.cor};margin-bottom:8px">${c.val}</div>
       <div>${c.badge}</div>
-    </div>`).join('');
+    </div>`;
+  }).join('');
   return { atuais, anteriores, backlogTotalAtual, variacaoBacklog };
 }
 
