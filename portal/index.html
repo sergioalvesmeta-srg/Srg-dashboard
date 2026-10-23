@@ -6993,6 +6993,7 @@ function atendEnviar(ticketId) {
   const citar = (!nota && atendState.citando && atendState.citando[ticketId]) || null;
   ta.value = ''; atendState.rascunhos[ticketId] = '';
   if (citar) delete atendState.citando[ticketId];
+  if (anexo) delete atendState.anexos[ticketId]; // 23/10: limpa o anexo pendente ao enviar (volta no catch se falhar); previa so e revogada apos o sucesso
   if (anexo || citar) atendRedesenharAcao(ticketId);
   atendState.filaEnvio = atendState.filaEnvio || [];
   atendState.filaEnvio.push({ ticketId, texto, nota, anexo, citar, assumir: naFila, contato: a0.contato || 'cliente' });
