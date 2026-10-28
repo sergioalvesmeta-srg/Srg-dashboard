@@ -1002,12 +1002,14 @@ header.navbar nav a{white-space:nowrap;flex:none}
       <div id="ac-aba-clientes">
         <div id="ac-stats" style="display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin-bottom:20px" class="kpis-cards-grid"></div>
         <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:16px">
-          <input type="text" id="ac-busca" placeholder="Buscar cliente ou ID da máquina..." oninput="acRenderCards()" style="flex:1;min-width:220px;height:42px;padding:0 14px;border-radius:12px;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.16);color:#eaf1ff;font:500 13.5px Manrope">
+          <input type="text" id="ac-busca" placeholder="Buscar cliente ou ID da máquina..." oninput="acRenderCards()" onkeydown="acBuscaTecla(event)" autocomplete="off" style="flex:1;min-width:220px;height:42px;padding:0 14px;border-radius:12px;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.16);color:#eaf1ff;font:500 13.5px Manrope">
           <button class="chip active" data-acstatus="" onclick="acSetStatus('',this)">Todos</button>
           <button class="chip" data-acstatus="disponivel" onclick="acSetStatus('disponivel',this)">Disponível</button>
           <button class="chip" data-acstatus="atendimento" onclick="acSetStatus('atendimento',this)">Em atendimento</button>
+          <button id="ac-modo-btn" class="chip" onclick="acAlternarModoLocal()" style="font-size:12px"></button>
           <button id="ac-finalizar-todos-btn" class="chip" onclick="acFinalizarTodos()" style="color:#e29a9a;display:none;margin-left:auto">Finalizar todos</button>
         </div>
+        <div id="ac-recentes" style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:10px"></div>
         <div id="ac-contador" style="font:400 12.5px Manrope;color:#7186ab;margin-bottom:10px"></div>
         <div id="ac-clientes-lista" style="display:flex;flex-direction:column;gap:10px"></div>
       </div>
@@ -4014,36 +4016,124 @@ function acRenderStats() {
   }
 }
 
-function acRenderCards() {
-  const termo = (document.getElementById('ac-busca').value || '').toLowerCase().trim();
-  const cont = document.getElementById('ac-clientes-lista');
-  let filtrados = acClientes.filter(c => {
+// ---- Acesso Clientes v2 (27/10/2026): maquinas no proprio card, Abrir/Copiar ID
+// direto, maquina principal (★), recentes e Enter na busca. ----
+let acExpandidos = {};
+const acNorm = s => String(s == null ? '' : s).normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
+function acFmtId(id) {
+  const d = String(id || '').replace(/\s+/g, '');
+  if (/^\d{9,10}$/.test(d)) return d.length === 10 ? d.replace(/^(\d)(\d{3})(\d{3})(\d{3})$/, '$1 $2 $3 $4') : d.replace(/^(\d{3})(\d{3})(\d{3})$/, '$1 $2 $3');
+  return d || '—';
+}
+function acMaqPrincipal(c) {
+  const ms = c.maquinas || [];
+  if (!ms.length) return -1;
+  let i = ms.findIndex(m => m.principal);
+  if (i < 0) i = ms.findIndex(m => /servidor/i.test(m.nome || ''));
+  return i < 0 ? 0 : i;
+}
+function acSetPrincipal(ci, mi, on) {
+  (acClientes[ci].maquinas || []).forEach((m, k) => { m.principal = on && k === mi; });
+  acRenderConfig();
+}
+function acToggleCliente(id) { acExpandidos[id] = !acExpandidos[id]; acRenderCards(); }
+function acUsuarioNome() { return (currentUser && (currentUser.nome || currentUser.username)) || 'desconhecido'; }
+function acRecentesChave() { return 'srg_ac_recentes:' + ((currentUser && currentUser.username) || ''); }
+function acRecentesLer() { try { return JSON.parse(localStorage.getItem(acRecentesChave()) || '[]') || []; } catch (e) { return []; } }
+function acRecentesGravar(c, m) {
+  try {
+    const r = [{ c: String(c.id), mid: m.id || '', n: m.nome || '' }, ...acRecentesLer().filter(x => !(x.c === String(c.id) && x.mid === (m.id || '')))].slice(0, 5);
+    localStorage.setItem(acRecentesChave(), JSON.stringify(r));
+  } catch (e) {}
+}
+function acRenderRecentes() {
+  const el = document.getElementById('ac-recentes'); if (!el) return;
+  const itens = acRecentesLer().map(x => {
+    const c = acClientes.find(k => String(k.id) === x.c); if (!c) return null;
+    const mi = (c.maquinas || []).findIndex(m => (m.id || '') === x.mid); if (mi < 0) return null;
+    return { c, mi, m: c.maquinas[mi] };
+  }).filter(Boolean);
+  el.innerHTML = itens.length ? '<span style="font:600 11px Manrope;color:#7186ab;text-transform:uppercase;letter-spacing:.06em">Recentes</span>' +
+    itens.map(x => `<button class="chip" style="height:30px;padding:0 12px;font-size:12.5px" title="Abrir ${acEsc(x.m.tipo || 'AnyDesk')} ${acEsc(acFmtId(x.m.id))}" onclick="acAbrirMaquina('${acEsc(x.c.id)}',${x.mi})">🕘 ${acEsc(x.c.nome)}${(x.c.maquinas || []).length > 1 ? ' · ' + acEsc(x.m.nome || '') : ''}</button>`).join('') : '';
+}
+function acListaFiltrada() {
+  const termo = acNorm(document.getElementById('ac-busca').value).trim();
+  const semEsp = termo.replace(/\s+/g, '');
+  return acClientes.filter(c => {
     if (acStatusFiltro === 'atendimento' && !acEmAtendimento(c)) return false;
     if (acStatusFiltro === 'disponivel' && acEmAtendimento(c)) return false;
     if (!termo) return true;
-    const alvo = [c.nome, ...(c.maquinas||[]).map(m=>m.id), ...(c.maquinas||[]).map(m=>m.nome)].join(' ').toLowerCase();
-    return alvo.includes(termo);
+    const ms = c.maquinas || [];
+    const txt = acNorm([c.nome, ...ms.map(m => m.nome)].join(' '));
+    const ids = ms.map(m => String(m.id || '').replace(/\s+/g, '')).join(' ');
+    return txt.includes(termo) || (semEsp.length >= 3 && ids.includes(semEsp));
   });
+}
+function acBuscaTecla(ev) {
+  if (ev.key !== 'Enter') return;
+  ev.preventDefault();
+  const r = acListaFiltrada();
+  if (r.length === 1) {
+    const i = acMaqPrincipal(r[0]);
+    if (i >= 0) acAbrirMaquina(r[0].id, i);
+    else mostrarAvisoTopo('Esse cliente não tem máquina cadastrada.', '#e0c27a');
+  } else if (r.length === 0) mostrarAvisoTopo('Nenhum cliente encontrado.', '#e0c27a');
+  else mostrarAvisoTopo(`${r.length} clientes na busca — refine ou clique em Abrir.`, '#e0c27a');
+}
+function acRenderCards() {
+  const termo = (document.getElementById('ac-busca').value || '').trim();
+  const cont = document.getElementById('ac-clientes-lista');
+  const filtrados = acListaFiltrada();
   document.getElementById('ac-contador').textContent = `${filtrados.length} cliente(s)`;
+  acRenderRecentes();
+  acAtualizarModoBtn();
+  const btn = 'height:34px;padding:0 14px;font-size:12.5px';
   cont.innerHTML = filtrados.map(c => {
     const emAtendimento = acEmAtendimento(c);
-    const nMaq = (c.maquinas||[]).length;
+    const ms = c.maquinas || [];
+    const nMaq = ms.length;
+    const pi = acMaqPrincipal(c);
+    const expandido = !!acExpandidos[c.id] || !!termo || filtrados.length <= 2;
     const ultimo = c.atendimento_em && c.atendimento_usuario
       ? (emAtendimento ? ` · com ${acEsc(c.atendimento_usuario)} (${acHaQuanto(c.atendimento_em)})` : ` · último acesso: ${acEsc(c.atendimento_usuario)} ${acHaQuanto(c.atendimento_em)}`)
       : '';
+    const linhas = ms.map((m, i) => `
+        <div class="ac-maq" style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:8px 10px;border-radius:10px;border:1px solid transparent">
+          <span style="min-width:130px;font:600 13.5px Manrope;color:#eaf1ff">${i === pi && nMaq > 1 ? '<span style="color:#f2b84b;margin-right:4px" title="Máquina principal">★</span>' : ''}${acEsc(m.nome || 'Máquina ' + (i + 1))}</span>
+          <span style="min-width:56px;font:500 12px Manrope;color:#7186ab">${acEsc(m.tipo || 'AnyDesk')}</span>
+          <span style="flex:1;min-width:120px;font:600 14.5px Manrope;letter-spacing:.04em;color:#cfe0ff;font-variant-numeric:tabular-nums">${acEsc(acFmtId(m.id))}</span>
+          <button class="chip" style="height:32px;padding:0 12px;font-size:12px" onclick="acCopiarId('${acEsc(c.id)}',${i})">Copiar ID</button>
+          <button class="${i === pi ? 'btn-primary' : 'chip'}" style="height:32px;padding:0 16px;font-size:12.5px" onclick="acAbrirMaquina('${acEsc(c.id)}',${i})">Abrir</button>
+          <a style="font:500 12px Manrope;color:#7186ab;text-decoration:underline;cursor:pointer" onclick="acDetalhes('${acEsc(c.id)}',${i})">detalhes</a>
+        </div>`).join('');
     return `
-    <div class="glass ac-card-cliente" style="padding:16px 20px;display:flex;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap;cursor:pointer" onclick="acAbrirModal('${c.id}')">
-      <div style="min-width:180px">
-        <div style="font:700 15.5px Outfit,sans-serif;color:#f4f8ff">${acEsc(c.nome)}</div>
-        <div style="font:400 12.5px Manrope;color:#7186ab;margin-top:2px">${nMaq} máquina(s)${c.versao ? ' · v'+acEsc(c.versao) : ''}${ultimo}</div>
+    <div class="glass ac-card-cliente" style="padding:14px 18px">
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap">
+        <div style="min-width:180px;cursor:pointer" onclick="acToggleCliente('${acEsc(c.id)}')">
+          <div style="font:700 15.5px Outfit,sans-serif;color:#f4f8ff">${acEsc(c.nome)}</div>
+          <div style="font:400 12.5px Manrope;color:#7186ab;margin-top:2px">${nMaq} máquina(s)${c.versao ? ' · v' + acEsc(c.versao) : ''}${ultimo}</div>
+        </div>
+        <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+          <span class="kpis-delta ${emAtendimento ? 'bad' : 'good'}" style="padding:4px 10px;border-radius:8px">${emAtendimento ? 'Em atendimento' : 'Disponível'}</span>
+          ${emAtendimento ? `<button class="chip" style="${btn}" onclick="acFinalizarAtendimento('${acEsc(c.id)}')">Finalizar</button>` : ''}
+          ${!expandido && pi >= 0 ? `<button class="btn-primary" style="${btn}" onclick="acAbrirMaquina('${acEsc(c.id)}',${pi})" title="${acEsc(acFmtId(ms[pi].id))}">${nMaq > 1 ? '★ ' : ''}Abrir ${acEsc(nMaq > 1 ? (ms[pi].nome || '') : (ms[pi].tipo || 'AnyDesk'))}</button>` : ''}
+          ${nMaq > 1 || expandido ? `<button class="chip" style="${btn}" onclick="acToggleCliente('${acEsc(c.id)}')">${expandido ? '▴ Recolher' : `▾ ${nMaq} máquinas`}</button>` : ''}
+        </div>
       </div>
-      <div style="display:flex;align-items:center;gap:10px">
-        <span class="kpis-delta ${emAtendimento ? 'bad' : 'good'}" style="padding:4px 10px;border-radius:8px">${emAtendimento ? 'Em atendimento' : 'Disponível'}</span>
-        ${emAtendimento ? `<button class="chip" style="height:36px;padding:0 14px;font-size:12.5px" onclick="event.stopPropagation();acFinalizarAtendimento('${c.id}')">Finalizar</button>` : ''}
-        <button class="btn-primary" style="height:36px;padding:0 16px;font-size:12.5px" onclick="event.stopPropagation();acAbrirModal('${c.id}')">Conectar</button>
-      </div>
+      ${expandido ? `<div style="margin-top:8px;display:flex;flex-direction:column;gap:2px">${linhas || '<div style="color:#7186ab;font:400 13px Manrope;padding:6px 10px">Nenhuma máquina cadastrada.</div>'}</div>` : ''}
     </div>`;
   }).join('') || '<div style="font:400 13px Manrope;color:#7186ab">Nenhum cliente encontrado.</div>';
+}
+function acCopiarId(cid, i) {
+  const c = acClientes.find(x => String(x.id) === String(cid)); const m = c && (c.maquinas || [])[i]; if (!m) return;
+  acCopiar(String(m.id || '').replace(/\s+/g, ''));
+  mostrarAvisoTopo(`ID ${acFmtId(m.id)} copiado`, '#7fe0c0');
+}
+function acDetalhes(cid, i) {
+  acAbrirModal(cid);
+  const c = acModalCliente; if (!c) return;
+  acModalMaquina = (c.maquinas || [])[i] || null;
+  acRenderModal();
 }
 
 function acAbrirModal(clienteId) {
@@ -4161,39 +4251,74 @@ function acCopiar(txt) {
   navigator.clipboard?.writeText(txt).catch(()=>{});
 }
 
+// URL de conexao. AnyDesk: o esquema correto e "anydesk:<id>" (SEM //; com "//"
+// o Windows nao reconhecia e so a senha era copiada -- bug de 27/10/2026).
+function acModoLocal() { try { return localStorage.getItem('srg_ac_local') === '1'; } catch (e) { return false; } }
+function acAlternarModoLocal() {
+  try { localStorage.setItem('srg_ac_local', acModoLocal() ? '0' : '1'); } catch (e) {}
+  acAtualizarModoBtn();
+  mostrarAvisoTopo(acModoLocal() ? 'App local SRG ligado: Abrir já conecta e digita a senha (precisa do instalador srgdesk neste PC).' : 'App local SRG desligado: usa o link padrão do AnyDesk.', '#7fe0c0');
+}
+function acAtualizarModoBtn() {
+  const b = document.getElementById('ac-modo-btn'); if (!b) return;
+  const on = acModoLocal();
+  b.textContent = on ? '⚡ App local SRG: ligado' : '⚡ App local SRG: desligado';
+  b.style.color = on ? '#7fe0c0' : '';
+  b.title = 'Liga a abertura pelo app local da SRG (srgdesk): conecta direto e já digita a senha. Instale uma vez em cada PC com srgdesk\\instalar-srgdesk.ps1. A escolha vale só para este navegador.';
+}
+// URL de conexao. Padrao: esquema do proprio app (AnyDesk: "anydesk:<id>" SEM //).
+// Modo local (srgdesk://): um pequeno script instalado no PC roda o AnyDesk/RustDesk
+// pela linha de comando com ID e senha (o link "anydesk:" abria o app mas nao conectava).
+function acUrlConexao(m, protocolo) {
+  const id = String(m.id || '').replace(/\s+/g, '');
+  if (acModoLocal()) return `srgdesk://${protocolo}/${encodeURIComponent(id)}` + (m.senha ? `?pw=${encodeURIComponent(m.senha)}` : '');
+  return protocolo === 'rustdesk' ? `rustdesk://${id}` : `anydesk:${id}`;
+}
 async function acConectar(protocolo) {
   const c = acModalCliente, m = acModalMaquina;
   if (!c || !m) return;
   const ticket = document.getElementById('ac-modal-ticket')?.value?.trim() || '';
-  const nomeUsuario = (currentUser && currentUser.nome) || (currentUser && currentUser.username) || 'desconhecido';
-
-  if (m.senha) { try { await navigator.clipboard.writeText(m.senha); } catch(e) { /* clipboard pode falhar sem foco/permissao, segue mesmo assim */ } }
-
+  const idx = (c.maquinas || []).indexOf(m);
+  const ok = await acAbrirMaquina(c.id, idx, ticket);
+  if (ok) acFecharModal();
+}
+async function acAbrirMaquina(clienteId, idx, ticket) {
+  const c = acClientes.find(x => String(x.id) === String(clienteId));
+  const m = c && (c.maquinas || [])[idx];
+  if (!c || !m) return false;
+  const protocolo = (m.tipo || '').toLowerCase().includes('rust') ? 'rustdesk' : 'anydesk';
+  if (!String(m.id || '').trim()) { mostrarAvisoTopo('Essa máquina está sem ID cadastrado.', '#e29a9a'); return false; }
+  const nomeUsuario = acUsuarioNome();
+  if (acEmAtendimento(c) && c.atendimento_usuario && c.atendimento_usuario !== nomeUsuario) {
+    if (!confirm(`${c.nome} está em atendimento com ${c.atendimento_usuario} (${acHaQuanto(c.atendimento_em)}).\n\nAbrir mesmo assim?`)) return false;
+  }
+  ticket = ticket || '';
+  if (m.senha && !acModoLocal()) { try { await navigator.clipboard.writeText(m.senha); } catch (e) { /* clipboard pode falhar sem foco/permissao */ } }
+  // abre o app NA HORA (dentro do clique); o registro no banco vem depois
+  window.location.href = acUrlConexao(m, protocolo);
+  acRecentesGravar(c, m);
+  mostrarAvisoTopo(`Abrindo ${protocolo === 'rustdesk' ? 'RustDesk' : 'AnyDesk'} · ${c.nome}${(c.maquinas || []).length > 1 ? ' · ' + (m.nome || '') : ''}${m.senha ? (acModoLocal() ? ' — senha enviada' : ' — senha copiada, é só colar') : ''}`, '#7fe0c0');
   try {
     const quando = new Date().toISOString();
-    const atualizado = await acPatch('clientes', `?id=eq.${c.id}`, { status: 'atendimento', atendimento_maquina: m.id||'', atendimento_usuario: nomeUsuario, atendimento_em: quando });
+    const atualizado = await acPatch('clientes', `?id=eq.${c.id}`, { status: 'atendimento', atendimento_maquina: m.id || '', atendimento_usuario: nomeUsuario, atendimento_em: quando });
     if (!atualizado || !atualizado.length) {
-      console.error('acConectar: PATCH em clientes não encontrou/atualizou nenhuma linha. id enviado =', c.id, 'resposta =', atualizado);
-      alert('Aviso: não foi possível marcar o cliente como "Em atendimento" (nenhuma linha encontrada no banco). O acesso remoto vai abrir normalmente, mas avise o Sérgio pra checar o log do console.');
+      console.error('acAbrirMaquina: PATCH em clientes não atualizou nenhuma linha. id =', c.id, 'resposta =', atualizado);
+      mostrarAvisoTopo('Abriu, mas não consegui marcar "Em atendimento" (veja o console).', '#e0c27a');
     } else {
-      c.status = 'atendimento';
-      c.atendimento_maquina = m.id||'';
-      c.atendimento_usuario = nomeUsuario;
-      c.atendimento_em = quando;
+      c.status = 'atendimento'; c.atendimento_maquina = m.id || ''; c.atendimento_usuario = nomeUsuario; c.atendimento_em = quando;
     }
     await acPost('historico', {
-      cliente: c.nome, maquina: m.id||'', tipo: m.tipo||protocolo, usuario: nomeUsuario,
-      ticket, data: hojeLocalStr(), hora: new Date().toTimeString().slice(0,5)
+      cliente: c.nome, maquina: m.id || '', tipo: m.tipo || protocolo, usuario: nomeUsuario,
+      ticket, data: hojeLocalStr(), hora: new Date().toTimeString().slice(0, 5)
     });
-  } catch(e) {
-    console.error('acConectar: erro ao atualizar status/historico:', e);
-    alert('Aviso: falha ao registrar o atendimento no banco (' + e.message + '). O acesso remoto vai abrir normalmente.');
+  } catch (e) {
+    console.error('acAbrirMaquina: erro ao atualizar status/historico:', e);
+    mostrarAvisoTopo('Abriu, mas falhou ao registrar o atendimento: ' + e.message, '#e29a9a');
   }
-  window.location.href = `${protocolo}://${m.id||''}`;
-  acFecharModal();
   acRenderStats();
   acRenderCards();
   acCarregarClientes();
+  return true;
 }
 
 async function acSalvarAnotacoes() {
@@ -4290,6 +4415,7 @@ function acRenderConfig() {
           <input type="text" value="${acEsc(m.tipo||'')}" placeholder="Tipo (AnyDesk/RustDesk)" oninput="acClientes[${ci}].maquinas[${mi}].tipo=this.value" style="flex:1;min-width:120px;height:34px;padding:0 8px;border-radius:7px;background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.12);color:#eaf1ff;font:400 12px Manrope">
           <input type="text" value="${acEsc(m.id||'')}" placeholder="ID" oninput="acClientes[${ci}].maquinas[${mi}].id=this.value" style="flex:1;min-width:100px;height:34px;padding:0 8px;border-radius:7px;background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.12);color:#eaf1ff;font:400 12px Manrope">
           <input type="text" value="${acEsc(m.senha||'')}" placeholder="Senha" oninput="acClientes[${ci}].maquinas[${mi}].senha=this.value" style="flex:1;min-width:100px;height:34px;padding:0 8px;border-radius:7px;background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.12);color:#eaf1ff;font:400 12px Manrope">
+          <label title="Máquina principal (aberta com Enter na busca e no botão Abrir do card)" style="display:flex;align-items:center;gap:4px;font:500 12px Manrope;color:#f2b84b;cursor:pointer"><input type="checkbox" ${m.principal?'checked':''} onchange="acSetPrincipal(${ci},${mi},this.checked)">★</label>
           <button class="chip" style="padding:4px 8px;color:#e29a9a" onclick="acRemoverMaquina(${ci},${mi})">✕</button>
         </div>`).join('')}
       <button class="chip" style="padding:6px 10px;margin-top:4px" onclick="acAddMaquina(${ci})">+ máquina</button>
