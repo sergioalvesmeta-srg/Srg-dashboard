@@ -2486,7 +2486,13 @@ async function buscar() {
     // carregarMeusChamados), depois procura dentro desse recorte --
     // assim a busca nunca "vaza" chamado de outro cliente/colaborador.
     let visiveis = todos;
-    if (currentUser.atendenteSRG) {
+    // 28/10/2026: admin/gestor pesquisam em TODOS os chamados (antes o filtro por
+    // "Atendente SRG" valia tambem pra eles e chamado de outro solicitante nao
+    // aparecia na busca, so no Painel do Gestor). Mesmo escopo do Worker (v47).
+    const buscaTudo = currentUser.role === 'admin' || !!currentUser.gestor;
+    if (buscaTudo) {
+      // sem restricao
+    } else if (currentUser.atendenteSRG) {
       const aliasesComp = atendenteSRGAliases(currentUser.atendenteSRG).map(nomeComparavel);
       visiveis = visiveis.filter(row => aliasesComp.includes(nomeComparavel(row.solicitante)));
     } else if (currentUser.unidades && currentUser.unidades.length) {
