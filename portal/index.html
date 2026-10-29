@@ -4259,7 +4259,7 @@ function acCopiar(txt) {
 
 // URL de conexao. AnyDesk: o esquema correto e "anydesk:<id>" (SEM //; com "//"
 // o Windows nao reconhecia e so a senha era copiada -- bug de 27/10/2026).
-function acModoLocal() { try { return localStorage.getItem('srg_ac_local') === '1'; } catch (e) { return false; } }
+function acModoLocal() { try { return localStorage.getItem('srg_ac_local') !== '0'; } catch (e) { return true; } }
 function acAlternarModoLocal() {
   try { localStorage.setItem('srg_ac_local', acModoLocal() ? '0' : '1'); } catch (e) {}
   acAtualizarModoBtn();
