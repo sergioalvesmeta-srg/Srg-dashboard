@@ -4362,6 +4362,24 @@ async function acConectar(protocolo) {
   const ok = await acAbrirMaquina(c.id, idx, ticket);
   if (ok) acFecharModal();
 }
+// 03/11/2026: o srgdesk fecha as janelas anteriores do AnyDesk ao abrir uma conexao nova, entao os
+// OUTROS atendimentos em andamento DESTE usuario (so os dele) passam a "Disponivel" automaticamente.
+// So vale com o "App local SRG" ligado e abrindo AnyDesk (o RustDesk nao e fechado pelo srgdesk).
+async function acFinalizarAnterioresMeus(cAtual, protocolo) {
+  if (!acModoLocal() || protocolo !== 'anydesk') return 0;
+  const nome = acUsuarioNome();
+  const semEsp = v => String(v || '').replace(/\s+/g, '');
+  const alvos = acClientes.filter(x => {
+    if (String(x.id) === String(cAtual.id) || !acEmAtendimento(x) || x.atendimento_usuario !== nome) return false;
+    const mq = (x.maquinas || []).find(y => semEsp(y.id) === semEsp(x.atendimento_maquina));
+    return !(mq && String(mq.tipo || '').toLowerCase().includes('rust'));
+  });
+  let n = 0;
+  await Promise.all(alvos.map(async x => {
+    try { await acPatch('clientes', `?id=eq.${x.id}`, { status: 'disponivel', atendimento_maquina: '' }); x.status = 'disponivel'; x.atendimento_maquina = ''; n++; } catch (e) { /* segue: o botao Finalizar continua la */ }
+  }));
+  return n;
+}
 async function acAbrirMaquina(clienteId, idx, ticket) {
   const c = acClientes.find(x => String(x.id) === String(clienteId));
   const m = c && (c.maquinas || [])[idx];
@@ -4395,6 +4413,7 @@ async function acAbrirMaquina(clienteId, idx, ticket) {
     console.error('acAbrirMaquina: erro ao atualizar status/historico:', e);
     mostrarAvisoTopo('Abriu, mas falhou ao registrar o atendimento: ' + e.message, '#e29a9a');
   }
+  try { const fin = await acFinalizarAnterioresMeus(c, protocolo); if (fin) mostrarAvisoTopo(`${fin} atendimento(s) anterior(es) seu(s) finalizado(s) automaticamente`, '#7fe0c0'); } catch (e) { /* nao atrapalha a abertura */ }
   acRenderStats();
   acRenderCards();
   acCarregarClientes();
