@@ -154,6 +154,7 @@ header.navbar nav a{white-space:nowrap;flex:none}
 
 /* ===== Atendimentos no celular (02/11/2026) ===== */
 .atend-voltar{display:none}
+.ac-cab{transition:background .12s}.ac-cab:hover{background:rgba(255,255,255,.035)}
 .atend-ctrl .t-m{display:none}
 @media(max-width:700px){
   /* cabecalho: busca em cima, botoes em icone */
@@ -4098,7 +4099,17 @@ function acSetPrincipal(ci, mi, on) {
   (acClientes[ci].maquinas || []).forEach((m, k) => { m.principal = on && k === mi; });
   acRenderConfig();
 }
-function acToggleCliente(id) { acExpandidos[id] = !acExpandidos[id]; acRenderCards(); }
+// Expandir/recolher (03/11/2026): a faixa inteira do cliente e clicavel (menos botoes/links).
+// acExpCache guarda o estado EFETIVO do ultimo desenho (inclui a abertura automatica por
+// busca ou por ter so 1-2 clientes), pra o clique sempre inverter o que a pessoa esta vendo.
+const acExpCache = {};
+function acToggleCliente(id) { acExpandidos[id] = !acExpCache[id]; acRenderCards(); }
+function acCliqueCab(ev, id) {
+  if (ev && ev.target && ev.target.closest && ev.target.closest('button,a,input,select,label')) return;
+  const sel = window.getSelection && window.getSelection();
+  if (sel && String(sel).length) return; // quem esta selecionando texto (copiar o nome) nao expande
+  acToggleCliente(id);
+}
 function acUsuarioNome() { return (currentUser && (currentUser.nome || currentUser.username)) || 'desconhecido'; }
 function acRecentesChave() { return 'srg_ac_recentes:' + ((currentUser && currentUser.username) || ''); }
 function acRecentesLer() { try { return JSON.parse(localStorage.getItem(acRecentesChave()) || '[]') || []; } catch (e) { return []; } }
@@ -4155,7 +4166,8 @@ function acRenderCards() {
     const ms = c.maquinas || [];
     const nMaq = ms.length;
     const pi = acMaqPrincipal(c);
-    const expandido = !!acExpandidos[c.id] || !!termo || filtrados.length <= 2;
+    const expandido = acExpandidos[c.id] !== undefined ? !!acExpandidos[c.id] : (!!termo || filtrados.length <= 2);
+    acExpCache[c.id] = expandido;
     const ultimo = c.atendimento_em && c.atendimento_usuario
       ? (emAtendimento ? ` · com ${acEsc(c.atendimento_usuario)} (${acHaQuanto(c.atendimento_em)})` : ` · último acesso: ${acEsc(c.atendimento_usuario)} ${acHaQuanto(c.atendimento_em)}`)
       : '';
@@ -4165,13 +4177,14 @@ function acRenderCards() {
           <span style="min-width:56px;font:500 12px Manrope;color:#7186ab">${acEsc(m.tipo || 'AnyDesk')}</span>
           <span style="flex:1;min-width:120px;font:600 14.5px Manrope;letter-spacing:.04em;color:#cfe0ff;font-variant-numeric:tabular-nums">${acEsc(acFmtId(m.id))}</span>
           <button class="chip" style="height:32px;padding:0 12px;font-size:12px" onclick="acCopiarId('${acEsc(c.id)}',${i})">Copiar ID</button>
+          ${m.senha ? `<button class="chip" style="height:32px;padding:0 12px;font-size:12px" title="Copia só a senha desta máquina" onclick="acCopiarSenha('${acEsc(c.id)}',${i})">Copiar senha</button>` : ''}
           <button class="${i === pi ? 'btn-primary' : 'chip'}" style="height:32px;padding:0 16px;font-size:12.5px" onclick="acAbrirMaquina('${acEsc(c.id)}',${i})">Abrir</button>
           <a style="font:500 12px Manrope;color:#7186ab;text-decoration:underline;cursor:pointer" onclick="acDetalhes('${acEsc(c.id)}',${i})">detalhes</a>
         </div>`).join('');
     return `
     <div class="glass ac-card-cliente" style="padding:14px 18px">
-      <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap">
-        <div style="min-width:180px;cursor:pointer" onclick="acToggleCliente('${acEsc(c.id)}')">
+      <div class="ac-cab" onclick="acCliqueCab(event,'${acEsc(c.id)}')" style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;cursor:pointer;margin:-14px -18px;padding:14px 18px;border-radius:16px">
+        <div style="min-width:180px">
           <div style="font:700 15.5px Outfit,sans-serif;color:#f4f8ff">${acEsc(c.nome)}</div>
           <div style="font:400 12.5px Manrope;color:#7186ab;margin-top:2px">${nMaq} máquina(s)${c.versao ? ' · v' + acEsc(c.versao) : ''}${ultimo}</div>
         </div>
@@ -4190,6 +4203,11 @@ function acCopiarId(cid, i) {
   const c = acClientes.find(x => String(x.id) === String(cid)); const m = c && (c.maquinas || [])[i]; if (!m) return;
   acCopiar(String(m.id || '').replace(/\s+/g, ''));
   mostrarAvisoTopo(`ID ${acFmtId(m.id)} copiado`, '#7fe0c0');
+}
+function acCopiarSenha(cid, i) {
+  const c = acClientes.find(x => String(x.id) === String(cid)); const m = c && (c.maquinas || [])[i]; if (!m || !m.senha) return;
+  acCopiar(String(m.senha));
+  mostrarAvisoTopo(`Senha copiada · ${c.nome}${(c.maquinas || []).length > 1 ? ' · ' + (m.nome || '') : ''}`, '#7fe0c0');
 }
 function acDetalhes(cid, i) {
   acAbrirModal(cid);
