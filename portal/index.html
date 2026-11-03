@@ -151,6 +151,62 @@ header.navbar nav a{white-space:nowrap;flex:none}
   #modal-users [style*="padding:20px 26px"]{padding:14px 18px!important}
   #modal-users [style*="padding:16px 26px 24px"]{padding:12px 18px 18px!important}
 }
+
+/* ===== Atendimentos no celular (02/11/2026) ===== */
+.atend-voltar{display:none}
+.atend-ctrl .t-m{display:none}
+@media(max-width:700px){
+  /* cabecalho: busca em cima, botoes em icone */
+  #view-atendimentos>div:first-child{margin-bottom:8px!important}
+  #view-atendimentos h1{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+  #view-atendimentos h1>span{font-size:9.5px!important;letter-spacing:.1em!important}
+  .atend-ctrl{width:100%;flex-wrap:nowrap!important;gap:8px!important}
+  .atend-ctrl .field{flex:1 1 auto!important;min-width:0;height:40px!important}
+  .atend-ctrl .t-d{display:none}
+  .atend-ctrl .t-m{display:inline;font-size:17px;line-height:1}
+  .atend-ctrl .btn-primary,.atend-ctrl .chip{height:40px!important;min-width:40px;padding:0 10px!important;flex:none}
+  #atend-notif-config{position:fixed!important;left:10px!important;right:10px!important;top:70px!important;width:auto!important;max-height:80vh;overflow:auto}
+  /* indicadores: uma fileira que rola de lado */
+  #atend-stats{display:flex!important;overflow-x:auto;gap:8px!important;margin-bottom:8px!important;scrollbar-width:none;-webkit-overflow-scrolling:touch}
+  #atend-stats::-webkit-scrollbar{display:none}
+  #atend-stats>div{flex:0 0 auto;min-width:112px}
+  /* cartoes da lista */
+  #atend-lista>.glass{padding:12px 12px!important;border-radius:14px!important}
+  #atend-lista .atend-proto{display:none}
+  #atend-lista>.glass>div:first-child{gap:8px}
+  /* conversa em tela cheia */
+  body.atend-conv{overflow:hidden}
+  /* o riseIn deixa um transform na view e prende o position:fixed dentro dela */
+  body.atend-conv #view-atendimentos{animation:none!important;transform:none!important}
+  /* abas numa fileira so, rolando de lado (antes ocupavam 4 linhas) */
+  #atend-abas{flex-wrap:nowrap!important;overflow-x:auto;scrollbar-width:none;-webkit-overflow-scrolling:touch;margin-bottom:8px!important;padding-bottom:2px}
+  #atend-abas::-webkit-scrollbar{display:none}
+  #atend-abas>*,#atend-abas .chip{flex:none;white-space:nowrap}
+  #atend-abas .atend-grupo{display:contents!important}
+  #atend-abas .atend-grupo>span{white-space:nowrap}
+  body.atend-conv #atend-painel{display:flex!important;position:fixed;left:0;right:0;top:0;bottom:0;z-index:450;height:100dvh;width:100%;border-radius:0!important;border:0!important;padding:0!important;background:#0a1226!important;backdrop-filter:none!important;overflow:hidden}
+  #atend-topo{flex-direction:column!important;flex-wrap:nowrap!important;align-items:stretch!important;gap:8px!important;padding:8px 10px 8px!important;background:rgba(255,255,255,.04);border-bottom:1px solid rgba(255,255,255,.08);flex:none}
+  .atend-tit{display:flex;align-items:center;gap:8px}
+  .atend-tit-txt{flex:1;min-width:0}
+  .atend-voltar{display:inline-flex;align-items:center;justify-content:center;flex:none;width:38px;height:38px;border-radius:12px;border:1px solid rgba(255,255,255,.16);background:rgba(255,255,255,.06);color:#eaf1ff;font:600 26px/1 Outfit,sans-serif;padding:0 0 3px;cursor:pointer}
+  .atend-nome{font-size:16px!important}
+  .atend-sub2{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;font-size:11.5px!important;line-height:1.35}
+  .atend-acoes{flex-wrap:nowrap!important;overflow-x:auto;gap:6px!important;scrollbar-width:none;-webkit-overflow-scrolling:touch;padding-bottom:2px}
+  .atend-acoes::-webkit-scrollbar{display:none}
+  .atend-acoes>*{flex:none;white-space:nowrap}
+  .atend-acoes .chip,.atend-acoes .btn-primary{height:36px!important;padding:0 12px!important;font-size:12.5px!important}
+  #atend-chamado{margin:0!important;border-radius:0!important;border-width:0 0 1px 0!important;padding:6px 12px!important;gap:8px!important;flex:none;font-size:12px}
+  #atend-transf,#atend-meta,#atend-resumo{flex:none;max-height:34vh;overflow:auto}
+  #atend-chat{margin:0!important;border-radius:0!important;border:0!important;padding:6px 8px 10px!important;background:rgba(0,0,0,.22)!important;-webkit-overflow-scrolling:touch;overscroll-behavior:contain}
+  #atend-chat .dg-bolha>div:not(.dg-resp){max-width:88%!important}
+  #atend-acao{margin:0!important;flex:none;padding:8px 10px calc(8px + env(safe-area-inset-bottom))!important;background:#0d1730;border-top:1px solid rgba(255,255,255,.1)}
+  .atend-compor{flex-wrap:wrap!important;gap:6px!important}
+  .atend-compor .atend-ta{order:-1;flex:1 1 100%!important;width:100%;font-size:16px!important;min-height:48px!important;max-height:34vh!important;resize:none!important}
+  .atend-compor .chip{height:40px!important;width:40px!important}
+  .atend-compor .atend-enviar{margin-left:auto;height:40px!important;padding:0 22px!important;font-size:14px!important}
+  .atend-dica{font-size:11px!important;line-height:1.35;margin-top:4px!important}
+  #atend-qr{max-height:42vh!important}
+}
 /* Painel do Gestor */
 @keyframes pulseDot{0%,100%{opacity:1;box-shadow:0 0 0 0 rgba(90,191,160,.5)}50%{opacity:.7;box-shadow:0 0 0 8px rgba(90,191,160,0)}}
 @media(max-width:980px){
@@ -960,13 +1016,13 @@ header.navbar nav a{white-space:nowrap;flex:none}
           <h1 style="font:700 24px Outfit,sans-serif;color:#f4f8ff;margin:0">Atendimentos <span style="font:600 11px Manrope;letter-spacing:.14em;text-transform:uppercase;color:#7fd4c0;vertical-align:middle">Digisac · ao vivo</span></h1>
           <p id="atend-sub" style="font:400 13px Manrope;color:#93a6c4;margin:0">Carregando...</p>
         </div>
-        <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+        <div class="atend-ctrl" style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
           <div class="field" style="height:42px;width:300px;max-width:100%">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#7186ab" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
-            <input type="text" id="atend-busca" placeholder="Buscar contato, posto, protocolo..." oninput="atendState.busca=this.value;if(atendState.aba==='historico')atendHistRender();else atendRender()">
+            <input type="text" id="atend-busca" placeholder="Buscar contato, posto..." oninput="atendState.busca=this.value;if(atendState.aba==='historico')atendHistRender();else atendRender()">
           </div>
-          <button class="btn-primary" onclick="atendNovaConversaAbrir()" title="Mandar mensagem pra um cliente que não está em atendimento" style="height:42px;padding:0 16px;font-size:13px">+ Nova conversa</button>
-          <button class="chip" id="atend-sync-btn" onclick="atendSincronizar(false)" title="Puxa do Digisac os atendimentos abertos (use se algo parecer faltando)" style="height:42px;padding:0 14px">Sincronizar</button>
+          <button class="btn-primary" onclick="atendNovaConversaAbrir()" title="Mandar mensagem pra um cliente que não está em atendimento" style="height:42px;padding:0 16px;font-size:13px"><span class="t-d">+ Nova conversa</span><span class="t-m">＋</span></button>
+          <button class="chip" id="atend-sync-btn" onclick="atendSincronizar(false)" title="Puxa do Digisac os atendimentos abertos (use se algo parecer faltando)" style="height:42px;padding:0 14px"><span class="t-d">Sincronizar</span><span class="t-m">⟳</span></button>
           <div style="position:relative">
             <button class="chip" onclick="atendNotifAlternarConfig()" title="Notificações" style="height:42px;padding:0 14px">🔔</button>
             <div id="atend-notif-config" class="glass" style="display:none;position:absolute;right:0;top:48px;z-index:50;width:360px;padding:14px 16px;background:rgba(14,22,44,.97)"></div>
@@ -6404,6 +6460,35 @@ function atendVisivel() {
   return !!(currentUser && v && v.style.display === 'block');
 }
 function atendTelaEstreita() { return window.matchMedia('(max-width: 1000px)').matches; }
+// Celular (02/11/2026): conversa em tela cheia (voltar, acoes rolaveis, compositor fixo).
+function atendCelular() { return window.matchMedia('(max-width: 700px)').matches; }
+function atendVVAjustar() {
+  const p = document.getElementById('atend-painel');
+  if (!p) return;
+  const vv = window.visualViewport;
+  if (!document.body.classList.contains('atend-conv') || !vv) { p.style.top = ''; p.style.height = ''; p.style.bottom = ''; return; }
+  // teclado aberto: acompanha a area realmente visivel (iOS nao encolhe o layout)
+  p.style.top = vv.offsetTop + 'px'; p.style.height = vv.height + 'px'; p.style.bottom = 'auto';
+}
+function atendConvSync() {
+  const abrir = atendCelular() && !!atendState.sel && atendVisivel();
+  const ja = document.body.classList.contains('atend-conv');
+  document.body.classList.toggle('atend-conv', abrir);
+  if (abrir && !ja) { try { history.pushState({ atendConv: 1 }, '', location.href); } catch (e) {} }
+  if (abrir !== ja) atendVVAjustar();
+}
+function atendFecharConversa() {
+  const tinha = document.body.classList.contains('atend-conv');
+  atendState.sel = null;
+  atendConvSync();
+  atendRender();
+  try { if (tinha && history.state && history.state.atendConv) history.back(); } catch (e) {}
+}
+window.addEventListener('popstate', () => {
+  if (document.body.classList.contains('atend-conv')) { atendState.sel = null; atendConvSync(); atendRender(); }
+});
+window.addEventListener('resize', () => { if (atendVisivel()) atendConvSync(); });
+if (window.visualViewport) { visualViewport.addEventListener('resize', atendVVAjustar); visualViewport.addEventListener('scroll', atendVVAjustar); }
 function atendIniciarLive() {
   if (atendState.timer) clearInterval(atendState.timer);
   atendState.timer = setInterval(() => {
@@ -6457,7 +6542,7 @@ async function atendCarregar(primeira) {
 async function atendSincronizar(silencioso) {
   const btn = document.getElementById('atend-sync-btn');
   atendState.sincronizou = true;
-  if (btn) { btn.disabled = true; btn.textContent = 'Sincronizando...'; }
+  if (btn) { btn.disabled = true; btn.innerHTML = '<span class="t-d">Sincronizando...</span><span class="t-m">…</span>'; }
   try {
     const r = await fetch(`${PROXY}/atend/sincronizar`, { method: 'POST', headers: authD1() });
     const d = await r.json().catch(() => ({}));
@@ -6465,7 +6550,7 @@ async function atendSincronizar(silencioso) {
   } catch (e) {
     if (!silencioso) alert('Erro ao sincronizar com o Digisac: ' + e.message);
   } finally {
-    if (btn) { btn.disabled = false; btn.textContent = 'Sincronizar'; }
+    if (btn) { btn.disabled = false; btn.innerHTML = '<span class="t-d">Sincronizar</span><span class="t-m">⟳</span>'; }
   }
   await atendCarregar(false);
 }
@@ -6600,7 +6685,7 @@ function atendRender() {
           <span style="color:${a.naFila ? '#f2b84b' : '#bcccea'};font-weight:600">${a.naFila ? 'Na fila' : acEsc(a.atendente || '—')}</span>
           · <span style="overflow:hidden;text-overflow:ellipsis">${acEsc(a.departamento || '—')}</span>
           ${a.chamado ? `· <span style="color:#8fd0f5" title="${acEsc(a.chamado.titulo || '')}">${acEsc(a.chamado.id)}</span>` : ''}
-          ${proto ? `· <span>${proto}</span>` : ''}
+          ${proto ? `<span class="atend-proto">· ${proto}</span>` : ''}
           ${a.naFila ? `<button class="btn-primary" onclick="event.stopPropagation();atendPuxar('${acEsc(a.ticketId)}')" style="margin-left:auto;height:24px;padding:0 10px;font-size:11px;flex-shrink:0">Puxar</button>` : ''}
           ${!a.finalizado && !a.meta && a.perguntarMeta && a.meu ? `<span title="Está há 30+ min sem resposta: abra pra dizer se está aguardando a Meta" style="margin-left:auto;font:700 10.5px Manrope;color:#f6d68f;flex-shrink:0">Meta?</span>` : ''}
         </div>
@@ -6612,6 +6697,7 @@ function atendRender() {
   }
   if (!atendState.sel && !atendTelaEstreita()) atendRenderPainelVazio();
   atendMetaPainelAtualizar();
+  atendConvSync();
 }
 function atendRenderPainelVazio(msg) {
   const p = document.getElementById('atend-painel');
@@ -6623,6 +6709,7 @@ function atendAbrir(ticketId) {
   const a = atendAchar(ticketId);
   if (!a) return;
   const proto = String(a.protocolo || '').replace(/\D/g, '');
+  if (atendCelular()) { atendSelecionar(ticketId, false); return; }
   if (atendTelaEstreita()) { if (proto) dgAbrirProtocolo(proto); return; }
   atendSelecionar(ticketId, false);
 }
@@ -6633,6 +6720,7 @@ async function atendSelecionar(ticketId, silencioso) {
   if (mudou && atendState.gravacao && atendState.gravacao.ticketId !== ticketId) { try { atendState.gravacao.rec.stop(); } catch (e) {} }
   atendState.sel = ticketId;
   if (mudou) atendRender();
+  atendConvSync();
   const proto = String(a.protocolo || '').replace(/\D/g, '');
   const p = document.getElementById('atend-painel');
   if (!proto) { atendRenderPainelVazio('Esse atendimento ainda não tem protocolo no Digisac.'); return; }
@@ -6681,11 +6769,14 @@ function atendRenderPainelPartes(d, a) {
     : `<span style="font:600 12px Manrope;color:#f3e2b8">Sem chamado Meta</span>
        <button class="btn-primary" style="height:30px;padding:0 12px;font-size:12px" onclick="dgNovoChamado()">Abrir chamado</button>`;
   const topo = `
-      <div style="min-width:0">
-        <div style="font:700 18px Outfit,sans-serif;color:#f4f8ff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${dgEsc(d.contato.nome || a.contato || 'Contato')}${dgNomeWhatsExtra(d)}</div>
-        <div style="font:500 12px Manrope;color:#93a6c4;margin-top:3px">${d.contato.numero ? dgEsc(d.contato.numero) + ' · ' : ''}Protocolo <span style="font-family:'IBM Plex Mono',monospace;color:#cfe0f5">${dgEsc(d.protocolo)}</span>${miniCopiar(d.protocolo)} · ${dgEsc(d.atendente || 'Na fila')} · ${dgEsc(d.departamento || '—')}</div>
+      <div class="atend-tit" style="min-width:0">
+        <button class="atend-voltar" onclick="atendFecharConversa()" aria-label="Voltar para a lista">‹</button>
+        <div class="atend-tit-txt" style="min-width:0">
+        <div class="atend-nome" style="font:700 18px Outfit,sans-serif;color:#f4f8ff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${dgEsc(d.contato.nome || a.contato || 'Contato')}${dgNomeWhatsExtra(d)}</div>
+        <div class="atend-sub2" style="font:500 12px Manrope;color:#93a6c4;margin-top:3px">${d.contato.numero ? dgEsc(d.contato.numero) + ' · ' : ''}Protocolo <span style="font-family:'IBM Plex Mono',monospace;color:#cfe0f5">${dgEsc(d.protocolo)}</span>${miniCopiar(d.protocolo)} · ${dgEsc(d.atendente || 'Na fila')} · ${dgEsc(d.departamento || '—')}</div>
+        </div>
       </div>
-      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+      <div class="atend-acoes" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
         ${status}
         ${atendBotoesTopo(a)}
         <button class="chip" id="atend-resumo-btn" style="height:30px;padding:0 10px;font-size:12px" onclick="atendResumir('${acEsc(a.ticketId)}')" title="Resumo da conversa por IA">✨ Resumo IA</button>
@@ -6841,7 +6932,7 @@ function atendAcaoHtml(a) {
   const dica = nota
     ? (podeResponder ? '🔒 Nota interna: só a equipe vê no Digisac, NÃO vai pro cliente.' : `🔒 Atendimento com ${acEsc(a.atendente || 'outro atendente')} — aqui você só pode deixar nota interna (o cliente não vê).`)
     : (a.naFila ? 'Atendimento na fila: ao enviar, ele passa a ser seu (sem saudação automática — a sua mensagem é a saudação).'
-      : (!a.meu && a.atendente ? `⚠ Atendimento com ${acEsc(a.atendente)}: se você responder, ele passa pra você (vai pedir confirmação). Pra orientar sem tirar dele, use a 🔒 nota interna.` : 'Vai pelo WhatsApp da SRG (via Digisac). Cole um print com Ctrl+V, anexe 📎 ou grave 🎤.'));
+      : (!a.meu && a.atendente ? `⚠ Atendimento com ${acEsc(a.atendente)}: se você responder, ele passa pra você (vai pedir confirmação). Pra orientar sem tirar dele, use a 🔒 nota interna.` : (atendCelular() ? 'Vai pelo WhatsApp da SRG (via Digisac).' : 'Vai pelo WhatsApp da SRG (via Digisac). Cole um print com Ctrl+V, anexe 📎 ou grave 🎤.')));
   const btnIco = 'height:44px;width:44px;flex-shrink:0;padding:0;font-size:17px;display:inline-flex;align-items:center;justify-content:center';
   const gravando = atendState.gravacao && atendState.gravacao.ticketId === a.ticketId;
   const chipAnexo = anexo ? `<div style="display:flex;align-items:center;gap:10px;margin-bottom:8px;padding:6px 10px;border-radius:10px;background:rgba(90,160,230,.10);border:1px solid rgba(90,160,230,.3)">
@@ -6855,20 +6946,20 @@ function atendAcaoHtml(a) {
       <span style="flex:1;min-width:0;font:500 12px/1.35 Manrope;color:#b9c8e2;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">↩ Respondendo a <b style="color:#7fd4c0">${acEsc(cit.quem)}</b>: ${acEsc(cit.texto)}</span>
       <button class="chip" onclick="atendCitarCancelar('${id}')" title="Não citar" style="height:24px;padding:0 8px;font-size:11.5px">✕</button>
     </div>` : '';
-  return `${chipCitar}${chipAnexo}<div style="display:flex;gap:8px;align-items:flex-end;position:relative">
+  return `${chipCitar}${chipAnexo}<div class="atend-compor" style="display:flex;gap:8px;align-items:flex-end;position:relative">
       <div id="atend-qr" style="display:none;position:absolute;left:0;right:0;bottom:calc(100% + 6px);z-index:40;max-height:300px;overflow-y:auto;padding:6px;border-radius:12px;background:rgba(14,22,44,.98);border:1px solid rgba(120,160,230,.35);box-shadow:0 12px 30px rgba(0,0,0,.45)"></div>
       <button class="chip" onmousedown="event.preventDefault()" onclick="atendQRAbrirBotao('${id}')" title="Mensagens rápidas do Digisac (ou digite / no campo)" style="${btnIco}">⚡</button>
       ${podeResponder ? `<button class="chip" onclick="atendNotaAlternar('${id}')" title="Alternar nota interna (só a equipe vê)" style="${btnIco};${nota ? 'background:rgba(240,180,60,.25);border-color:rgba(240,180,60,.6)' : ''}">🔒</button>` : ''}
       ${!nota ? `<label class="chip" title="Anexar arquivo" style="${btnIco};cursor:pointer">📎<input type="file" style="display:none" onchange="atendAnexoArquivo('${id}', this.files[0]); this.value=''"></label>
       <button class="chip" id="atend-gravar-btn" onclick="atendGravarAlternar('${id}')" title="${gravando ? 'Parar gravação' : 'Gravar áudio'}" style="${btnIco};${gravando ? 'background:rgba(224,80,74,.3);border-color:#e0504a' : ''}">${gravando ? '⏹' : '🎤'}</button>` : ''}
-      <textarea id="atend-resposta" data-ticket="${id}" rows="2" placeholder="${nota ? 'Nota interna (só a equipe vê)...' : (anexo ? 'Legenda (opcional)...' : 'Escreva a resposta... (Enter envia, Shift+Enter quebra linha, / abre as mensagens rápidas)')}"
+      <textarea id="atend-resposta" class="atend-ta" data-ticket="${id}" rows="2" placeholder="${nota ? 'Nota interna (só a equipe vê)...' : (anexo ? 'Legenda (opcional)...' : (atendCelular() ? 'Escreva a resposta...' : 'Escreva a resposta... (Enter envia, Shift+Enter quebra linha, / abre as mensagens rápidas)'))}"
         oninput="atendState.rascunhos['${id}']=this.value;atendQRDigitou(this,'${id}')" onfocus="atendState.focoResposta='${id}'" onblur="atendState.focoResposta=null;setTimeout(atendQRFechar,150)"
         onpaste="atendColar(event,'${id}')"
         onkeydown="if(atendQRTecla(event))return;if(event.key==='Escape'&&atendState.citando&&atendState.citando['${id}']){event.preventDefault();atendCitarCancelar('${id}');return;}if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();atendEnviar('${id}')}"
         style="flex:1;resize:vertical;min-height:44px;max-height:160px;padding:10px 12px;border-radius:12px;background:${fundo};border:1px solid ${corBorda};color:#eaf1ff;font:500 13.5px/1.4 Manrope"></textarea>
-      <button class="btn-primary" id="atend-enviar-btn" onclick="atendEnviar('${id}')" style="height:44px;padding:0 18px;font-size:13px;${nota ? 'background:linear-gradient(135deg,#b8862f,#d9a441)' : ''}">${nota ? 'Salvar nota' : 'Enviar'}</button>
+      <button class="btn-primary atend-enviar" id="atend-enviar-btn" onclick="atendEnviar('${id}')" style="height:44px;padding:0 18px;font-size:13px;${nota ? 'background:linear-gradient(135deg,#b8862f,#d9a441)' : ''}">${nota ? 'Salvar nota' : 'Enviar'}</button>
     </div>
-    <div id="atend-acao-msg" style="font:500 11.5px Manrope;color:${nota ? '#e0c27a' : (a.naFila ? '#e0c27a' : '#5c7095')};margin-top:5px">${gravando ? '<span style="color:#e0504a;font-weight:700">● Gravando... clique ⏹ pra parar</span>' : dica}</div>`;
+    <div id="atend-acao-msg" class="atend-dica" style="font:500 11.5px Manrope;color:${nota ? '#e0c27a' : (a.naFila ? '#e0c27a' : '#5c7095')};margin-top:5px">${gravando ? '<span style="color:#e0504a;font-weight:700">● Gravando... clique ⏹ pra parar</span>' : dica}</div>`;
 }
 function atendRedesenharAcao(ticketId) {
   const a = atendAchar(ticketId);
@@ -7024,7 +7115,8 @@ async function atendEncerrar(ticketId) {
     delete atendState.conversas[ticketId];
     atendState.sel = null;
     atendRender();
-    if (prox && prox !== ticketId) atendSelecionar(prox, false); else atendRenderPainelVazio('Atendimento encerrado ✓');
+    if (atendCelular()) { atendFecharConversa(); mostrarAvisoTopo('Atendimento encerrado ✓', '#7fe0c0'); }
+    else if (prox && prox !== ticketId) atendSelecionar(prox, false); else atendRenderPainelVazio('Atendimento encerrado ✓');
     setTimeout(() => atendCarregar(false), 1500);
     atendFinCarregar(); // aba Finalizados ja mostra esse
   } catch (e) {
@@ -7097,7 +7189,7 @@ async function atendPuxar(ticketId) {
     const x = (atendState.dados || []).find(y => y.ticketId === ticketId);
     if (x) { x.naFila = false; x.meu = true; x.atendente = d.atendente || x.atendente; }
     if (atendState.conversas[ticketId]) atendState.conversas[ticketId].marca = '';
-    if (!atendTelaEstreita()) { atendState.sel = ticketId; atendRender(); atendSelecionar(ticketId, true); } else atendRender();
+    if (!atendTelaEstreita() || atendCelular()) { atendState.sel = ticketId; atendRender(); atendSelecionar(ticketId, true); } else atendRender();
     setTimeout(() => atendCarregar(false), 1500);
   } catch (e) {
     alert('Não deu pra puxar: ' + e.message);
