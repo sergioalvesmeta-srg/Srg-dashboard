@@ -8075,7 +8075,9 @@ function atendEsperaMenu(ticketId, btn) {
   m.innerHTML = `<div style="font:600 10.5px Manrope;color:#7186ab;text-transform:uppercase;letter-spacing:.06em;padding:4px 10px">Aguardando…</div>`
     + (atual ? it('🟣 Meta', `atendMetaAcao('${acEsc(ticketId)}','ativar')`, '#d6c8fb') : '')
     + itens.map(x => it('⏳ ' + (x === 'Cliente' ? 'Retorno do cliente' : acEsc(x)), `atendMetaAcao('${acEsc(ticketId)}','ativar',${JSON.stringify(x).replace(/"/g, '&quot;')})`)).join('')
-    + it('➕ Outro…', `atendEsperaOutro('${acEsc(ticketId)}')`, '#93a6c4');
+    + it('➕ Outro…', `atendEsperaOutro('${acEsc(ticketId)}')`, '#93a6c4')
+    + `<div style="height:1px;background:rgba(77,182,216,.25);margin:4px 6px"></div>`
+    + it('💬 Avisar o cliente: ' + (atendAvisoEsperaLigado() ? 'SIM' : 'não'), `atendAvisoEsperaAlternar()`, atendAvisoEsperaLigado() ? '#8fe0b0' : '#93a6c4');
   document.body.appendChild(m);
   setTimeout(() => document.addEventListener('click', function f(ev) { if (!m.contains(ev.target)) { m.remove(); document.removeEventListener('click', f); } }), 0);
 }
@@ -8129,7 +8131,54 @@ function atendMetaPainelAtualizar() {
   const html = atendMetaPainelHtml(a);
   if (el.dataset.html !== html) { el.innerHTML = html; el.dataset.html = html; }
 }
+// ---- Aviso automatico ao cliente ao marcar "Aguardando ..." (05/11/2026) ----
+// Depois que o status e gravado, manda uma mensagem natural ao cliente (fila de envio normal).
+// So em atendimento SEU (a.meu); falha no envio nao desfaz o status. Liga/desliga no menu ⏳.
+function atendAvisoEsperaLigado() { try { return localStorage.getItem('srg_atend_aviso_espera') !== '0'; } catch (e) { return true; } }
+function atendAvisoEsperaAlternar() {
+  try { localStorage.setItem('srg_atend_aviso_espera', atendAvisoEsperaLigado() ? '0' : '1'); } catch (e) {}
+  atendAvisoAviso(atendAvisoEsperaLigado() ? 'Aviso ao cliente: LIGADO' : 'Aviso ao cliente: desligado');
+}
+function atendAvisoAviso(txt) {
+  let el = document.getElementById('atend-aviso-toast');
+  if (!el) {
+    el = document.createElement('div'); el.id = 'atend-aviso-toast';
+    el.style.cssText = 'position:fixed;left:50%;bottom:76px;transform:translateX(-50%);z-index:600;padding:9px 14px;border-radius:12px;background:rgba(14,22,44,.97);border:1px solid rgba(77,182,216,.5);color:#dff3fa;font:600 12.5px Manrope,sans-serif;max-width:88vw;text-align:center;box-shadow:0 8px 24px rgba(0,0,0,.4)';
+    document.body.appendChild(el);
+  }
+  el.textContent = txt; el.style.display = 'block';
+  clearTimeout(el._t); el._t = setTimeout(() => { el.style.display = 'none'; }, 3500);
+}
+function atendAvisoEsperaTexto(nome) {
+  const n = String(nome || 'Meta').trim();
+  const baixo = n.toLowerCase();
+  const pick = v => v[Math.floor(Math.random() * v.length)];
+  if (baixo === 'cliente') return pick([
+    'Já analisei o seu caso por aqui. Fico no aguardo do seu retorno para darmos continuidade. 😊',
+    'Analisei o seu caso e preciso só de um retorno seu para seguirmos. Fico no aguardo por aqui!',
+    'Já olhei o seu caso. Assim que você me responder, damos sequência. Fico no aguardo. 👍'
+  ]);
+  const fem = { meta: 1, gertec: 1, ready: 1 }, masc = { tef: 1 };
+  const art = fem[baixo] ? 'a ' : (masc[baixo] ? 'o ' : '');
+  const X = `${art}*${n}*`;
+  return pick([
+    `Já analisei o seu caso e ele foi encaminhado para ${X}. Assim que tivermos uma posição, te aviso por aqui. 👍`,
+    `Olá! Já analisei o seu caso e encaminhei para ${X}. Fico acompanhando e te passo a novidade assim que houver.`,
+    `Já olhei o seu caso e ele está com ${X} para análise. Te dou um retorno por aqui assim que tiver posição.`
+  ]);
+}
+function atendAvisoEsperaEnviar(ticketId, nome) {
+  const a = atendAchar(ticketId);
+  if (!a || !a.meu || a.finalizado || !atendAvisoEsperaLigado()) return;
+  atendState.filaEnvio = atendState.filaEnvio || [];
+  atendState.filaEnvio.push({ ticketId, texto: atendAvisoEsperaTexto(nome), nota: false, anexo: null, citar: null, assumir: false, contato: a.contato || 'cliente', auto: true });
+  atendEnvioStatus();
+  atendProcessarFila();
+  atendAvisoAviso('💬 Aviso enviado ao cliente (' + nome + ')');
+}
 async function atendMetaAcao(ticketId, acao, tipo) {
+  const antes = (atendState.dados || []).find(y => y.ticketId === ticketId);
+  const tipoAntes = antes && antes.meta ? atendEsperaTipo(antes) : null; // null = nao estava aguardando
   const corpo = acao === 'ativar-pergunta' ? { ticketId, acao: 'ativar', origem: 'pergunta' } : { ticketId, acao };
   if (tipo) corpo.tipo = tipo;
   try {
@@ -8145,6 +8194,10 @@ async function atendMetaAcao(ticketId, acao, tipo) {
     if (atendState.conversas[ticketId]) atendState.conversas[ticketId].marca = '';
     atendRender();
     if (atendState.sel === ticketId) atendSelecionar(ticketId, true);
+    if ((acao === 'ativar' || acao === 'ativar-pergunta') && x && x.meta) {
+      const novo = atendEsperaTipo(x);
+      if (tipoAntes === null || tipoAntes !== novo) atendAvisoEsperaEnviar(ticketId, atendEsperaNome(x));
+    }
   } catch (e) { alert('Não deu: ' + e.message); }
 }
 
