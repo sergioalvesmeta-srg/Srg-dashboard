@@ -692,6 +692,9 @@ header.navbar nav a{white-space:nowrap;flex:none}
 
       <div id="gestor-crumbs" style="display:none;align-items:center;gap:10px;flex-wrap:wrap;margin:16px 0 4px"></div>
 
+      <!-- Aviso de espaço dos prints de retorno no R2 (só a partir de 70%). -->
+      <div id="gestor-alerta-anexos" style="display:none;margin:14px 0 0"></div>
+
       <div class="glass" style="padding:24px 26px;margin:20px 0 26px">
         <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
           <span style="font:600 12.5px Manrope;color:#b3c4e0;margin-right:2px">Período:</span>
@@ -1891,12 +1894,43 @@ function gestorBuscaLimpar() {
 // Entrega prevista (coluna S da planilha). Devolve {l1, l2, cor, data}:
 // l1 = data dd/mm/aaaa (ou o texto cru), l2 = "em 5 dias"/"hoje"/"atrasada 2 dias".
 // So colore/alerta quando o chamado ainda nao esta resolvido.
+// 18/11/2026: a coluna S da planilha e digitada a mao, entao vem em varios
+// formatos ("23/11", "23/11/2026", "2026-11-23", "previsao 23/11"). Ate aqui
+// so o ISO era entendido; todo o resto virava "sem data" e ia parar no fim da
+// ordenacao por Entrega prevista -- dava a impressao de que o filtro nao
+// ordenava nada. Agora le os dois formatos, com /, - ou . separando, e aceita
+// a data no meio do texto.
+function parseDataEntrega(valor) {
+  const v = String(valor || '').trim();
+  if (!v) return null;
+  let a, mes, d;
+  let m = v.match(/(\d{4})[-/.](\d{1,2})[-/.](\d{1,2})/);            // 2026-11-23
+  if (m) { a = +m[1]; mes = +m[2]; d = +m[3]; }
+  else {
+    m = v.match(/(\d{1,2})[-/.](\d{1,2})(?:[-/.](\d{2,4}))?/);        // 23/11/2026 | 23/11/26 | 23/11
+    if (!m) return null;
+    d = +m[1]; mes = +m[2];
+    if (m[3]) { a = +m[3]; if (a < 100) a += 2000; }
+    else {
+      // Sem ano: assume o ano corrente. Se cair muito no passado, e virada
+      // de ano (um "05/01" digitado em dezembro) -- joga pro ano seguinte.
+      const hoje = new Date();
+      a = hoje.getFullYear();
+      const tent = new Date(a, mes - 1, d, 12, 0, 0);
+      if ((hoje - tent) / 86400000 > 180) a += 1;
+    }
+  }
+  if (!(mes >= 1 && mes <= 12) || !(d >= 1 && d <= 31) || !(a >= 2000 && a <= 2100)) return null;
+  const dt = new Date(a, mes - 1, d, 12, 0, 0);
+  if (dt.getMonth() !== mes - 1 || dt.getDate() !== d) return null;   // 31/02 e afins
+  return dt;
+}
 function entregaInfo(valor, resolvido) {
   const v = String(valor || '').trim();
   if (!v) return { l1: '—', l2: '', cor: '#5c7095', data: null };
-  const m = v.match(/^(\d{4})-(\d{2})-(\d{2})/) || null;
-  if (!m) return { l1: v, l2: '', cor: '#b3c4e0', data: null };
-  const alvo = new Date(+m[1], +m[2]-1, +m[3], 12, 0, 0);
+  const alvo = parseDataEntrega(v);
+  if (!alvo) return { l1: v, l2: '', cor: '#b3c4e0', data: null };
+  const m = [null, String(alvo.getFullYear()), String(alvo.getMonth()+1).padStart(2,'0'), String(alvo.getDate()).padStart(2,'0')];
   const hoje = new Date(); hoje.setHours(12,0,0,0);
   const dif = Math.round((alvo - hoje) / 86400000);
   const l1 = `${m[3]}/${m[2]}/${m[1]}`;
@@ -5092,6 +5126,39 @@ function gestorPopularSelects() {
   if (selAtd) selAtd.innerHTML = buildOptions(atendentes, gestorState.atendente, gestorState.atendenteSearch);
 }
 
+// ---- Espaço dos anexos de retorno no R2 (12/11/2026) ----
+// O free tier é 10 GB/mês. Passar disso não derruba nada -- a Cloudflare
+// cobra ~US$ 0,015 por GB/mês a mais --, mas ninguém gosta de cobrança
+// surpresa, então o painel avisa a partir de 70%. O número vem de um
+// contador no D1 (/d1/anexo/uso); consultado no máx. 1x a cada 10 min.
+let anexosUsoCache = null, anexosUsoQuando = 0;
+function anexosGB(bytes) {
+  const gb = (bytes || 0) / (1024 * 1024 * 1024);
+  return (gb >= 10 ? gb.toFixed(0) : gb.toFixed(2)).replace('.', ',') + ' GB';
+}
+async function gestorRenderAnexosUso(forcar) {
+  const el = document.getElementById('gestor-alerta-anexos');
+  if (!el || !dgEhEquipe()) return;
+  if (forcar || !anexosUsoCache || Date.now() - anexosUsoQuando > 10 * 60 * 1000) {
+    try {
+      const r = await fetch(`${PROXY}/d1/anexo/uso${forcar === 'recontar' ? '?recontar=1' : ''}`, { headers: authD1() });
+      const d = await r.json();
+      if (!d.ok) return;
+      anexosUsoCache = d; anexosUsoQuando = Date.now();
+    } catch (e) { return; }
+  }
+  const u = anexosUsoCache;
+  if (!u || u.pct < 70) { el.style.display = 'none'; el.innerHTML = ''; return; }
+  const forte = u.pct >= 90;
+  const cor = forte ? { bg: 'rgba(226,154,154,.12)', bd: 'rgba(226,154,154,.45)', tx: '#f0c4c4', sub: '#d3a9a9' }
+                    : { bg: 'rgba(242,184,75,.11)',  bd: 'rgba(242,184,75,.4)',   tx: '#f2cf94', sub: '#cdb188' };
+  el.style.display = 'block';
+  el.innerHTML = `<div style="padding:14px 20px;border-radius:14px;background:${cor.bg};border:1.5px solid ${cor.bd}">
+    <div style="font:700 13.5px Manrope;color:${cor.tx}">${forte ? '🔴' : '⚠️'} Prints de retorno: ${anexosGB(u.bytes)} de 10 GB usados (${String(u.pct).replace('.', ',')}%) · ${u.qtd} arquivo${u.qtd === 1 ? '' : 's'}</div>
+    <div style="margin-top:5px;font:500 11.5px Manrope;color:${cor.sub}">Passar de 10 GB não para o sistema: a Cloudflare cobra cerca de US$ 0,015 por GB a mais por mês.${forte ? ' Vale apagar prints antigos ou aceitar o custo.' : ''}
+      <a href="#" onclick="gestorRenderAnexosUso('recontar');return false" style="color:#8fb9c8;margin-left:6px">recontar</a></div>
+  </div>`;
+}
 function gestorRenderCrumbs() {
   const wrap = document.getElementById('gestor-crumbs');
   const crumbs = [];
@@ -5990,9 +6057,14 @@ function gestorRenderTickets(filtrados) {
       return dirOrd * ((da?da.getTime():0) - (db?db.getTime():0));
     }
     if (campoOrd === 'entrega') {
-      // vazios sempre no fim, independente da direcao
+      // Sempre no fim, independente da direcao: primeiro quem tem data de
+      // verdade, depois quem tem texto que nao deu pra ler como data, e por
+      // ultimo quem esta vazio.
       const ea = entregaInfo(a.entregaPrevista, false).data, eb = entregaInfo(b.entregaPrevista, false).data;
-      if (!ea && !eb) return 0; if (!ea) return 1; if (!eb) return -1;
+      const ra = ea ? 0 : (String(a.entregaPrevista || '').trim() ? 1 : 2);
+      const rb = eb ? 0 : (String(b.entregaPrevista || '').trim() ? 1 : 2);
+      if (ra !== rb) return ra - rb;
+      if (!ea || !eb) return 0;
       return dirOrd * (ea - eb);
     }
     if (campoOrd === 'prioridade') {
@@ -6152,6 +6224,7 @@ function gestorRenderTudo() {
 
   gestorPopularSelects();
   gestorRenderCrumbs();
+  gestorRenderAnexosUso();
 
   // Contador ao lado do checkbox "Incluir chamados sem Ticket Meta" --
   // mostra quantos estao escondidos AGORA dentro do PERIODO selecionado
